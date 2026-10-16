@@ -1,0 +1,47 @@
+MIME type: image/heic
+main brand: heic
+compatible brands: mif1, heic
+
+image: 64x120 (id=1), primary
+  tiles: 1x2, tile size: 64x64
+  colorspace: YCbCr, 4:2:0
+  bit depth: 8
+  color profile: no
+  alpha channel: no 
+  depth channel: no
+metadata:
+  none
+transformations:
+  angle (ccw): 90
+  mirror: vertical
+region annotations:
+  none
+properties:
+
+image: 64x64 (id=2)
+  colorspace: YCbCr, 4:2:0
+  bit depth: 8
+  color profile: no
+  alpha channel: no 
+  depth channel: no
+metadata:
+  none
+transformations:
+  none
+region annotations:
+  none
+properties:
+
+image: 64x64 (id=3)
+  colorspace: YCbCr, 4:2:0
+  bit depth: 8
+  color profile: no
+  alpha channel: no 
+  depth channel: no
+metadata:
+  none
+transformations:
+  none
+region annotations:
+  none
+properties:

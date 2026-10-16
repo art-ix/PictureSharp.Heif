@@ -1,0 +1,17 @@
+MIME type: image/heic
+main brand: heix
+compatible brands: mif1, heix, miaf
+
+image: 96x64 (id=1), primary
+  colorspace: YCbCr, 4:2:0
+  bit depth: 10
+  color profile: nclx
+  alpha channel: no 
+  depth channel: no
+metadata:
+  none
+transformations:
+  none
+region annotations:
+  none
+properties:

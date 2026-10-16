@@ -1,0 +1,33 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+TestResults/
+BenchmarkDotNet.Artifacts/
+reference/
+tests/assets/external/
+.claude/settings.local.json
+
+# Local progress log (not committed)
+progres.md
+
+# Local sample photos (private, may contain EXIF GPS)
+samples/*.heic
+samples/*.heif
+samples/*.jpg
+samples/iphone/
+
+# Public API snapshot written on mismatch
+tests/assets/PublicApi.received.txt
+
+# Packed packages
+*.nupkg
+*.snupkg
+artifacts/
+
+# Python script caches
+__pycache__/
+*.pyc
+# Camera filenames may use uppercase or mixed-case extensions, including nested sample directories.
+samples/**/*.[hH][eE][iI][cCfF]

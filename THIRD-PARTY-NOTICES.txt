@@ -1,0 +1,10 @@
+PictureSharp.Heif third-party notices
+=====================================
+
+PictureSharp.Heif is licensed under the MIT License (see LICENSE).
+
+This file lists the third-party sources from which code is ported. No third-party code has been ported yet.
+
+Ported code will come only from MIT-compatible sources: the HM reference software (BSD-3-Clause) and kvazaar
+(BSD-3-Clause), each listed here with its copyright notice and license text when the first port lands. libheif,
+libde265 and x265 are used only as test oracles; no code from them is included.

@@ -1,0 +1,72 @@
+[
+  {
+    "file": "x265-rgb8.heic",
+    "sha256": "068cc5a899ebc20ce0947de9570a6b8e143dbd76cd2fec974ade5dae23e3c2be",
+    "width": 80,
+    "height": 60,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 1,
+    "encoder": "x265"
+  },
+  {
+    "file": "x265-rgba8.heic",
+    "sha256": "89cde9040797a66193a10acf8526cd780927ea5694e738de68e8fa4ad951317d",
+    "width": 80,
+    "height": 60,
+    "bitsPerChannel": 8,
+    "hasAlpha": true,
+    "itemCount": 2,
+    "encoder": "x265"
+  },
+  {
+    "file": "x265-rgb10.heic",
+    "sha256": "ff5eea4824730922115cd1c068f9183b18297d16570830a3b96b3e1349a9c587",
+    "width": 96,
+    "height": 64,
+    "bitsPerChannel": 10,
+    "hasAlpha": false,
+    "itemCount": 1,
+    "encoder": "x265"
+  },
+  {
+    "file": "kvazaar-rgb8.heic",
+    "sha256": "9c157b01be4dd4ce6ebef5e7c08a7a106aa969c09803136c6665fab9efceea04",
+    "width": 80,
+    "height": 60,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 1,
+    "encoder": "kvazaar"
+  },
+  {
+    "file": "x265-tile64.heic",
+    "sha256": "23ef4e5cc2d6bae24b6e05324f6fac24627ed89a9136765926f387dfd14c9fb3",
+    "width": 64,
+    "height": 64,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 1,
+    "encoder": "x265"
+  },
+  {
+    "file": "grid-2x1.heic",
+    "sha256": "86dac9af62f38d5836e3b362b822c7dc7874b9766d319fb1ee867e63405cb0fc",
+    "width": 120,
+    "height": 64,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 3,
+    "encoder": "x265; independent grid container writer"
+  },
+  {
+    "file": "grid-rotated-mirrored.heic",
+    "sha256": "08bb7ba8bf5291fc026eaacfe2a71f8d5d77d178fcb5303a8d01476af7855bd2",
+    "width": 64,
+    "height": 120,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 3,
+    "encoder": "x265; independent grid container writer"
+  }
+]
