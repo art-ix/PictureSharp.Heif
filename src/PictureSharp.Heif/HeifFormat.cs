@@ -28,4 +28,7 @@ public sealed class HeifFormat : IImageFormatModule
 
     /// <inheritdoc/>
     public IImageFormatDecoder Decoder => HeifDecoder.Instance;
+
+    /// <inheritdoc/>
+    public IImageFormatEncoder Encoder => HeifEncoder.Instance;
 }

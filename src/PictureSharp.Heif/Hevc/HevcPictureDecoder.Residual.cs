@@ -24,9 +24,10 @@ internal sealed partial class HevcPictureDecoder
     {
         int size = 1 << log2Size;
         int bitDepth = cIdx == 0 ? sps.BitDepthLuma : sps.BitDepthChroma;
-        PredictIntra(cIdx, xTb, yTb, log2Size, mode, xTbY, yTbY);
         ushort[] plane = frame.Planes[cIdx];
         int stride = frame.Strides[cIdx];
+        intra.Predict(plane, stride, cIdx, xTb, yTb, log2Size, mode, bitDepth, xTbY, yTbY, this);
+        int[] prediction = intra.Prediction;
         int maximum = (1 << bitDepth) - 1;
         if (!cbf)
         {

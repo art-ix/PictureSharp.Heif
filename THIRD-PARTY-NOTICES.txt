@@ -11,7 +11,9 @@ HM (HEVC Test Model) reference software, version 16.20
 https://vcgit.hhi.fraunhofer.de/jvet/HM
 Ported parts: the HEVC intra decoder in src/PictureSharp.Heif/Hevc (CABAC engine and context tables, syntax parsing,
 QP derivation, scaling lists, dequantization, inverse transforms, intra prediction, deblocking filter, sample adaptive
-offset). Each ported method carries a "port: HM ..." source comment.
+offset) and the intra encoder in src/PictureSharp.Heif/Hevc/Encoder (CABAC encoder and rate estimation, syntax writing,
+forward transforms, quantization, intra mode and coding unit decisions). Each ported method carries a
+"port: HM ..." source comment.
 -------------------------------------------------------------------------------
 
 The copyright in this software is being made available under the BSD

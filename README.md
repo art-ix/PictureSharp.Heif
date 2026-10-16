@@ -6,8 +6,8 @@ PictureSharp.Heif adds reading and writing of HEIC images (HEVC in the HEIF cont
 iPhones, to PictureSharp on **.NET 10 and later**. Like PictureSharp itself, it has no native libraries and no
 P/Invoke; it depends only on the `PictureSharp` package.
 
-> **Status: 0.2.0 in development, not yet published.** Identification and decoding are implemented (scalar HEVC intra
-> decoder, bit-exact with HM); encoding is planned.
+> **Status: 0.3.0 in development, not yet published.** Identification, decoding (scalar HEVC intra decoder, bit-exact
+> with HM) and encoding are implemented.
 
 ## Planned scope
 
@@ -49,8 +49,17 @@ image.Save("photo.webp");
 ```
 
 The decoder applies the container's rotation, mirroring and cropping, attaches alpha, and copies ICC, EXIF and XMP;
-see [decoding](docs/decoding.md) for colour conversion and supported features. Encoding (`SaveAsHeic`) is planned for
-0.3.0.
+see [decoding](docs/decoding.md) for colour conversion and supported features.
+
+## Encode
+
+```csharp
+using var image = Image.Load("photo.png");
+image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60 });
+```
+
+Large images are stored as 512×512 tiles, alpha as an auxiliary image and the EXIF orientation as container rotation;
+see [encoding](docs/encoding.md).
 
 After registration, PictureSharp's limits (`MaxPixels`, `MaxInputBytes`, `MaxMetadataBytes`), cancellation, thumbnails
 (`TargetSize`), colour conversion and metadata apply to HEIC as to the built-in formats.
@@ -64,8 +73,8 @@ version it needs; HDR gain maps and metadata-only reads require PictureSharp 0.7
 
 Container identification is tested against a committed synthetic corpus from x265 and kvazaar and compared with
 `heif-info`. Decoded YCbCr matches the HM reference decoder (and libde265) bit for bit on 43 coding-tool streams and the
-HEIC corpus; RGB output matches `heif-dec` (libheif 1.20.2) exactly. The planned encoder will be checked with libheif
-and HM.
+HEIC corpus; RGB output matches `heif-dec` (libheif 1.20.2) exactly. Encoded files decode identically in HM and
+libheif; at equal PSNR they are about the size of x265 `medium` output (Bjøntegaard delta rate −1.2%).
 
 ## Licensing and patents
 

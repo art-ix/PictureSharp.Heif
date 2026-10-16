@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: brak wydania; 0.1.0 i 0.2.0 zamknięte lokalnie (PictureSharp 0.6.9 z NuGet): `Identify` i `Decode` HEIC, YCbCr bit-exact z HM, RGB identyczne z heif-dec (2026-10-16). Następna 0.3.0 (enkoder).** PictureSharp.Heif to wtyczka formatu dla
+**Bieżąca wersja: brak wydania; 0.1.0–0.3.0 zamknięte lokalnie (PictureSharp 0.6.9 z NuGet): `Identify`, `Decode` (YCbCr bit-exact z HM, RGB = heif-dec) i `SaveAsHeic` (BD-rate −1,2% względem x265 medium), 2026-10-16. Następna 0.4.0 (wymaga rdzenia 0.7.0).** PictureSharp.Heif to wtyczka formatu dla
 PictureSharp: moduł `IImageFormatModule` (rejestracja przez `ImageConfigurationBuilder.AddFormat`), który odczytuje i
 zapisuje HEIC (HEVC w kontenerze HEIF) bez kodu natywnego. Zdjęcia HEIC zawierają tylko obrazy intra, więc port
 obejmuje HEVC intra, bez kompensacji ruchu.
@@ -19,7 +19,7 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | --- | --- | --- | --- |
 | 0.1.0 | Szkielet repo, CI, kontener HEIF (ISOBMFF), detekcja, `Identify`, limity, fuzzing parsera | 0.6.9 | Zamknięta lokalnie (DoD spełnione; CI na GitHub odłożone decyzją użytkownika) |
 | 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | Zamknięta lokalnie (DoD spełnione, w tym strumienie konformacyjne JCT-VC) |
-| 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Planowana |
+| 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Zamknięta lokalnie (DoD spełnione) |
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.0 | Planowana |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.0 | Planowana |
 | dalej | Zapis gain map w HEIC, ewentualnie szybka miniatura `thmb` i opcje dekodera | 0.8.0 | Do decyzji |
@@ -90,6 +90,32 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
   przypięte w `scripts/jctvc-conformance-v1.sha256`, pliki w ignorowanym `tests/assets/external/jctvc`). Pierwszy obraz
   każdego strumienia: referencje HM dla 145 (RPS_C i VPSSPSPPS_A bez rozstrzygnięcia przez libde265/hash) w
   `tests/assets/jctvc-reference.json`; wszystkie 145 bit-exact (`Category=Conformance`).
+
+## Kryterium i plan 0.3.0 (ustalone 2026-10-16, przed implementacją)
+
+- **Kryterium (decyzja użytkownika):** przy równym PSNR (RGB względem źródła, dekodowane przez heif-dec) i równym SSIM
+  rozmiar pliku HEIC ≤ 1,5× pliku z x265 `medium` (heif-enc), mierzone jako BD-rate po 4 punktach jakości na obrazach
+  testowych (prywatne zdjęcia `Category=Local` i ewentualnie Kodak po zgodzie). Wynik niezależny od liczby wątków.
+- **Poprawność:** każdy plik czytany przez libheif (heif-dec) i HM; rekonstrukcja enkodera = wynik naszego dekodera = HM.
+- **Kolejność:** zapis bitstreamu i CABAC → enkoder intra (decyzje CU/trybów przez SATD+RD, kwantyzacja, potem RDOQ, SAO,
+  podział TU) → writer HEIF (siatka 512×512, alfa 4:0:0, ICC/nclx, EXIF/XMP) → `SaveAsHeic`/`HeifEncoderOptions`.
+
+## Stan implementacji 0.3.0 (2026-10-16)
+
+- Gotowe: enkoder HEVC intra w `src/PictureSharp.Heif/Hevc/Encoder/` (port z HM: CABAC i estymacja bitów, zapis składni,
+  transformaty w przód, kwantyzacja, decyzje trybów/CU): CTB 32, CU 32/16/8 + NxN, TU = CU, SATD (35 trybów) → RD z
+  estymacją CABAC, 5 trybów chromy, podział CU przez RD, deblocking; SAO/RDOQ/sign hiding/RQT wyłączone (miejsce na
+  poprawy). Predykcja intra współdzielona z dekoderem (`HevcIntraPredictor`).
+- Gotowe: writer HEIF (`HeifWriter`), `HeifImageEncoder` (BT.601 full 4:2:0, chroma 2×2, siatka 512, alfa 4:0:0 RExt
+  Monochrome w tym samym podziale, nieparzyste wymiary przez `clap`, orientacja EXIF → `irot`/`imir` z EXIF TopLeft,
+  ICC → `colr prof`, inaczej nclx 1/13/6 full, Exif/XMP z `cdsc`), publiczne `HeifEncoderOptions` (Quality, AlphaQuality,
+  TileSize, MaxDegreeOfParallelism) i `SaveAsHeic`/`SaveAsHeicAsync`/`ToHeic`; docs/encoding.md.
+- Wyniki: HM dekoduje strumienie identycznie z naszym dekoderem, bez deblockingu dekoder = rekonstrukcja enkodera;
+  heif-dec czyta pliki (pojedyncze, nieparzyste, siatki, alfa, alfa w siatce, orientacje, alfa+obrót) identycznie z
+  nami; wynik niezależny od liczby wątków. Pomiar (Local, 5 wycinków 768×512, Q 30/45/60/75): BD-rate −1,18% (PSNR RGB)
+  i +9,16% (SSIM luma) względem x265 medium (`docs/measurements/encoder-bdrate-x265-medium.tsv`); 12 MP w ~5,6 s na 16 wątkach.
+- Luka API rdzenia (zgłosić do planu PictureSharp): zapis (`Save`/`Encode`/`SaveAsX`) używa tylko
+  `ImageConfiguration.Default`; wtyczka nie może zapisać przez konfigurację przekazaną jak w `DecoderOptions.Configuration`.
 
 ## Zasady
 

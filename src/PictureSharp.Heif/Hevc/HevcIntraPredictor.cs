@@ -1,19 +1,35 @@
 namespace PictureSharp.Formats.Heif.Hevc;
 
-internal sealed partial class HevcPictureDecoder
+// H.265 6.4.1 neighbour availability as seen by intra prediction.
+internal interface IHevcAvailability
 {
+    bool IsAvailable(int xCurr, int yCurr, int xN, int yN);
+}
+
+// H.265 8.4.4.2: intra sample prediction, shared by the decoder and the encoder so both reconstruct identically.
+internal sealed class HevcIntraPredictor(bool strongIntraSmoothing)
+{
+    private readonly int[] referenceTop = new int[129];
+    private readonly int[] referenceLeft = new int[129];
+    private readonly int[] filteredTop = new int[129];
+    private readonly int[] filteredLeft = new int[129];
+
+    // The last prediction, raster order with stride (1 << log2Size).
+    public int[] Prediction { get; } = new int[32 * 32];
+
     // 8.4.4.2.6 intraPredAngle and invAngle (port: HM TComPrediction::xPredIntraAng angTable/invAngTable).
     private static ReadOnlySpan<int> AngleTable => [0, 2, 5, 9, 13, 17, 21, 26, 32];
     private static ReadOnlySpan<int> InverseAngleTable => [0, 4096, 1638, 910, 630, 482, 390, 315, 256];
 
-    // Fills prediction (raster, size x size) for the block at (xTb, yTb) in component coordinates.
+    // Fills Prediction for the block at (xTb, yTb) in component coordinates of plane; (xTbY, yTbY) is its luma location.
     // port: HM TComPrediction::initIntraPatternChType, fillReferenceSamples, predIntraAng, xPredIntraPlanar,
     //       xPredIntraAng, xDCPredFiltering
-    private void PredictIntra(int cIdx, int xTb, int yTb, int log2Size, int mode, int xTbY, int yTbY)
+    public void Predict(ushort[] plane, int stride, int cIdx, int xTb, int yTb, int log2Size, int mode, int bitDepth,
+        int xTbY, int yTbY, IHevcAvailability availability)
     {
+        int[] prediction = Prediction;
         int size = 1 << log2Size;
-        int bitDepth = cIdx == 0 ? sps.BitDepthLuma : sps.BitDepthChroma;
-        BuildReferenceSamples(cIdx, xTb, yTb, size, bitDepth, xTbY, yTbY);
+        BuildReferenceSamples(plane, stride, cIdx, xTb, yTb, size, bitDepth, xTbY, yTbY, availability);
 
         // 8.4.4.2.3 filtering of neighbouring samples (luma only for 4:2:0 and 4:0:0).
         int[] top = referenceTop;
@@ -81,6 +97,7 @@ internal sealed partial class HevcPictureDecoder
 
     private void PredictAngular(int size, int mode, int[] top, int[] left, bool edgeFilters, int maximum)
     {
+        int[] prediction = Prediction;
         bool vertical = mode >= 18;
         int angleMode = vertical ? mode - 26 : -(mode - 10);
         int absoluteMode = Math.Abs(angleMode);
@@ -152,21 +169,20 @@ internal sealed partial class HevcPictureDecoder
 
     // 8.4.4.2.2 reference sample availability and substitution. top[0] = left[0] = p[-1][-1],
     // top[1 + x] = p[x][-1], left[1 + y] = p[-1][y] for x, y in 0..2*size-1.
-    private void BuildReferenceSamples(int cIdx, int xTb, int yTb, int size, int bitDepth, int xTbY, int yTbY)
+    private void BuildReferenceSamples(ushort[] plane, int stride, int cIdx, int xTb, int yTb, int size, int bitDepth,
+        int xTbY, int yTbY, IHevcAvailability availability)
     {
-        ushort[] plane = frame.Planes[cIdx];
-        int stride = frame.Strides[cIdx];
         int scale = cIdx == 0 ? 0 : 1;
         int unit = cIdx == 0 ? 4 : 2; // samples per 4x4 luma availability unit
         int count = 2 * size;
         Span<bool> leftAvailable = stackalloc bool[128];
         Span<bool> topAvailable = stackalloc bool[128];
-        bool cornerAvailable = IsAvailable(xTbY, yTbY, ((xTb - 1) << scale), ((yTb - 1) << scale));
+        bool cornerAvailable = availability.IsAvailable(xTbY, yTbY, ((xTb - 1) << scale), ((yTb - 1) << scale));
         int available = cornerAvailable ? 1 : 0;
         for (int i = 0; i < count; i += unit)
         {
-            bool leftUnit = IsAvailable(xTbY, yTbY, (xTb - 1) << scale, (yTb + i) << scale);
-            bool topUnit = IsAvailable(xTbY, yTbY, (xTb + i) << scale, (yTb - 1) << scale);
+            bool leftUnit = availability.IsAvailable(xTbY, yTbY, (xTb - 1) << scale, (yTb + i) << scale);
+            bool topUnit = availability.IsAvailable(xTbY, yTbY, (xTb + i) << scale, (yTb - 1) << scale);
             leftAvailable.Slice(i, unit).Fill(leftUnit);
             topAvailable.Slice(i, unit).Fill(topUnit);
             available += (leftUnit ? 1 : 0) + (topUnit ? 1 : 0);
@@ -244,7 +260,7 @@ internal sealed partial class HevcPictureDecoder
         int topLeft = top[0];
         int bottomLeft = left[count];
         int topRight = top[count];
-        bool strong = sps.StrongIntraSmoothingEnabled && size == 32
+        bool strong = strongIntraSmoothing && size == 32
             && Math.Abs(bottomLeft + topLeft - (2 * left[size])) < (1 << (bitDepth - 5))
             && Math.Abs(topLeft + topRight - (2 * top[size])) < (1 << (bitDepth - 5));
         filteredTop[0] = strong ? topLeft : (left[1] + (2 * topLeft) + top[1] + 2) >> 2;

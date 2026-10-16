@@ -3,7 +3,7 @@ namespace PictureSharp.Formats.Heif.Hevc;
 // Decodes the slice segments of one intra picture: CABAC parsing, reconstruction, deblocking and SAO.
 // Syntax follows H.265 7.3.8; parsing and reconstruction details are ported from HM 16.20 (TDecSlice, TDecCu,
 // TDecSbac, TDecEntropy), cited per method.
-internal sealed partial class HevcPictureDecoder
+internal sealed partial class HevcPictureDecoder : IHevcAvailability
 {
     private const byte EdgeVertical = 1;
     private const byte EdgeHorizontal = 2;
@@ -41,11 +41,7 @@ internal sealed partial class HevcPictureDecoder
     private readonly int[] coefficients = new int[32 * 32];
     private readonly int[] residual = new int[32 * 32];
     private readonly int[] temporary = new int[32 * 32];
-    private readonly int[] referenceTop = new int[129];
-    private readonly int[] referenceLeft = new int[129];
-    private readonly int[] filteredTop = new int[129];
-    private readonly int[] filteredLeft = new int[129];
-    private readonly int[] prediction = new int[32 * 32];
+    private readonly HevcIntraPredictor intra;
 
     private HevcSliceHeader slice = null!;
     private int sliceIndex = -1;
@@ -66,6 +62,7 @@ internal sealed partial class HevcPictureDecoder
         layout = new HevcPictureLayout(sps, pps);
         frame = new HevcFrame(sps);
         scalingList = sps.ScalingListEnabled ? pps.ScalingList ?? sps.ScalingList : null;
+        intra = new HevcIntraPredictor(sps.StrongIntraSmoothingEnabled);
         blocksWide = sps.Width >> 2;
         blocksHigh = sps.Height >> 2;
         int blocks = blocksWide * blocksHigh;
@@ -235,7 +232,7 @@ internal sealed partial class HevcPictureDecoder
     }
 
     // H.265 6.4.1 z-scan order block availability.
-    private bool IsAvailable(int xCurr, int yCurr, int xN, int yN)
+    public bool IsAvailable(int xCurr, int yCurr, int xN, int yN)
     {
         if (xN < 0 || yN < 0 || xN >= sps.Width || yN >= sps.Height)
         {

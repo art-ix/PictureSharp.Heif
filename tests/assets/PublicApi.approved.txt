@@ -1,11 +1,43 @@
+PictureSharp.Formats.Heif.HeifEncoderOptions
+  Boolean Equals(PictureSharp.EncoderOptions)
+  Boolean Equals(PictureSharp.Formats.Heif.HeifEncoderOptions)
+  Boolean Equals(System.Object)
+  Boolean op_Equality(PictureSharp.Formats.Heif.HeifEncoderOptions, PictureSharp.Formats.Heif.HeifEncoderOptions)
+  Boolean op_Inequality(PictureSharp.Formats.Heif.HeifEncoderOptions, PictureSharp.Formats.Heif.HeifEncoderOptions)
+  Int32 GetHashCode()
+  Int32 MaxDegreeOfParallelism
+  Int32 Quality
+  Int32 TileSize
+  Int32 get_MaxDegreeOfParallelism()
+  Int32 get_Quality()
+  Int32 get_TileSize()
+  PictureSharp.Formats.Heif.HeifEncoderOptions <Clone>$()
+  PictureSharp.ImageFormat Format
+  PictureSharp.ImageFormat get_Format()
+  System.Nullable`1[System.Int32] AlphaQuality
+  System.Nullable`1[System.Int32] get_AlphaQuality()
+  System.String ToString()
+  Void .ctor()
+  Void set_AlphaQuality(System.Nullable`1[System.Int32])
+  Void set_MaxDegreeOfParallelism(Int32)
+  Void set_Quality(Int32)
+  Void set_TileSize(Int32)
 PictureSharp.Formats.Heif.HeifFormat
   Boolean IsSupported(System.ReadOnlySpan`1[System.Byte])
   Int32 HeaderSize
   Int32 get_HeaderSize()
   PictureSharp.Formats.IImageFormatDecoder Decoder
   PictureSharp.Formats.IImageFormatDecoder get_Decoder()
+  PictureSharp.Formats.IImageFormatEncoder Encoder
+  PictureSharp.Formats.IImageFormatEncoder get_Encoder()
   PictureSharp.ImageFormat Format
   PictureSharp.ImageFormat get_Format()
   Void .ctor()
+PictureSharp.Formats.Heif.HeifImageExtensions
+  Byte[] ToHeic(PictureSharp.Image, PictureSharp.Formats.Heif.HeifEncoderOptions)
+  System.Threading.Tasks.Task SaveAsHeicAsync(PictureSharp.Image, System.IO.Stream, PictureSharp.Formats.Heif.HeifEncoderOptions, System.Threading.CancellationToken)
+  System.Threading.Tasks.Task SaveAsHeicAsync(PictureSharp.Image, System.String, PictureSharp.Formats.Heif.HeifEncoderOptions, System.Threading.CancellationToken)
+  Void SaveAsHeic(PictureSharp.Image, System.IO.Stream, PictureSharp.Formats.Heif.HeifEncoderOptions)
+  Void SaveAsHeic(PictureSharp.Image, System.String, PictureSharp.Formats.Heif.HeifEncoderOptions)
 PictureSharp.Formats.Heif.HeifImageFormatExtensions
   PictureSharp.ImageFormat get_Heif()

@@ -136,6 +136,15 @@ internal static class HevcTransform
         }
     }
 
+    // 8.6.1 QpC for ChromaArrayType 1 from qPi (port: HM g_aucChromaScale[CHROMA_420]).
+    public static int ChromaQp420(int qpi) => qpi < 30 ? qpi : qpi >= 43 ? qpi - 6 : ChromaScale[qpi - 30];
+
+    private static ReadOnlySpan<byte> ChromaScale => [29, 30, 31, 32, 33, 33, 34, 34, 35, 35, 36, 36, 37];
+
+    // Row k (basis function), column n of the 32x32 DCT matrix.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int DctCoefficient(int k, int n) => DctMatrix[(k * 32) + n];
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Clip(int value, int maximum) => value < 0 ? 0 : value > maximum ? maximum : value;
 

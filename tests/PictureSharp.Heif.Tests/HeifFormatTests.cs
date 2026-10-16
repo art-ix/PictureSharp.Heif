@@ -67,14 +67,35 @@ public sealed class HeifFormatTests
     }
 
     [Test]
-    public async Task Registration_AddsTheFormat_ForDecodingOnly()
+    public async Task Registration_AddsTheFormat_ForDecodingAndEncoding()
     {
         ImageConfiguration configuration = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
         await Assert.That(configuration.Formats).Contains(ImageFormat.Heif);
         await Assert.That(configuration.FromExtension("photo.HEIC")).IsSameReferenceAs(ImageFormat.Heif);
         await Assert.That(configuration.FromMimeType("image/heic")).IsSameReferenceAs(ImageFormat.Heif);
         await Assert.That(configuration.CanDecode(ImageFormat.Heif)).IsTrue();
-        await Assert.That(configuration.CanEncode(ImageFormat.Heif)).IsFalse();   // the encoder arrives in 0.3.0
+        await Assert.That(configuration.CanEncode(ImageFormat.Heif)).IsTrue();
+    }
+
+    [Test]
+    [NotInParallel]
+    public async Task SaveAsHeic_UsesTheDefaultConfiguration()
+    {
+        // PictureSharp saves through ImageConfiguration.Default, so the plugin must be registered there.
+        ImageConfiguration previous = ImageConfiguration.Default;
+        ImageConfiguration.Default = previous.ToBuilder().AddFormat(new HeifFormat()).Build();
+        try
+        {
+            using var image = new Image(32, 16, new Rgba32(200, 30, 30, 255));
+            byte[] heic = image.ToHeic(new HeifEncoderOptions { Quality = 80 });
+            await Assert.That(new HeifFormat().IsSupported(heic)).IsTrue();
+            using Image decoded = Image.Load(heic.AsSpan());
+            await Assert.That((decoded.Width, decoded.Height)).IsEqualTo((32, 16));
+        }
+        finally
+        {
+            ImageConfiguration.Default = previous;
+        }
     }
 
     [Test]
