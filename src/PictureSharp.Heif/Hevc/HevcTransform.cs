@@ -65,9 +65,11 @@ internal static class HevcTransform
     {
         int size = 1 << log2Size;
         int shift2 = 20 - bitDepth;
-        ReadOnlySpan<sbyte> matrix = dst ? DstMatrix : DctMatrix;
-        int stride = dst ? 4 : 32;
-        int step = dst ? 1 : 32 >> log2Size;
+        if (dst)
+        {
+            InverseDst(coefficients, residual, temporary, shift2);
+            return;
+        }
 
         // Vertical (first stage, shift 7, clipped to the transform dynamic range): find the last nonzero row once.
         int rows = size;
@@ -76,17 +78,33 @@ internal static class HevcTransform
             rows--;
         }
 
+        Span<int> input = stackalloc int[32];
+        Span<int> output = stackalloc int[32];
+        Span<int> scratch = stackalloc int[64];
         for (int x = 0; x < size; x++)
         {
-            for (int y = 0; y < size; y++)
+            bool any = false;
+            for (int k = 0; k < rows; k++)
             {
-                int sum = 0;
-                for (int k = 0; k < rows; k++)
+                input[k] = coefficients[(k * size) + x];
+                any |= input[k] != 0;
+            }
+
+            if (!any)
+            {
+                for (int y = 0; y < size; y++)
                 {
-                    sum += matrix[(k * step * stride) + y] * coefficients[(k * size) + x];
+                    temporary[(y * size) + x] = 0;
                 }
 
-                temporary[(y * size) + x] = Math.Clamp((sum + 64) >> 7, short.MinValue, short.MaxValue);
+                continue;
+            }
+
+            input[rows..size].Clear();
+            InverseDct(input, output, size, rows, scratch);
+            for (int y = 0; y < size; y++)
+            {
+                temporary[(y * size) + x] = Math.Clamp((output[y] + 64) >> 7, short.MinValue, short.MaxValue);
             }
         }
 
@@ -101,15 +119,87 @@ internal static class HevcTransform
                 columns--;
             }
 
+            Span<int> destination = residual.Slice(y * size, size);
+            if (columns == 0)
+            {
+                destination.Fill(Math.Clamp(add2 >> shift2, short.MinValue, short.MaxValue));
+                continue;
+            }
+
+            InverseDct(row, output, size, columns, scratch);
             for (int x = 0; x < size; x++)
             {
+                destination[x] = Math.Clamp((output[x] + add2) >> shift2, short.MinValue, short.MaxValue);
+            }
+        }
+    }
+
+    // One-dimensional inverse DCT of n points by even-odd decomposition, exactly equal to the matrix product
+    // (port: HM partialButterflyInverse4/8/16/32). Coefficients from nonZero on are zero; scratch holds 2n values.
+    private static void InverseDct(ReadOnlySpan<int> coefficients, Span<int> output, int n, int nonZero, Span<int> scratch)
+    {
+        if (n == 2)
+        {
+            output[0] = 64 * (coefficients[0] + coefficients[1]);
+            output[1] = 64 * (coefficients[0] - coefficients[1]);
+            return;
+        }
+
+        int half = n >> 1;
+        int step = 32 / n;
+        Span<int> even = scratch[..half];
+        Span<int> evenOutput = scratch.Slice(half, half);
+        for (int j = 0; j < half; j++)
+        {
+            even[j] = coefficients[2 * j];
+        }
+
+        InverseDct(even, evenOutput, half, (nonZero + 1) >> 1, scratch[n..]);
+        ReadOnlySpan<sbyte> matrix = DctMatrix;
+        int oddCount = nonZero >> 1;
+        for (int i = 0; i < half; i++)
+        {
+            int odd = 0;
+            for (int j = 0; j < oddCount; j++)
+            {
+                odd += matrix[((((2 * j) + 1) * step) * 32) + i] * coefficients[(2 * j) + 1];
+            }
+
+            output[i] = evenOutput[i] + odd;
+            output[n - 1 - i] = evenOutput[i] - odd;
+        }
+    }
+
+    // 4x4 inverse DST-VII as matrix products.
+    private static void InverseDst(ReadOnlySpan<int> coefficients, Span<int> residual, Span<int> temporary, int shift2)
+    {
+        ReadOnlySpan<sbyte> matrix = DstMatrix;
+        for (int x = 0; x < 4; x++)
+        {
+            for (int y = 0; y < 4; y++)
+            {
                 int sum = 0;
-                for (int k = 0; k < columns; k++)
+                for (int k = 0; k < 4; k++)
                 {
-                    sum += matrix[(k * step * stride) + x] * row[k];
+                    sum += matrix[(k * 4) + y] * coefficients[(k * 4) + x];
                 }
 
-                residual[(y * size) + x] = Math.Clamp((sum + add2) >> shift2, short.MinValue, short.MaxValue);
+                temporary[(y * 4) + x] = Math.Clamp((sum + 64) >> 7, short.MinValue, short.MaxValue);
+            }
+        }
+
+        int add2 = 1 << (shift2 - 1);
+        for (int y = 0; y < 4; y++)
+        {
+            for (int x = 0; x < 4; x++)
+            {
+                int sum = 0;
+                for (int k = 0; k < 4; k++)
+                {
+                    sum += matrix[(k * 4) + x] * temporary[(y * 4) + k];
+                }
+
+                residual[(y * 4) + x] = Math.Clamp((sum + add2) >> shift2, short.MinValue, short.MaxValue);
             }
         }
     }

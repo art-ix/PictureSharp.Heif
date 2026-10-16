@@ -14,6 +14,8 @@ internal sealed partial class HevcPictureEncoder
     private readonly RegionState[] savedLeaf = [new(), new(), new(), new()];
     private readonly ushort[][] savedTreeRecon = [new ushort[32 * 32], new ushort[16 * 16], new ushort[8 * 8], new ushort[4 * 4]];
     private readonly int[][] savedTreeLevels = [new int[32 * 32], new int[16 * 16], new int[8 * 8], new int[4 * 4]];
+    private readonly ushort[] bestModeRecon = new ushort[32 * 32];
+    private readonly int[] bestModeLevels = new int[32 * 32];
 
     // Rate-distortion search for the coding quadtree rooted at (x0, y0); leaves the chosen reconstruction, levels and
     // modes in place and ctx in the state after coding them. Returns the cost.
@@ -50,6 +52,13 @@ internal sealed partial class HevcPictureEncoder
         double leafCost = SearchLeaf(x0, y0, log2Size, ctx) + (lambda * SplitFlagBits(start, splitContext, false));
         RegionState saved = savedLeaf[depth];
         saved.Save(this, x0, y0, size, ctx);
+
+        // A leaf predicted without any residual is rarely improved by smaller coding units (early termination).
+        if (!HasLevels(0, x0, y0, log2Size) && (chromaFormat == 0
+            || (!HasLevels(1, x0 >> 1, y0 >> 1, log2Size - 1) && !HasLevels(2, x0 >> 1, y0 >> 1, log2Size - 1))))
+        {
+            return leafCost;
+        }
 
         // Split: start again from the coding unit's initial context state.
         start.CopyTo(ctx, 0);
@@ -124,32 +133,30 @@ internal sealed partial class HevcPictureEncoder
         Span<int> candidates = stackalloc int[3];
         MpmCandidates(x, y, candidates);
 
-        // SATD pre-selection over all 35 modes (HM keeps 8 for 4x4/8x8 and 3 for larger blocks, plus the MPMs).
-        int keep = log2Size <= 3 ? 8 : 3;
-        Span<double> bestCosts = stackalloc double[8];
-        Span<int> bestModes = stackalloc int[8];
-        bestCosts.Fill(double.MaxValue);
-        for (int mode = 0; mode < 35; mode++)
+        // SATD pre-selection, coarse to fine: planar, DC and every fourth angular mode, then the neighbours at distance
+        // two and one of the best angular modes. The best few go to rate-distortion checks with the MPMs.
+        int keep = log2Size <= 3 ? 4 : 2;
+        Span<double> satd = stackalloc double[35];
+        satd.Fill(double.NaN);
+        intra.PrepareReferences(recon[0], strides[0], 0, x, y, log2Size, 8, x, y, this);
+        for (int mode = 0; mode < 35; mode = mode < 2 ? mode + 1 : mode + 4)
         {
-            intra.Predict(recon[0], strides[0], 0, x, y, log2Size, mode, 8, x, y, this);
-            double cost = Satd(source[0], strides[0], x, y, intra.Prediction, size)
-                + (sqrtLambda * (mode == candidates[0] ? 1 : mode == candidates[1] || mode == candidates[2] ? 2 : 6));
-            for (int i = 0; i < keep; i++)
-            {
-                if (cost < bestCosts[i])
-                {
-                    for (int k = keep - 1; k > i; k--)
-                    {
-                        bestCosts[k] = bestCosts[k - 1];
-                        bestModes[k] = bestModes[k - 1];
-                    }
+            SatdCost(mode, x, y, log2Size, candidates, satd);
+        }
 
-                    bestCosts[i] = cost;
-                    bestModes[i] = mode;
-                    break;
-                }
+        Span<int> centres = stackalloc int[2];
+        for (int distance = 2; distance >= 1; distance--)
+        {
+            BestModes(satd, centres, angularOnly: true);
+            foreach (int centre in centres)
+            {
+                SatdCost(centre - distance, x, y, log2Size, candidates, satd);
+                SatdCost(centre + distance, x, y, log2Size, candidates, satd);
             }
         }
+
+        Span<int> bestModes = stackalloc int[keep];
+        BestModes(satd, bestModes, angularOnly: false);
 
         Span<int> trial = stackalloc int[keep + 3];
         int trials = 0;
@@ -168,6 +175,7 @@ internal sealed partial class HevcPictureEncoder
 
         double best = double.MaxValue;
         int bestMode = 0;
+        double bestDistortion = 0;
         for (int i = 0; i < trials; i++)
         {
             int mode = trial[i];
@@ -178,28 +186,85 @@ internal sealed partial class HevcPictureEncoder
             {
                 best = cost;
                 bestMode = mode;
+                bestDistortion = distortion;
+                if (i < trials - 1)
+                {
+                    CopyLuma(x, y, size, bestModeRecon, bestModeLevels, save: true);
+                }
             }
+        }
+
+        // Keep the best candidate's coding instead of coding it again.
+        if (bestMode != trial[trials - 1])
+        {
+            CopyLuma(x, y, size, bestModeRecon, bestModeLevels, save: false);
         }
 
         Fill(intraModes, x, y, size, (byte)bestMode);
         if (trafoDepth == 0)
         {
-            SearchLumaTree(x, y, log2Size, 0, bestMode, ctx, out double distortion);
+            SearchLumaTree(x, y, log2Size, 0, bestMode, ctx, out double distortion, bestDistortion);
             return distortion;
         }
 
         Fill(tuDepth, x, y, size, (byte)trafoDepth);
-        return CodeBlock(0, x, y, log2Size, bestMode, x, y, ctx, HevcContext.CbfLuma);
+        return bestDistortion;
+    }
+
+    private void SatdCost(int mode, int x, int y, int log2Size, ReadOnlySpan<int> candidates, Span<double> satd)
+    {
+        if (mode < 0 || mode > 34 || !double.IsNaN(satd[mode]))
+        {
+            return;
+        }
+
+        intra.PredictPrepared(0, log2Size, mode, 8);
+        satd[mode] = Satd(source[0], strides[0], x, y, intra.Prediction, 1 << log2Size)
+            + (sqrtLambda * (mode == candidates[0] ? 1 : mode == candidates[1] || mode == candidates[2] ? 2 : 6));
+    }
+
+    // The modes with the lowest evaluated SATD costs, best first (ties to the lower mode).
+    private static void BestModes(ReadOnlySpan<double> satd, Span<int> best, bool angularOnly)
+    {
+        Span<double> costs = stackalloc double[best.Length];
+        costs.Fill(double.MaxValue);
+        best.Fill(-1);
+        for (int mode = angularOnly ? 2 : 0; mode < 35; mode++)
+        {
+            double cost = satd[mode];
+            if (double.IsNaN(cost))
+            {
+                continue;
+            }
+
+            for (int i = 0; i < best.Length; i++)
+            {
+                if (cost < costs[i])
+                {
+                    for (int k = best.Length - 1; k > i; k--)
+                    {
+                        costs[k] = costs[k - 1];
+                        best[k] = best[k - 1];
+                    }
+
+                    costs[i] = cost;
+                    best[i] = mode;
+                    break;
+                }
+            }
+        }
     }
 
     // Residual quadtree for the chosen luma mode: the block whole, or split into four with the same mode, by
     // rate-distortion cost (port: HM TEncSearch::xRecurIntraCodingLumaQT, the final full RQT check of the best mode
     // under HHI_RQT_INTRA_SPEEDUP). Returns the cost; leaves the chosen reconstruction, levels and depth map.
-    private double SearchLumaTree(int x, int y, int log2Size, int depth, int mode, byte[] ctx, out double distortion)
+    // codedDistortion: the block is already coded whole with this mode (its distortion).
+    private double SearchLumaTree(int x, int y, int log2Size, int depth, int mode, byte[] ctx, out double distortion,
+        double? codedDistortion = null)
     {
         int size = 1 << log2Size;
         Fill(tuDepth, x, y, size, (byte)depth);
-        distortion = CodeBlock(0, x, y, log2Size, mode, x, y, ctx, HevcContext.CbfLuma + (depth == 0 ? 1 : 0));
+        distortion = codedDistortion ?? CodeBlock(0, x, y, log2Size, mode, x, y, ctx, HevcContext.CbfLuma + (depth == 0 ? 1 : 0));
         bool splittable = log2Size > 2 && depth < settings.MaxTransformDepth;
         int splitContext = HevcContext.SplitTransformFlag + 5 - log2Size;
         double bits = ResidualBits(0, x, y, log2Size, ScanIndex(mode, log2Size, true), ctx, depth)

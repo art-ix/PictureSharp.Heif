@@ -76,6 +76,97 @@ public sealed class HevcEncoderTests
         }
     }
 
+    // The butterfly transforms must equal the plain matrix products (H.265 8.6.4.2) for any input.
+    [Test]
+    [Arguments(2)]
+    [Arguments(3)]
+    [Arguments(4)]
+    [Arguments(5)]
+    public async Task Transforms_EqualMatrixProducts(int log2Size)
+    {
+        int size = 1 << log2Size;
+        int step = 32 >> log2Size;
+        var random = new Random(log2Size);
+        int[] input = new int[size * size];
+        int[] actual = new int[size * size];
+        int[] expected = new int[size * size];
+        int[] temporary = new int[size * size];
+        for (int trial = 0; trial < 50; trial++)
+        {
+            bool sparse = trial % 2 == 1;
+            for (int i = 0; i < input.Length; i++)
+            {
+                input[i] = sparse && random.Next(4) != 0 ? 0 : random.Next(-255, 256);
+            }
+
+            HevcForwardTransform.Forward(input, actual, temporary, log2Size, false, 8);
+            for (int k2 = 0; k2 < size; k2++)
+            {
+                for (int k1 = 0; k1 < size; k1++)
+                {
+                    long sum = 0;
+                    for (int y = 0; y < size; y++)
+                    {
+                        long row = 0;
+                        for (int x = 0; x < size; x++)
+                        {
+                            row += HevcTransform.DctCoefficient(k1 * step, x) * input[(y * size) + x];
+                        }
+
+                        int shift1 = log2Size - 1;
+                        sum += HevcTransform.DctCoefficient(k2 * step, y) * ((row + (1L << (shift1 - 1))) >> shift1);
+                    }
+
+                    expected[(k2 * size) + k1] = (int)((sum + (1L << (log2Size + 5))) >> (log2Size + 6));
+                }
+            }
+
+            await Assert.That(actual).IsEquivalentTo(expected, CollectionOrdering.Matching).Because($"forward {size}x{size} trial {trial}");
+
+            int[] coefficients = [.. input.Select(v => v * 64)];
+            HevcTransform.Inverse(coefficients, actual, temporary, log2Size, false, 8);
+            await Assert.That(actual).IsEquivalentTo(InverseByMatrix(coefficients, log2Size), CollectionOrdering.Matching)
+                .Because($"inverse {size}x{size} trial {trial}");
+        }
+    }
+
+    private static int[] InverseByMatrix(int[] coefficients, int log2Size)
+    {
+        int size = 1 << log2Size;
+        int step = 32 >> log2Size;
+        int[] middle = new int[size * size];
+        int[] output = new int[size * size];
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                long sum = 0;
+                for (int k = 0; k < size; k++)
+                {
+                    sum += HevcTransform.DctCoefficient(k * step, y) * coefficients[(k * size) + x];
+                }
+
+                middle[(y * size) + x] = (int)Math.Clamp((sum + 64) >> 7, short.MinValue, short.MaxValue);
+            }
+        }
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                long sum = 0;
+                for (int k = 0; k < size; k++)
+                {
+                    sum += HevcTransform.DctCoefficient(k * step, x) * middle[(y * size) + k];
+                }
+
+                output[(y * size) + x] = (int)Math.Clamp((sum + 2048) >> 12, short.MinValue, short.MaxValue);
+            }
+        }
+
+        return output;
+    }
+
     [Test]
     [Property("Category", "Oracle")]
     public async Task Encode_HmDecodesTheSameWithLoopFilter()

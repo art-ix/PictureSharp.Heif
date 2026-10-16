@@ -1,7 +1,7 @@
 namespace PictureSharp.Formats.Heif.Hevc;
 
 // Forward DCT/DST and scalar quantization (the decoder side is HevcTransform).
-// port: HM source/Lib/TLibCommon/TComTrQuant.cpp xTrMxN (partialButterfly*/fastForwardDst as matrix products), xQuant
+// port: HM source/Lib/TLibCommon/TComTrQuant.cpp xTrMxN (partialButterfly*, fastForwardDst as a matrix product), xQuant
 internal static class HevcForwardTransform
 {
     private static ReadOnlySpan<int> QuantScales => [26214, 23302, 20560, 18396, 16384, 14564];
@@ -14,37 +14,79 @@ internal static class HevcForwardTransform
         int shift2 = log2Size + 6;
         int add1 = 1 << (shift1 - 1);
         int add2 = 1 << (shift2 - 1);
-        int step = dst ? 1 : 32 >> log2Size;
+        Span<int> output = stackalloc int[32];
+        Span<int> scratch = stackalloc int[96];
+
         // Horizontal: temporary[k * size + y] = transform of row y.
         for (int y = 0; y < size; y++)
         {
-            ReadOnlySpan<int> row = residual.Slice(y * size, size);
+            Transform1D(residual.Slice(y * size, size), output, size, dst, scratch);
             for (int k = 0; k < size; k++)
             {
-                int sum = 0;
-                for (int n = 0; n < size; n++)
-                {
-                    sum += Matrix(dst, k * step, n) * row[n];
-                }
-
-                temporary[(k * size) + y] = (sum + add1) >> shift1;
+                temporary[(k * size) + y] = (output[k] + add1) >> shift1;
             }
         }
 
         // Vertical: coefficients[k2 * size + k1].
         for (int k1 = 0; k1 < size; k1++)
         {
-            ReadOnlySpan<int> column = temporary.Slice(k1 * size, size);
+            Transform1D(temporary.Slice(k1 * size, size), output, size, dst, scratch);
             for (int k2 = 0; k2 < size; k2++)
             {
-                int sum = 0;
-                for (int n = 0; n < size; n++)
-                {
-                    sum += Matrix(dst, k2 * step, n) * column[n];
-                }
-
-                coefficients[(k2 * size) + k1] = (sum + add2) >> shift2;
+                coefficients[(k2 * size) + k1] = (output[k2] + add2) >> shift2;
             }
+        }
+    }
+
+    private static void Transform1D(ReadOnlySpan<int> input, Span<int> output, int size, bool dst, Span<int> scratch)
+    {
+        if (!dst)
+        {
+            ForwardDct(input, output, size, scratch);
+            return;
+        }
+
+        for (int k = 0; k < 4; k++)
+        {
+            output[k] = (DstMatrix[k * 4] * input[0]) + (DstMatrix[(k * 4) + 1] * input[1]) + (DstMatrix[(k * 4) + 2] * input[2])
+                + (DstMatrix[(k * 4) + 3] * input[3]);
+        }
+    }
+
+    // One-dimensional forward DCT of n points by even-odd decomposition, exactly equal to the matrix product
+    // (port: HM partialButterfly4/8/16/32). scratch holds 3n values.
+    private static void ForwardDct(ReadOnlySpan<int> input, Span<int> output, int n, Span<int> scratch)
+    {
+        if (n == 2)
+        {
+            output[0] = 64 * (input[0] + input[1]);
+            output[1] = 64 * (input[0] - input[1]);
+            return;
+        }
+
+        int half = n >> 1;
+        int step = 32 / n;
+        Span<int> even = scratch[..half];
+        Span<int> odd = scratch.Slice(half, half);
+        Span<int> evenOutput = scratch.Slice(n, half);
+        for (int i = 0; i < half; i++)
+        {
+            even[i] = input[i] + input[n - 1 - i];
+            odd[i] = input[i] - input[n - 1 - i];
+        }
+
+        ForwardDct(even, evenOutput, half, scratch[(n + half)..]);
+        for (int j = 0; j < half; j++)
+        {
+            output[2 * j] = evenOutput[j];
+            int row = ((2 * j) + 1) * step;
+            int sum = 0;
+            for (int i = 0; i < half; i++)
+            {
+                sum += HevcTransform.DctCoefficient(row, i) * odd[i];
+            }
+
+            output[(2 * j) + 1] = sum;
         }
     }
 
@@ -77,8 +119,6 @@ internal static class HevcForwardTransform
 
         return nonZero;
     }
-
-    private static int Matrix(bool dst, int k, int n) => dst ? DstMatrix[(k * 4) + n] : HevcTransform.DctCoefficient(k, n);
 
     private static ReadOnlySpan<sbyte> DstMatrix =>
     [

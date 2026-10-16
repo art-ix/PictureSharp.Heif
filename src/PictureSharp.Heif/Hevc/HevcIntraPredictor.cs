@@ -14,6 +14,15 @@ internal sealed class HevcIntraPredictor(bool strongIntraSmoothing)
     private readonly int[] filteredTop = new int[129];
     private readonly int[] filteredLeft = new int[129];
 
+    // Scratch buffers kept per instance: zeroing stackalloc buffers on each of the encoder's millions of predictions
+    // dominated its run time.
+    private readonly bool[] leftAvailable = new bool[128];
+    private readonly bool[] topAvailable = new bool[128];
+    private readonly int[] line = new int[(2 * 128) + 1];
+    private readonly bool[] present = new bool[(2 * 128) + 1];
+    private readonly int[] angularReference = new int[(3 * 64) + 1];
+    private bool filteredValid;
+
     // The last prediction, raster order with stride (1 << log2Size).
     public int[] Prediction { get; } = new int[32 * 32];
 
@@ -27,9 +36,23 @@ internal sealed class HevcIntraPredictor(bool strongIntraSmoothing)
     public void Predict(ushort[] plane, int stride, int cIdx, int xTb, int yTb, int log2Size, int mode, int bitDepth,
         int xTbY, int yTbY, IHevcAvailability availability)
     {
+        PrepareReferences(plane, stride, cIdx, xTb, yTb, log2Size, bitDepth, xTbY, yTbY, availability);
+        PredictPrepared(cIdx, log2Size, mode, bitDepth);
+    }
+
+    // Builds the reference samples of a block once, so an encoder can try several modes on them with PredictPrepared.
+    public void PrepareReferences(ushort[] plane, int stride, int cIdx, int xTb, int yTb, int log2Size, int bitDepth,
+        int xTbY, int yTbY, IHevcAvailability availability)
+    {
+        BuildReferenceSamples(plane, stride, cIdx, xTb, yTb, 1 << log2Size, bitDepth, xTbY, yTbY, availability);
+        filteredValid = false;
+    }
+
+    // Predicts one mode from the references of the last PrepareReferences call (same block, component and size).
+    public void PredictPrepared(int cIdx, int log2Size, int mode, int bitDepth)
+    {
         int[] prediction = Prediction;
         int size = 1 << log2Size;
-        BuildReferenceSamples(plane, stride, cIdx, xTb, yTb, size, bitDepth, xTbY, yTbY, availability);
 
         // 8.4.4.2.3 filtering of neighbouring samples (luma only for 4:2:0 and 4:0:0).
         int[] top = referenceTop;
@@ -40,7 +63,12 @@ internal sealed class HevcIntraPredictor(bool strongIntraSmoothing)
             int threshold = size == 8 ? 7 : size == 16 ? 1 : 0;
             if (minDistVerHor > threshold)
             {
-                FilterReferenceSamples(size, bitDepth);
+                if (!filteredValid)
+                {
+                    FilterReferenceSamples(size, bitDepth);
+                    filteredValid = true;
+                }
+
                 top = filteredTop;
                 left = filteredLeft;
             }
@@ -107,7 +135,7 @@ internal sealed class HevcIntraPredictor(bool strongIntraSmoothing)
         int[] side = vertical ? left : top;
 
         // reference[k + size] holds ref[k] for k in -size..2*size.
-        Span<int> reference = stackalloc int[(3 * 64) + 1];
+        Span<int> reference = angularReference;
         int origin = size;
         for (int k = 0; k <= 2 * size; k++)
         {
@@ -175,8 +203,8 @@ internal sealed class HevcIntraPredictor(bool strongIntraSmoothing)
         int scale = cIdx == 0 ? 0 : 1;
         int unit = cIdx == 0 ? 4 : 2; // samples per 4x4 luma availability unit
         int count = 2 * size;
-        Span<bool> leftAvailable = stackalloc bool[128];
-        Span<bool> topAvailable = stackalloc bool[128];
+        Span<bool> leftAvailable = this.leftAvailable;
+        Span<bool> topAvailable = this.topAvailable;
         bool cornerAvailable = availability.IsAvailable(xTbY, yTbY, ((xTb - 1) << scale), ((yTb - 1) << scale));
         int available = cornerAvailable ? 1 : 0;
         for (int i = 0; i < count; i += unit)
@@ -198,8 +226,8 @@ internal sealed class HevcIntraPredictor(bool strongIntraSmoothing)
 
         // Gather available samples into one line ordered from p[-1][2N-1] up to p[-1][-1] and on to p[2N-1][-1],
         // then substitute missing ones from the nearest preceding available sample (or the first available one).
-        Span<int> line = stackalloc int[(2 * 128) + 1];
-        Span<bool> present = stackalloc bool[(2 * 128) + 1];
+        Span<int> line = this.line;
+        Span<bool> present = this.present;
         int total = (2 * count) + 1;
         for (int i = 0; i < count; i++)
         {

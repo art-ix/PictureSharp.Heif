@@ -21,7 +21,10 @@ internal sealed class HevcRdoq
     private readonly int[] rateIncDown = new int[MaxCoefficients];
     private readonly int[] sigRateDelta = new int[MaxCoefficients];
     private readonly int[] deltaU = new int[MaxCoefficients];
-    private readonly int[] scan = new int[MaxCoefficients];
+    private int[] scan = [];
+
+    // Scan position to raster position for log2 sizes 2..5 and the three scan orders, built once.
+    private static readonly int[][] ScanTables = BuildScanTables();
     private readonly double[] costGroupSig = new double[64];
     private readonly byte[] groupFlags = new byte[64];
 
@@ -39,16 +42,22 @@ internal sealed class HevcRdoq
         int groupsWide = 1 << log2Groups;
         int groupCount = 1 << (log2Groups * 2);
         ReadOnlySpan<byte> subBlockScan = HevcScan.Get(log2Groups, scanIdx);
-        ReadOnlySpan<byte> positionScan = HevcScan.Get(2, scanIdx);
-        for (int s = 0; s < groupCount; s++)
+
+        // No coefficient reaches level 1 even when rounded up: the result is the all-zero block.
+        long threshold = 1L << (qBits - 1);
+        bool anyLevel = false;
+        for (int i = 0; i < count && !anyLevel; i++)
         {
-            int xS = subBlockScan[s] & 15;
-            int yS = subBlockScan[s] >> 4;
-            for (int p = 0; p < 16; p++)
-            {
-                scan[(s * 16) + p] = (((yS << 2) + (positionScan[p] >> 4)) * size) + (xS << 2) + (positionScan[p] & 15);
-            }
+            anyLevel = (long)Math.Abs(coefficients[i]) * quantScale >= threshold;
         }
+
+        if (!anyLevel)
+        {
+            levels[..count].Clear();
+            return 0;
+        }
+
+        scan = ScanTables[((log2Size - 2) * 3) + scanIdx];
 
         int sigBase = luma ? HevcContext.SigCoeffLuma : HevcContext.SigCoeffChroma;
         int firstSigContext = log2Size == 2 ? 0 : log2Size == 3 ? (luma ? (scanIdx == HevcScan.Diagonal ? 9 : 15) : 9) : (luma ? 21 : 12);
@@ -326,6 +335,36 @@ internal sealed class HevcRdoq
         }
 
         return nonZero;
+    }
+
+    private static int[][] BuildScanTables()
+    {
+        var tables = new int[12][];
+        ReadOnlySpan<byte> positions;
+        for (int log2Size = 2; log2Size <= 5; log2Size++)
+        {
+            int size = 1 << log2Size;
+            int groupCount = 1 << ((log2Size - 2) * 2);
+            for (int scanIdx = 0; scanIdx < 3; scanIdx++)
+            {
+                ReadOnlySpan<byte> subBlockScan = HevcScan.Get(log2Size - 2, scanIdx);
+                positions = HevcScan.Get(2, scanIdx);
+                int[] table = new int[size * size];
+                for (int s = 0; s < groupCount; s++)
+                {
+                    int xS = subBlockScan[s] & 15;
+                    int yS = subBlockScan[s] >> 4;
+                    for (int p = 0; p < 16; p++)
+                    {
+                        table[(s * 16) + p] = (((yS << 2) + (positions[p] >> 4)) * size) + (xS << 2) + (positions[p] & 15);
+                    }
+                }
+
+                tables[((log2Size - 2) * 3) + scanIdx] = table;
+            }
+        }
+
+        return tables;
     }
 
     // port: TComTrQuant::signBitHidingHDQ as called after RDOQ: in each coefficient group spanning at least four scan
