@@ -18,7 +18,7 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | Wersja | Zakres | Minimalny PictureSharp | Status |
 | --- | --- | --- | --- |
 | 0.1.0 | Szkielet repo, CI, kontener HEIF (ISOBMFF), detekcja, `Identify`, limity, fuzzing parsera | 0.6.9 | Zamknięta lokalnie (DoD spełnione; CI na GitHub odłożone decyzją użytkownika) |
-| 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | Zamknięta lokalnie (DoD spełnione; opcjonalnie strumienie JCT-VC po zgodzie na pobranie) |
+| 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | Zamknięta lokalnie (DoD spełnione, w tym strumienie konformacyjne JCT-VC) |
 | 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Planowana |
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.0 | Planowana |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.0 | Planowana |
@@ -86,7 +86,10 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
 - Wyniki: 22 pliki korpusu HEIC (BT.601/709/2020, full/limited, 8/10 bit, VUI/brak colr, monochrom, alfa prosta/premult/10-bit,
   siatki, transformacje, clap parzysty/nieparzysty, ICC/EXIF/XMP) — RGBA identyczne z heif-dec; Local: 5 zdjęć iPhone
   (12/24 MP) identyczne z heif-dec, skalarnie ~1 s/12 MP; 148/148 testów, Oracle 1/1.
-- Opcjonalnie (decyzja użytkownika): strumienie konformacyjne JCT-VC intra (pobranie wymaga zgody).
+- Gotowe (zgoda użytkownika 2026-10-16): 147 strumieni konformacyjnych JCT-VC HEVC v1 (ITU-T, 129 MB archiwów, SHA-256
+  przypięte w `scripts/jctvc-conformance-v1.sha256`, pliki w ignorowanym `tests/assets/external/jctvc`). Pierwszy obraz
+  każdego strumienia: referencje HM dla 145 (RPS_C i VPSSPSPPS_A bez rozstrzygnięcia przez libde265/hash) w
+  `tests/assets/jctvc-reference.json`; wszystkie 145 bit-exact (`Category=Conformance`).
 
 ## Zasady
 

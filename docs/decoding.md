@@ -53,5 +53,9 @@ same rounding PictureSharp uses for 16-bit PNG.
   above); `Decode` must match it. The corpus covers BT.601/709/2020, full and limited range, 8 and 10 bits, VUI-only
   and absent colour signalling, monochrome, alpha (straight, premultiplied, 10-bit), grids, all transforms and
   even/odd clean apertures, ICC, EXIF and XMP.
+- `Category=Conformance` tests decode the first picture of each JCT-VC HEVC v1 conformance bitstream (147 streams from the
+  ITU-T server, downloaded with `scripts/fetch-jctvc-conformance.py --approved` into the ignored
+  `tests/assets/external/jctvc`, SHA-256 pinned in `scripts/jctvc-conformance-v1.sha256`). `tests/assets/make-jctvc-reference.py`
+  records HM references for 145 of them (two streams have no hash and fail in libde265); all 145 match bit for bit.
 - `Category=Local` tests decode every HEVC item of private iPhone photos against HM and libde265, and whole photos against
   `heif-dec`; `Category=Slow` tests fuzz both the HEVC decoder and the HEIF decode path.
