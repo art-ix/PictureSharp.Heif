@@ -161,10 +161,11 @@ public sealed class HeifContainerTests
     }
 
     [Test]
-    public async Task Load_ValidContainerRemainsUnsupported()
+    public async Task Load_ContainerWithoutHevcDataFails()
     {
+        // The synthetic container carries an empty payload instead of coded HEVC data.
         await Assert.That(() => Image.Load(File().AsSpan(), new DecoderOptions { Configuration = Configuration }))
-            .Throws<NotSupportedException>();
+            .Throws<ImageFormatException>();
     }
 
     [Test]

@@ -1,0 +1,17 @@
+MIME type: image/heic
+main brand: heic
+compatible brands: mif1, heic
+
+image: 64x46 (id=1), primary
+  colorspace: YCbCr, 4:2:0
+  bit depth: 8
+  color profile: nclx
+  alpha channel: no 
+  depth channel: no
+metadata:
+  none
+transformations:
+  crop: left=4 top=9 right=12 bottom=9
+region annotations:
+  none
+properties:

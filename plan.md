@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: brak wydania; 0.1.0 zamknięta lokalnie (PictureSharp 0.6.9 z NuGet); trwa 0.2.0 — skalarny dekoder HEVC intra bitowo zgodny z HM, w toku integracja z `Decode` (2026-10-16).** PictureSharp.Heif to wtyczka formatu dla
+**Bieżąca wersja: brak wydania; 0.1.0 i 0.2.0 zamknięte lokalnie (PictureSharp 0.6.9 z NuGet): `Identify` i `Decode` HEIC, YCbCr bit-exact z HM, RGB identyczne z heif-dec (2026-10-16). Następna 0.3.0 (enkoder).** PictureSharp.Heif to wtyczka formatu dla
 PictureSharp: moduł `IImageFormatModule` (rejestracja przez `ImageConfigurationBuilder.AddFormat`), który odczytuje i
 zapisuje HEIC (HEVC w kontenerze HEIF) bez kodu natywnego. Zdjęcia HEIC zawierają tylko obrazy intra, więc port
 obejmuje HEVC intra, bez kompensacji ruchu.
@@ -18,7 +18,7 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | Wersja | Zakres | Minimalny PictureSharp | Status |
 | --- | --- | --- | --- |
 | 0.1.0 | Szkielet repo, CI, kontener HEIF (ISOBMFF), detekcja, `Identify`, limity, fuzzing parsera | 0.6.9 | Zamknięta lokalnie (DoD spełnione; CI na GitHub odłożone decyzją użytkownika) |
-| 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | W trakcie (YCbCr bit-exact gotowe; RGB/siatka/alfa/metadane w toku) |
+| 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | Zamknięta lokalnie (DoD spełnione; opcjonalnie strumienie JCT-VC po zgodzie na pobranie) |
 | 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Planowana |
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.0 | Planowana |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.0 | Planowana |
@@ -77,9 +77,16 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
 - Wyniki: 43/43 strumienie i 10/10 elementów HEIF bitowo zgodne z HM; Local: 423 elementy HEVC (kafle, miniatury, obrazy
   pomocnicze) z 5 prywatnych zdjęć zgodne z HM i libde265; fuzzing 6000 mutacji bez niekontrolowanych wyjątków.
 - Testy YCbCr linkują źródła `Hevc/` do projektu testów (bez `InternalsVisibleTo`); warstwa HEVC nie zależy od kontenera.
-- Pozostało do DoD 0.2.0: `Decode` (składanie siatki, YCbCr→RGB zgodne z `heif-dec` wg nclx/VUI, 10→8 bit, monochrom),
-  alfa z `auxC` (+`prem`), `irot`/`imir`/`clap`, ICC/EXIF/XMP do `ImageMetadata`, `TargetSize`/`ApplyExifOrientation`
-  bez podwójnego obrotu, limity `MaxPixels` i anulowanie między kaflami, uszkodzone pliki HEIC na ścieżce `Decode`.
+- Gotowe: `Decode` — siatki składane w YCbCr, `iden`, `clap`/`irot`/`imir` w kolejności `ipma` (irot przeciwnie do ruchu
+  wskazówek; imir tryb 0 góra–dół, 1 lewo–prawo, jak libheif), alfa z `auxC` (+`prem` → alfa prosta jak `ToStraight` rdzenia),
+  ICC/EXIF/XMP (EXIF orientation → TopLeft), nclx/VUI → `Chromaticities`/`Gamma` bez ICC, PQ/HLG z `ToSrgb` →
+  `NotSupportedException`. Konwersja kolorów ustalona empirycznie względem heif-dec 1.20.2 (bez czytania kodu libheif):
+  8-bit pełny zakres stałoprzecinkowo `round(k·256)`, pozostałe `float32` (limited: 1,1689/1,1429), chroma NN, a dla
+  `clap` z nieparzystym początkiem dwuliniowa (9,3,3,1) na całym obrazie; 10→8 bit `round(v·255/1023)`. Opis: docs/decoding.md.
+- Wyniki: 22 pliki korpusu HEIC (BT.601/709/2020, full/limited, 8/10 bit, VUI/brak colr, monochrom, alfa prosta/premult/10-bit,
+  siatki, transformacje, clap parzysty/nieparzysty, ICC/EXIF/XMP) — RGBA identyczne z heif-dec; Local: 5 zdjęć iPhone
+  (12/24 MP) identyczne z heif-dec, skalarnie ~1 s/12 MP; 148/148 testów, Oracle 1/1.
+- Opcjonalnie (decyzja użytkownika): strumienie konformacyjne JCT-VC intra (pobranie wymaga zgody).
 
 ## Zasady
 

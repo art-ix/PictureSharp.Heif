@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <None Include="../assets/PublicApi.approved.txt" Link="PublicApi.approved.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../assets/p3_v4_para0.icc" Link="p3_v4_para0.icc" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../assets/corpus/**" Link="corpus/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../assets/hevc/**" Link="hevc/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -16,11 +16,18 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
     private int entryCount;
     private long metadataBytes;
 
-    public static ImageInfo Identify(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context = null)
+    public static ImageInfo Identify(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context = null) =>
+        Open(data, options, context).Info;
+
+    // Parses and validates the container; the result keeps the item graph for decoding.
+    public static HeifContainer Open(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context = null)
     {
         var container = new HeifContainer(data, options, context);
-        return container.Parse();
+        container.Info = container.Parse();
+        return container;
     }
+
+    public ImageInfo Info { get; private set; } = null!;
 
     private ImageInfo Parse()
     {
@@ -52,6 +59,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
         Require(items.TryGetValue(primaryId, out HeifItem? primary) && primary.Defined, "Missing primary image item.");
         ValidateItems();
         HeifImageDescription description = Describe(primary!, 0);
+        PrimaryItem = primary!;
         bool alpha = false;
         var required = new HashSet<uint>();
         long pixels = 0;
@@ -62,6 +70,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
             {
                 Require(!alpha, "Multiple alpha images for the primary image.");
                 alpha = true;
+                AlphaItem = item;
                 HeifImageDescription alphaDescription = Describe(item, 0);
                 Require(alphaDescription.Width == description.Width && alphaDescription.Height == description.Height,
                     "Alpha image dimensions do not match the primary image.");

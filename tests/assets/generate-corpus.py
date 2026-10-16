@@ -14,7 +14,7 @@ TOOLS = Path(os.environ.get('PICTURESHARP_HEIF_TOOLS', ROOT / 'reference/tools')
 OUTPUT = ROOT / 'tests/assets/corpus'
 
 
-def png(path, width, height, depth=8, alpha=False):
+def png(path, width, height, depth=8, alpha=False, gray=False):
     def chunk(kind, payload):
         return struct.pack('>I', len(payload)) + kind + payload + struct.pack('>I', zlib.crc32(kind + payload))
     data = bytearray()
@@ -22,11 +22,13 @@ def png(path, width, height, depth=8, alpha=False):
         data.append(0)
         for x in range(width):
             channels = [(x * 255 // (width - 1)), (y * 255 // (height - 1)), (x ^ y) % 256]
+            if gray:
+                channels = [(channels[0] + channels[1] + channels[2]) // 3]
             if alpha:
                 channels.append((x + y) * 255 // (width + height - 2))
             for value in channels:
                 data.extend(struct.pack('>H', value * 257) if depth == 16 else bytes([value]))
-    path.write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, depth, 6 if alpha else 2, 0, 0, 0))
+    path.write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, depth, (4 if alpha else 0) if gray else (6 if alpha else 2), 0, 0, 0))
                     + chunk(b'IDAT', zlib.compress(data)) + chunk(b'IEND', b''))
 
 
@@ -73,7 +75,8 @@ def grid(source, rotation=False):
     u16 = lambda value: struct.pack('>H', value)
     u32 = lambda value: struct.pack('>I', value)
     ispe = lambda w, h: full(b'ispe', u32(w) + u32(h))
-    infe = lambda ident, kind: box(b'infe', b'\x02\0\0\0' + u16(ident) + u16(0) + kind + b'\0')
+    # Tiles are hidden items (infe flags bit 0), so readers present only the grid as a top-level image.
+    infe = lambda ident, kind, hidden=False: box(b'infe', (b'\x02\0\0\x01' if hidden else b'\x02\0\0\0') + u16(ident) + u16(0) + kind + b'\0')
     payload = bytes([0, 0, 0, 1]) + u16(120) + u16(64)
     locations = b'\x44\0' + u16(3)
     for ident, offset, length in [(1, 0, 8), (2, 8, len(image)), (3, 8, len(image))]:
@@ -85,7 +88,7 @@ def grid(source, rotation=False):
     associations = u32(3) + u16(1) + bytes([len(primary_associations)]) + primary_associations
     associations += u16(2) + bytes([2, 2, 0x83]) + u16(3) + bytes([2, 2, 0x83])
     container = full(b'hdlr', u32(0) + b'pict' + bytes(12) + b'\0') + full(b'pitm', u16(1))
-    container += full(b'iinf', u16(3) + infe(1, b'grid') + infe(2, b'hvc1') + infe(3, b'hvc1'))
+    container += full(b'iinf', u16(3) + infe(1, b'grid') + infe(2, b'hvc1', True) + infe(3, b'hvc1', True))
     container += box(b'iloc', b'\x01\0\0\0' + locations)
     container += box(b'iprp', box(b'ipco', properties) + full(b'ipma', associations))
     container += full(b'iref', box(b'dimg', u16(1) + u16(2) + u16(2) + u16(3)))
@@ -93,21 +96,156 @@ def grid(source, rotation=False):
     return box(b'ftyp', b'heic' + u32(0) + b'mif1heic') + full(b'meta', container)
 
 
+def read_png(path):
+    """Minimal PNG reader (non-interlaced, 8/16-bit gray, gray+alpha, RGB, RGBA) for heif-dec output."""
+    data = path.read_bytes()
+    position, chunks, header = 8, b'', None
+    while position < len(data):
+        length, kind = struct.unpack_from('>I4s', data, position)
+        body = data[position + 8:position + 8 + length]
+        position += 12 + length
+        if kind == b'IHDR':
+            header = struct.unpack('>IIBBBBB', body)
+        elif kind == b'IDAT':
+            chunks += body
+    width, height, depth, colour_type = header[:4]
+    channels = {0: 1, 2: 3, 4: 2, 6: 4}[colour_type]
+    bpp = channels * depth // 8
+    raw = zlib.decompress(chunks)
+    rows, previous, offset = [], bytearray(width * bpp), 0
+    for _ in range(height):
+        kind, line = raw[offset], bytearray(raw[offset + 1:offset + 1 + width * bpp])
+        offset += 1 + width * bpp
+        for i in range(len(line)):
+            a = line[i - bpp] if i >= bpp else 0
+            b = previous[i]
+            c = previous[i - bpp] if i >= bpp else 0
+            if kind == 1:
+                line[i] = (line[i] + a) & 255
+            elif kind == 2:
+                line[i] = (line[i] + b) & 255
+            elif kind == 3:
+                line[i] = (line[i] + (a + b) // 2) & 255
+            elif kind == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append(bytes(line))
+        previous = line
+    samples = []
+    for line in rows:
+        if depth == 16:
+            samples.append([(line[i] << 8) | line[i + 1] for i in range(0, len(line), 2)])
+        else:
+            samples.append(list(line))
+    return width, height, channels, depth, samples
+
+
+def rgba_reference(path, premultiplied, bits):
+    """SHA-256 of heif-dec's output as 8-bit straight RGBA, using PictureSharp.Heif's documented reductions:
+    10-bit samples (stored as v << 6 in 16-bit PNG) become round(v * 255 / 1023); premultiplied colour is divided by
+    alpha like PictureSharp's ToStraight."""
+    with tempfile.TemporaryDirectory(prefix='heif-rgba-') as temporary:
+        output = Path(temporary) / 'out.png'
+        subprocess.run([str(TOOLS / 'bin/heif-dec'), '--quiet', str(path), str(output)], check=True, stdout=subprocess.PIPE)
+        width, height, channels, depth, samples = read_png(output)
+    maximum = (1 << bits) - 1
+    pixels = bytearray()
+    for row in samples:
+        for x in range(width):
+            values = row[x * channels:(x + 1) * channels]
+            if depth == 16:
+                values = [((v >> (16 - bits)) * 255 + maximum // 2) // maximum for v in values]
+            if channels in (1, 2):
+                values = [values[0]] * 3 + values[1:]
+            if len(values) == 3:
+                values.append(255)
+            r, g, b, a = values
+            if premultiplied and a not in (0, 255):
+                r, g, b = min(255, 255 * r // a), min(255, 255 * g // a), min(255, 255 * b // a)
+            pixels += bytes([r, g, b, a])
+    return width, height, hashlib.sha256(pixels).hexdigest()
+
+
+def exif_orientation(value):
+    # HEIF Exif item: exif_tiff_header_offset (0) followed by a big-endian TIFF with one Orientation tag.
+    ifd = struct.pack('>H', 1) + struct.pack('>HHIHH', 0x0112, 3, 1, value, 0) + struct.pack('>I', 0)
+    return struct.pack('>I', 0) + b'MM\0*' + struct.pack('>I', 8) + ifd
+
+
+XMP = (b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+       b'<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>PictureSharp.Heif corpus</dc:title>'
+       b'</rdf:Description></rdf:RDF></x:xmpmeta>')
+
+
+def wrap(source, colr=b'keep', transforms=(), exif=None, xmp=None):
+    """Independent single-image container around a heif-enc payload: chosen colr box (b'keep', None or box bytes),
+    transform properties in the given association order, and optional Exif/XMP items linked with cdsc."""
+    top = dict(boxes(source))
+    meta = dict(boxes(top[b'meta'][4:]))
+    ipco = list(boxes(dict(boxes(meta[b'iprp']))[b'ipco']))
+    config = next(p for k, p in ipco if k == b'hvcC')
+    spatial = next(p for k, p in ipco if k == b'ispe')
+    original = next((p for k, p in ipco if k == b'colr'), None)
+    image = top[b'mdat']
+    u16 = lambda value: struct.pack('>H', value)
+    u32 = lambda value: struct.pack('>I', value)
+    properties = [box(b'ispe', spatial), box(b'hvcC', config)]
+    if colr == b'keep' and original is not None:
+        properties.append(box(b'colr', original))
+    elif colr not in (b'keep', None):
+        properties.append(box(b'colr', colr))
+    properties += [box(kind, value) for kind, value in transforms]
+    associations = bytes([len(properties)]) + bytes([0x80 | 2] + [i + 1 for i in range(len(properties)) if i != 1])
+    entries = [(1, b'hvc1', image, b'')]
+    if exif is not None:
+        entries.append((2, b'Exif', exif, b''))
+    if xmp is not None:
+        entries.append((3, b'mime', xmp, b'application/rdf+xml\0'))
+    infos = b''.join(box(b'infe', b'\x02\0\0\0' + u16(i) + u16(0) + kind + b'\0' + extra) for i, kind, _, extra in entries)
+    locations = b'\x44\0' + u16(len(entries))
+    offset = 0
+    for i, _, data, _ in entries:
+        locations += u16(i) + u16(1) + u16(0) + u16(1) + u32(offset) + u32(len(data))
+        offset += len(data)
+    references = b''.join(box(b'cdsc', u16(i) + u16(1) + u16(1)) for i, _, _, _ in entries[1:])
+    container = full(b'hdlr', u32(0) + b'pict' + bytes(12) + b'\0') + full(b'pitm', u16(1))
+    container += full(b'iinf', u16(len(entries)) + infos)
+    container += box(b'iloc', b'\x01\0\0\0' + locations)
+    container += box(b'iprp', box(b'ipco', b''.join(properties)) + full(b'ipma', u32(1) + u16(1) + associations))
+    if references:
+        container += full(b'iref', references)
+    container += box(b'idat', b''.join(data for _, _, data, _ in entries))
+    return box(b'ftyp', b'heic' + u32(0) + b'mif1heic') + full(b'meta', container)
+
+
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
     manifest = []
-    cases = [('x265-rgb8', 'x265', 8, False, 80, 60), ('x265-rgba8', 'x265', 8, True, 80, 60),
-             ('x265-rgb10', 'x265', 10, False, 96, 64), ('kvazaar-rgb8', 'kvazaar', 8, False, 80, 60),
-             ('x265-tile64', 'x265', 8, False, 64, 64)]
+    bt709_limited = ['--matrix_coefficients', '1', '--colour_primaries', '1', '--transfer_characteristic', '1',
+                     '--full_range_flag', '0']
+    bt2020_limited = ['--matrix_coefficients', '9', '--colour_primaries', '9', '--transfer_characteristic', '14',
+                      '--full_range_flag', '0']
+    cases = [('x265-rgb8', 'x265', 8, False, 80, 60, []), ('x265-rgba8', 'x265', 8, True, 80, 60, []),
+             ('x265-rgb10', 'x265', 10, False, 96, 64, []), ('kvazaar-rgb8', 'kvazaar', 8, False, 80, 60, []),
+             ('x265-tile64', 'x265', 8, False, 64, 64, []),
+             ('x265-bt709-limited', 'x265', 8, False, 80, 60, bt709_limited),
+             ('x265-bt2020-limited10', 'x265', 10, False, 96, 64, bt2020_limited),
+             ('x265-bt709-full10', 'x265', 10, False, 96, 64, ['--matrix_coefficients', '1', '--colour_primaries', '1']),
+             ('x265-bt709-full8', 'x265', 8, False, 80, 60, ['--matrix_coefficients', '1', '--colour_primaries', '1']),
+             ('x265-rgba8-premultiplied', 'x265', 8, True, 80, 60, ['--premultiplied-alpha']),
+             ('x265-rgba10', 'x265', 10, True, 96, 64, []),
+             ('x265-gray8', 'x265', 8, False, 80, 60, ['gray'])]
     with tempfile.TemporaryDirectory(prefix='heif-corpus-') as temporary:
-        for name, encoder, bits, alpha, width, height in cases:
+        for name, encoder, bits, alpha, width, height, extra in cases:
             source = Path(temporary) / (name + '.png')
-            png(source, width, height, 16 if bits == 10 else 8, alpha)
+            gray = 'gray' in extra
+            extra = [argument for argument in extra if argument != 'gray']
+            png(source, width, height, 16 if bits == 10 else 8, alpha, gray)
             destination = OUTPUT / (name + '.heic')
             command = [str(TOOLS / 'bin/heif-enc'), '-e', encoder, '-q', '70']
             if encoder == 'x265':
                 command += ['-p', 'chroma=420', '-p', 'x265:pools=none', '-p', 'x265:frame-threads=1']
-            command += ['-o', str(destination), str(source)]
+            command += extra + ['-o', str(destination), str(source)]
             subprocess.run(command, check=True, stdout=subprocess.PIPE)
             report = subprocess.run([str(TOOLS / 'bin/heif-info'), str(destination)], check=True, capture_output=True, text=True)
             (OUTPUT / (name + '.info.txt')).write_text(report.stdout.replace(str(destination), destination.name))
@@ -124,6 +262,40 @@ def main():
                              width=64 if rotated else 120, height=120 if rotated else 64, bitsPerChannel=8,
                              hasAlpha=False, itemCount=item_count(destination),
                              encoder='x265; independent grid container writer'))
+    limited = (OUTPUT / 'x265-bt709-limited.heic').read_bytes()
+    icc = (ROOT / 'tests/assets/p3_v4_para0.icc').read_bytes()
+    clap = struct.pack('>8I', 64, 1, 50, 1, 0xfffffffc, 1, 2, 1)  # 64x50 window, 4 px left of centre, 2 px down
+    full8 = (OUTPUT / 'x265-rgb8.heic').read_bytes()
+    # Clean apertures on 80x64: even origin (4, 8), odd top (4, 9), odd left (5, 8), odd both (5, 9).
+    clap_even = struct.pack('>8I', 64, 1, 48, 1, 0xfffffffc, 1, 0, 1)
+    clap_odd_top = struct.pack('>8I', 64, 1, 46, 1, 0xfffffffc, 1, 0, 1)
+    clap_odd_left = struct.pack('>8I', 62, 1, 48, 1, 0xfffffffc, 1, 0, 1)
+    clap_odd_both = struct.pack('>8I', 62, 1, 46, 1, 0xfffffffc, 1, 0, 1)
+    wrapped = [
+        # No colr box: colour comes from the HEVC VUI (BT.709, limited range).
+        ('wrap-vui-only', dict(colr=None), 80, 64),
+        ('wrap-icc-exif-xmp', dict(colr=b'prof' + icc, exif=exif_orientation(6), xmp=XMP), 80, 64),
+        ('wrap-clap-rot90-mirror', dict(transforms=[(b'clap', clap), (b'irot', b'\x01'), (b'imir', b'\x01')]), 50, 64),
+        ('wrap-mirror-rot270', dict(transforms=[(b'imir', b'\x00'), (b'irot', b'\x03')]), 64, 80),
+        ('wrap-clap-even', dict(transforms=[(b'clap', clap_even)]), 64, 48),
+        ('wrap-clap-odd-top', dict(transforms=[(b'clap', clap_odd_top)]), 64, 46),
+        ('wrap-clap-odd-left', dict(transforms=[(b'clap', clap_odd_left)]), 62, 48),
+    ]
+    wrapped_full = [('wrap-clap-odd-full8', dict(transforms=[(b'clap', clap_odd_both)]), 62, 46)]
+    for name, arguments, width, height in wrapped + wrapped_full:
+        destination = OUTPUT / (name + '.heic')
+        destination.write_bytes(wrap(full8 if (name, arguments, width, height) in wrapped_full else limited, **arguments))
+        report = subprocess.run([str(TOOLS / 'bin/heif-info'), str(destination)], check=True, capture_output=True, text=True)
+        (OUTPUT / (name + '.info.txt')).write_text(report.stdout.replace(str(destination), destination.name))
+        manifest.append(dict(file=destination.name, sha256=hashlib.sha256(destination.read_bytes()).hexdigest(),
+                             width=width, height=height, bitsPerChannel=8, hasAlpha=False, itemCount=item_count(destination),
+                             encoder='x265; independent single-image container writer'))
+    for entry in manifest:
+        path = OUTPUT / entry['file']
+        width, height, digest = rgba_reference(path, 'premultiplied' in entry['file'], entry['bitsPerChannel'])
+        if (width, height) != (entry['width'], entry['height']):
+            raise SystemExit(f'heif-dec output size differs for {path.name}')
+        entry['rgbaSha256'] = digest
     (OUTPUT / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 
 

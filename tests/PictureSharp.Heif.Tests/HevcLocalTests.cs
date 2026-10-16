@@ -59,6 +59,46 @@ public sealed class HevcLocalTests
         }
     }
 
+    [Test]
+    [Property("Category", "Local")]
+    public async Task PrivateSamples_DecodeMatchesHeifDec()
+    {
+        string root = FindRoot();
+        string sampleDirectory = Path.Combine(root, "samples");
+        string[] samples = Directory.Exists(sampleDirectory)
+            ? [.. Directory.GetFiles(sampleDirectory, "*", SearchOption.AllDirectories)
+                .Where(path => Path.GetExtension(path).Equals(".heic", StringComparison.OrdinalIgnoreCase)
+                    || Path.GetExtension(path).Equals(".heif", StringComparison.OrdinalIgnoreCase))
+                .Order(StringComparer.Ordinal)]
+            : [];
+        string heifDec = Path.Combine(Environment.GetEnvironmentVariable("PICTURESHARP_HEIF_TOOLS") ?? Path.Combine(root, "reference", "tools"), "bin", "heif-dec");
+        Skip.Unless(samples.Length > 0, "No private HEIC samples in samples/.");
+        Skip.Unless(File.Exists(heifDec), "Build heif-dec with scripts/build-heif-reference.sh.");
+        var configuration = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
+        string work = Directory.CreateTempSubdirectory("picturesharp-heif-rgb-").FullName;
+        try
+        {
+            foreach (string path in samples)
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                var stopwatch = Stopwatch.StartNew();
+                using Image image = Image.Load(bytes.AsSpan(), new DecoderOptions { Configuration = configuration });
+                stopwatch.Stop();
+                string png = Path.Combine(work, "reference.png");
+                await Run(heifDec, ["--quiet", path, png]);
+                using Image reference = Image.Load(png);
+                await Assert.That((image.Width, image.Height)).IsEqualTo((reference.Width, reference.Height)).Because(path);
+                await Assert.That(HeifDecodeTests.RgbaHash(image)).IsEqualTo(HeifDecodeTests.RgbaHash(reference)).Because(path);
+                await Assert.That(image.Metadata.IccProfile).IsNotNull();
+                Console.WriteLine($"Local decode: {Path.GetFileName(path)} {image.Width}x{image.Height} in {stopwatch.ElapsedMilliseconds} ms, identical to heif-dec.");
+            }
+        }
+        finally
+        {
+            Directory.Delete(work, recursive: true);
+        }
+    }
+
     // Splits an 8-bit or little-endian 16-bit YUV file into planes of the frame's cropped geometry.
     private static string[] YuvHashes(byte[] yuv, HevcFrame frame)
     {

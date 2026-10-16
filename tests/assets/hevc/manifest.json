@@ -959,6 +959,157 @@
       ]
     },
     {
+      "file": "wrap-clap-rot90-mirror.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "d3d257334e081fb15d0cc343e79d563c0c6d0fb7beb632cf97a2807001cee1e5",
+        "14e98d21d99d45eb76f4c909e5cf3b5616205f74c08aed4d60c60dd9a02d04eb",
+        "918f8559b4c816ea51e8354538929ed94104b64425f5b4c4560726cd7a6d5042"
+      ]
+    },
+    {
+      "file": "wrap-icc-exif-xmp.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "d3d257334e081fb15d0cc343e79d563c0c6d0fb7beb632cf97a2807001cee1e5",
+        "14e98d21d99d45eb76f4c909e5cf3b5616205f74c08aed4d60c60dd9a02d04eb",
+        "918f8559b4c816ea51e8354538929ed94104b64425f5b4c4560726cd7a6d5042"
+      ]
+    },
+    {
+      "file": "wrap-mirror-rot270.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "d3d257334e081fb15d0cc343e79d563c0c6d0fb7beb632cf97a2807001cee1e5",
+        "14e98d21d99d45eb76f4c909e5cf3b5616205f74c08aed4d60c60dd9a02d04eb",
+        "918f8559b4c816ea51e8354538929ed94104b64425f5b4c4560726cd7a6d5042"
+      ]
+    },
+    {
+      "file": "wrap-vui-only.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "d3d257334e081fb15d0cc343e79d563c0c6d0fb7beb632cf97a2807001cee1e5",
+        "14e98d21d99d45eb76f4c909e5cf3b5616205f74c08aed4d60c60dd9a02d04eb",
+        "918f8559b4c816ea51e8354538929ed94104b64425f5b4c4560726cd7a6d5042"
+      ]
+    },
+    {
+      "file": "x265-bt2020-limited10.heic",
+      "itemId": 1,
+      "width": 96,
+      "height": 64,
+      "bitDepth": 10,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "0f1a5407c4ee32414449b2c52582b54df3bcaae4ddea90d122fad1d64c05a1e4",
+        "2462bea60a6bb3178e986c3ebc49378fbcf89faa781ce9a1a8fd05568a2c1f51",
+        "afeeb4976ea7140e60905455445a586150c9093af1dfe1ca0c457dda43f11bb2"
+      ]
+    },
+    {
+      "file": "x265-bt709-full10.heic",
+      "itemId": 1,
+      "width": 96,
+      "height": 64,
+      "bitDepth": 10,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "cce5f733cef933ca99ac88a26d7e4f0d1bba3318e7462e215f42d331e49ae808",
+        "0b28c5cd7b33a259c7c09a0614798d25b042e7c5ff1a117754e4ebce5609fefc",
+        "d2b7732e122f4a44caab7250b268492052e88a62a6ca4f5958259736fab63c6b"
+      ]
+    },
+    {
+      "file": "x265-bt709-full8.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "94b95caf9932a358c742bb5eb900bfdd93454664ae2c4e020a11efff12fd95e8",
+        "cb6732b1b84351efc0a63949b3a18e9da450a1f4f35936c7541d5bc4cc97de56",
+        "c096305b7565b605b69ee9f4c2da51a81b74a2d222f05eca10a234635a613bf0"
+      ]
+    },
+    {
+      "file": "x265-bt709-limited.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "d3d257334e081fb15d0cc343e79d563c0c6d0fb7beb632cf97a2807001cee1e5",
+        "14e98d21d99d45eb76f4c909e5cf3b5616205f74c08aed4d60c60dd9a02d04eb",
+        "918f8559b4c816ea51e8354538929ed94104b64425f5b4c4560726cd7a6d5042"
+      ]
+    },
+    {
+      "file": "x265-gray8.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 0,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "5e45ea819ccb4dc2fcb6748d8cbd138ac457dc7750f292ba0cae2ceff2c7ea46"
+      ]
+    },
+    {
       "file": "x265-rgb10.heic",
       "itemId": 1,
       "width": 96,
@@ -990,6 +1141,70 @@
         "c70e77355f21706862d3ac566130857cbd84d513fd731834bd944c37923ff24e",
         "33970624f93b2cbaef73073b4a618354adcfb39385c8917d9235f81768d3bcde",
         "73eed3ebceb7b37072c1f2b43a8000c2d08ea1b6e42b9d7294407378669335ba"
+      ]
+    },
+    {
+      "file": "x265-rgba10.heic",
+      "itemId": 1,
+      "width": 96,
+      "height": 64,
+      "bitDepth": 10,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "4962d88324ab049e32a2908debd71d70182d14fab0f953745145d7cd1dfbb725",
+        "84271bd10f252114a7a8835d829c2f2e0ae495e1372e2f000d6f8347f06390f1",
+        "5ed611b4dad86d0e21010d854b1e35acadd5a68e1f11c1963702901d042a6689"
+      ]
+    },
+    {
+      "file": "x265-rgba10.heic",
+      "itemId": 2,
+      "width": 96,
+      "height": 64,
+      "bitDepth": 10,
+      "chromaFormat": 0,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "ba18c538bbaa64fdee56bdfaa5e883340a80105b39ea6ce3d859a86852b697c6"
+      ]
+    },
+    {
+      "file": "x265-rgba8-premultiplied.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "c70e77355f21706862d3ac566130857cbd84d513fd731834bd944c37923ff24e",
+        "33970624f93b2cbaef73073b4a618354adcfb39385c8917d9235f81768d3bcde",
+        "73eed3ebceb7b37072c1f2b43a8000c2d08ea1b6e42b9d7294407378669335ba"
+      ]
+    },
+    {
+      "file": "x265-rgba8-premultiplied.heic",
+      "itemId": 2,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 0,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "e14de32fdf21860821be034f16547676d3b738f03cd9da861ccdba66c90fcf70"
       ]
     },
     {

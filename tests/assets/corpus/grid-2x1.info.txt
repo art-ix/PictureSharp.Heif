@@ -16,31 +16,3 @@ transformations:
 region annotations:
   none
 properties:
-
-image: 64x64 (id=2)
-  colorspace: YCbCr, 4:2:0
-  bit depth: 8
-  color profile: no
-  alpha channel: no 
-  depth channel: no
-metadata:
-  none
-transformations:
-  none
-region annotations:
-  none
-properties:
-
-image: 64x64 (id=3)
-  colorspace: YCbCr, 4:2:0
-  bit depth: 8
-  color profile: no
-  alpha channel: no 
-  depth channel: no
-metadata:
-  none
-transformations:
-  none
-region annotations:
-  none
-properties:

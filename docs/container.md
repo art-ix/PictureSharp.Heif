@@ -28,8 +28,7 @@ Structural parsing never recursively descends into arbitrary boxes. It permits u
 262,144 combined extent/reference/association/NAL entries, 32 reference levels and 32,767 properties. Input payloads
 remain borrowed memory slices. `MaxPixels` covers stored primary, tile and alpha dimensions, counting each required item
 once and including the grid canvas. Cropping cannot reduce this charge. ICC/EXIF/XMP byte counts obey `MaxMetadataBytes`
-unless `IgnoreMetadata` is true; the parser does not yet expose or interpret their contents. `Decode` checks the container
-and then raises `NotSupportedException`; pixel decoding is scheduled for 0.2.0.
+unless `IgnoreMetadata` is true. `Decode` runs the same validation before decoding; see [decoding](decoding.md).
 
 Container design follows ISO/IEC 14496-12 and ISO/IEC 23008-12. The
 [Nokia HEIF technical overview](https://nokiatech.github.io/heif/technical.html) describes the item/property/reference model.
@@ -55,7 +54,7 @@ local runs skip unavailable oracles explicitly.
 The checked-in corpus contains synthetic gradients only. Its manifest records SHA-256 and expected dimensions, depth,
 alpha and encoder. Rebuilding the corpus on a different native toolchain may change bitstream hashes; review and update
 the manifest together with the files. Managed tests always check the committed bytes; Oracle tests query `heif-info`
-independently. HEVC pixel equivalence against HM/libde265 belongs to 0.2.0.
+independently. HEVC and RGB references are described in [decoding](decoding.md).
 
 Private files in `samples/` are exercised only by `Category=Local` tests. Both lowercase and uppercase HEIC/HEIF
 extensions are ignored by Git. Reference libheif is pinned to 1.20.2 because 1.17.6 rejects recent iPhone files with

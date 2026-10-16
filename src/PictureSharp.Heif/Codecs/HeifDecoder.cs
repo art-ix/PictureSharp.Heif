@@ -8,9 +8,6 @@ internal sealed class HeifDecoder : IImageFormatDecoder
 
     public ImageInfo Identify(ReadOnlyMemory<byte> data, DecoderOptions options) => HeifContainer.Identify(data, options);
 
-    public Image Decode(ReadOnlyMemory<byte> data, ImageDecodeContext context)
-    {
-        HeifContainer.Identify(data, context.Options, context);
-        throw new NotSupportedException("HEVC pixel decoding is planned for PictureSharp.Heif 0.2.0. Use Identify to read image information.");
-    }
+    public Image Decode(ReadOnlyMemory<byte> data, ImageDecodeContext context) =>
+        new HeifImageDecoder(HeifContainer.Open(data, context.Options, context), context).Decode();
 }

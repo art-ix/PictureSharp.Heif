@@ -1,0 +1,18 @@
+MIME type: image/heic
+main brand: heic
+compatible brands: mif1, heic
+
+image: 80x64 (id=1), primary
+  colorspace: YCbCr, 4:2:0
+  bit depth: 8
+  color profile: prof
+  alpha channel: no 
+  depth channel: no
+metadata:
+  Exif: 30 bytes
+  XMP: 247 bytes
+transformations:
+  none
+region annotations:
+  none
+properties:

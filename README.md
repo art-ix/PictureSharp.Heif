@@ -6,7 +6,8 @@ PictureSharp.Heif adds reading and writing of HEIC images (HEVC in the HEIF cont
 iPhones, to PictureSharp on **.NET 10 and later**. Like PictureSharp itself, it has no native libraries and no
 P/Invoke; it depends only on the `PictureSharp` package.
 
-> **Status: 0.1.0 in development, not yet published.** Container identification is implemented; HEVC pixel decoding and encoding are planned.
+> **Status: 0.2.0 in development, not yet published.** Identification and decoding are implemented (scalar HEVC intra
+> decoder, bit-exact with HM); encoding is planned.
 
 ## Planned scope
 
@@ -31,9 +32,8 @@ Console.WriteLine($"{info.Width} × {info.Height}, {info.BitsPerChannel} bits, a
 ```
 
 See [container identification](docs/container.md) for limits, supported container features and oracle tooling.
-`Image.Load` currently validates the container and throws `NotSupportedException` until the HEVC decoder is available.
 
-## Decode and encode (planned)
+## Decode
 
 ```csharp
 using PictureSharp;
@@ -43,11 +43,14 @@ ImageConfiguration.Default = ImageConfiguration.Default.ToBuilder()
     .AddFormat(new HeifFormat())
     .Build();
 
-using var image = Image.Load("IMG_0001.heic", new DecoderOptions { ApplyExifOrientation = true });
+using var image = Image.Load("IMG_0001.heic");
 image.Mutate(x => x.Resize(1600, 0));
 image.Save("photo.webp");
-image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 80 });
 ```
+
+The decoder applies the container's rotation, mirroring and cropping, attaches alpha, and copies ICC, EXIF and XMP;
+see [decoding](docs/decoding.md) for colour conversion and supported features. Encoding (`SaveAsHeic`) is planned for
+0.3.0.
 
 After registration, PictureSharp's limits (`MaxPixels`, `MaxInputBytes`, `MaxMetadataBytes`), cancellation, thumbnails
 (`TargetSize`), colour conversion and metadata apply to HEIC as to the built-in formats.
@@ -60,8 +63,9 @@ version it needs; HDR gain maps and metadata-only reads require PictureSharp 0.7
 ## Compatibility and verification
 
 Container identification is tested against a committed synthetic corpus from x265 and kvazaar and compared with
-`heif-info`. The planned pixel decoder will be checked bit for bit against HM and libde265, and colour conversion
-against libheif. The planned encoder will be checked with libheif and HM.
+`heif-info`. Decoded YCbCr matches the HM reference decoder (and libde265) bit for bit on 43 coding-tool streams and the
+HEIC corpus; RGB output matches `heif-dec` (libheif 1.20.2) exactly. The planned encoder will be checked with libheif
+and HM.
 
 ## Licensing and patents
 
