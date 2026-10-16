@@ -26,10 +26,14 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
     private readonly byte[] partNxN;
     private readonly byte[] chromaSyntax;
     private readonly byte[] contexts = new byte[HevcContext.Count];
-    private readonly double lambda;
-    private readonly double sqrtLambda;
-    private readonly int qp;
-    private readonly int chromaQp;
+    private double lambda;
+    private double sqrtLambda;
+    private int qp;
+    private int chromaQp;
+
+    // cu_qp_delta state: QpY of the previous quantization group (qPY_PREV) and whether the current one coded its delta.
+    private int lastQpY;
+    private bool qpDeltaCoded;
 
     private HevcPictureEncoder(HevcEncoderSettings settings, ushort[][] planes, CancellationToken cancellationToken)
     {
@@ -61,11 +65,58 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
         intraModes = new byte[blocks];
         partNxN = new byte[blocks];
         chromaSyntax = new byte[blocks];
-        qp = settings.Qp;
+        SetQp(settings.Qp);
+    }
+
+    private void SetQp(int value)
+    {
+        qp = value;
         chromaQp = HevcTransform.ChromaQp420(qp);
         // HM intra lambda: 0.57 * 2^((QP - 12) / 3).
         lambda = 0.57 * Math.Pow(2, (qp - 12) / 3.0);
         sqrtLambda = Math.Sqrt(lambda);
+    }
+
+    // port: kvazaar src/encoderstate.c (variance adaptive quantization): d * (ln var(CTB) - ln var(reference)) with
+    // the CTB variance summed over luma and both chroma planes, clipped to half of the cu_qp_delta range.
+    private int CtbQp(int x0, int y0, int ctbSize)
+    {
+        if (!settings.AdaptiveQuantization)
+        {
+            return settings.Qp;
+        }
+
+        double variance = Variance(source[0], strides[0], x0, y0, ctbSize, width, height);
+        if (chromaFormat != 0)
+        {
+            variance += Variance(source[1], strides[1], x0 >> 1, y0 >> 1, ctbSize >> 1, width >> 1, height >> 1);
+            variance += Variance(source[2], strides[2], x0 >> 1, y0 >> 1, ctbSize >> 1, width >> 1, height >> 1);
+        }
+
+        double offset = settings.AqStrength * (Math.Log(Math.Max(variance, 1e-3)) - settings.AqReferenceLogVariance);
+        int delta = Math.Clamp((int)Math.Round(offset, MidpointRounding.AwayFromZero), -13, 12);
+        return Math.Clamp(settings.Qp + delta, 0, 51);
+    }
+
+    // Variance of a block, repeating edge samples outside the plane as kvazaar does.
+    internal static double Variance(ushort[] plane, int stride, int x0, int y0, int size, int planeWidth, int planeHeight)
+    {
+        double sum = 0;
+        double squares = 0;
+        for (int y = 0; y < size; y++)
+        {
+            int row = Math.Min(y0 + y, planeHeight - 1) * stride;
+            for (int x = 0; x < size; x++)
+            {
+                double value = plane[row + Math.Min(x0 + x, planeWidth - 1)];
+                sum += value;
+                squares += value * value;
+            }
+        }
+
+        double count = (double)size * size;
+        double mean = sum / count;
+        return Math.Max(0, (squares / count) - (mean * mean));
     }
 
     // Returns VPS, SPS, PPS and the slice NAL unit. planes hold the picture at the coded size (edges replicated).
@@ -90,26 +141,91 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
     public bool IsAvailable(int xCurr, int yCurr, int xN, int yN) =>
         xN >= 0 && yN >= 0 && xN < width && yN < height && layout.ZscanAddress(xN, yN) <= layout.ZscanAddress(xCurr, yCurr);
 
+    // Decides and writes every CTB; with SAO the slice is written a second time from the stored decisions, preceded
+    // per CTB by SAO parameters estimated on the deblocked picture of the first pass (HM likewise decides SAO after
+    // compressing all CTUs and entropy-codes the slice afterwards).
     private byte[] EncodeSlice()
     {
-        HevcContext.Initialize(contexts, qp);
+        int[] ctbQps = new int[layout.CtbCount];
+        byte[] slice = WriteSlice(ctbQps, search: true, sao: null);
+        if (!settings.SaoEnabled)
+        {
+            return slice;
+        }
+
+        HevcSaoParameters[] sao = EstimateSao(slice, ctbQps);
+        return WriteSlice(ctbQps, search: false, sao);
+    }
+
+    private byte[] WriteSlice(int[] ctbQps, bool search, HevcSaoParameters[]? sao)
+    {
+        HevcContext.Initialize(contexts, settings.Qp);
         var cabac = new HevcCabacEncoder();
         int ctbSize = 1 << settings.Log2CtbSize;
+        int components = chromaFormat == 0 ? 1 : 3;
+        lastQpY = settings.Qp;
         for (int ctb = 0; ctb < layout.CtbCount; ctb++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            int x = (ctb % layout.WidthInCtbs) * ctbSize;
+            int rx = ctb % layout.WidthInCtbs;
+            int x = rx * ctbSize;
             int y = (ctb / layout.WidthInCtbs) * ctbSize;
-            byte[] searchContexts = (byte[])contexts.Clone();
-            SearchCodingQuadtree(x, y, settings.Log2CtbSize, 0, searchContexts);
+            if (search)
+            {
+                ctbQps[ctb] = CtbQp(x, y, ctbSize);
+            }
+
+            SetQp(ctbQps[ctb]);
+            if (search)
+            {
+                qpDeltaCoded = false;
+                byte[] searchContexts = (byte[])contexts.Clone();
+                SearchCodingQuadtree(x, y, settings.Log2CtbSize, 0, searchContexts);
+            }
+
+            if (sao is not null)
+            {
+                HevcSyntaxWriter.Sao(cabac, contexts, sao[ctb], rx > 0, ctb >= layout.WidthInCtbs, components);
+            }
+
+            qpDeltaCoded = false;
             WriteCodingQuadtree(cabac, contexts, x, y, settings.Log2CtbSize, 0);
+            // 8.6.1: the next quantization group predicts from this one's QpY, which is the coded QP when a delta was
+            // sent and the prediction itself otherwise (with one group per CTB, qPY_PRED is qPY_PREV).
+            if (qpDeltaCoded)
+            {
+                lastQpY = qp;
+            }
+
             cabac.EncodeTerminate(ctb == layout.CtbCount - 1 ? 1 : 0);
         }
 
         cabac.FinishAndAlign();
-        HevcBitWriter slice = HevcParameterSetWriter.SliceHeader(settings);
+        HevcBitWriter slice = HevcParameterSetWriter.SliceHeader(settings, sao is not null);
         slice.WriteBytes(cabac.Output);
         return slice.ToNalUnit(HevcParameterSetWriter.IdrNalType);
+    }
+
+    // Deblocks the first-pass picture with the decoder itself, then chooses SAO parameters per CTB in raster order.
+    private HevcSaoParameters[] EstimateSao(byte[] slice, int[] ctbQps)
+    {
+        HevcFrame deblocked = HevcDecoder.Decode(
+            [HevcParameterSetWriter.Vps(settings), HevcParameterSetWriter.Sps(settings), HevcParameterSetWriter.Pps(settings), slice],
+            null, cancellationToken);
+        var estimator = new HevcSaoEstimator(source, deblocked.Planes, strides, width, height, settings.Log2CtbSize);
+        var sao = new HevcSaoParameters[layout.CtbCount];
+        int components = chromaFormat == 0 ? 1 : 3;
+        for (int ctb = 0; ctb < layout.CtbCount; ctb++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int rx = ctb % layout.WidthInCtbs;
+            int ry = ctb / layout.WidthInCtbs;
+            SetQp(ctbQps[ctb]);
+            sao[ctb] = estimator.Estimate(rx, ry, components, lambda, rx > 0 ? sao[ctb - 1] : null,
+                ry > 0 ? sao[ctb - layout.WidthInCtbs] : null);
+        }
+
+        return sao;
     }
 
     private static byte[] Rbsp(byte[] nal)

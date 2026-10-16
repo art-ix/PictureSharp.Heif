@@ -8,9 +8,23 @@ internal sealed record HevcEncoderSettings
     public int ChromaFormatIdc { get; init; } = 1;
     public int Qp { get; init; } = 26;
     public int Log2CtbSize { get; init; } = 5;
-    public bool SaoEnabled { get; init; }
-    public bool SignDataHiding { get; init; }
+    public bool SaoEnabled { get; init; } = true;
+    // Rate-distortion optimized quantization (HM RDOQ); sign data hiding is only written together with it.
+    public bool Rdoq { get; init; } = true;
+
+    public bool SignDataHiding { get; init; } = true;
+
+    public bool SignHidingEnabled => Rdoq && SignDataHiding;
     public bool TransformSkip { get; init; }
+
+    // Variance adaptive quantization strength d (QP offset d * (ln var(CTB) - AqReferenceLogVariance), as kvazaar's
+    // --vaq with d = vaq / 10); 0 disables it. Enables cu_qp_delta with one quantization group per CTB.
+    public double AqStrength { get; init; }
+
+    // ln of the reference variance (luma plus both chroma variances), normally of the whole image.
+    public double AqReferenceLogVariance { get; init; }
+
+    public bool AdaptiveQuantization => AqStrength > 0;
 
     // Disables the deblocking filter in the PPS (used by tests to compare reconstructions directly).
     public bool DeblockingDisabled { get; init; }
@@ -125,14 +139,19 @@ internal static class HevcParameterSetWriter
         w.Write(0, 1); // dependent_slice_segments_enabled_flag
         w.Write(0, 1); // output_flag_present_flag
         w.Write(0, 3); // num_extra_slice_header_bits
-        w.WriteFlag(settings.SignDataHiding);
+        w.WriteFlag(settings.SignHidingEnabled);
         w.Write(0, 1); // cabac_init_present_flag
         w.WriteUe(0);
         w.WriteUe(0);
         w.WriteSe(settings.Qp - 26); // init_qp_minus26
         w.Write(0, 1); // constrained_intra_pred_flag
         w.WriteFlag(settings.TransformSkip);
-        w.Write(0, 1); // cu_qp_delta_enabled_flag
+        w.WriteFlag(settings.AdaptiveQuantization); // cu_qp_delta_enabled_flag
+        if (settings.AdaptiveQuantization)
+        {
+            w.WriteUe(0); // diff_cu_qp_delta_depth: one quantization group per CTB
+        }
+
         w.WriteSe(0); // pps_cb_qp_offset
         w.WriteSe(0); // pps_cr_qp_offset
         w.Write(0, 1); // pps_slice_chroma_qp_offsets_present_flag
@@ -158,7 +177,7 @@ internal static class HevcParameterSetWriter
     }
 
     // Slice segment header of the single IDR slice; slice_segment_data follows from the returned writer.
-    public static HevcBitWriter SliceHeader(HevcEncoderSettings settings)
+    public static HevcBitWriter SliceHeader(HevcEncoderSettings settings, bool sao)
     {
         var w = new HevcBitWriter();
         w.Write(1, 1); // first_slice_segment_in_pic_flag
@@ -167,10 +186,10 @@ internal static class HevcParameterSetWriter
         w.WriteUe(2); // slice_type: I
         if (settings.SaoEnabled)
         {
-            w.Write(1, 1); // slice_sao_luma_flag
+            w.Write(sao ? 1u : 0u, 1); // slice_sao_luma_flag
             if (settings.ChromaFormatIdc != 0)
             {
-                w.Write(1, 1); // slice_sao_chroma_flag
+                w.Write(sao ? 1u : 0u, 1); // slice_sao_chroma_flag
             }
         }
 

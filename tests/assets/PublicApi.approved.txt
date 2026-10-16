@@ -14,10 +14,13 @@ PictureSharp.Formats.Heif.HeifEncoderOptions
   PictureSharp.Formats.Heif.HeifEncoderOptions <Clone>$()
   PictureSharp.ImageFormat Format
   PictureSharp.ImageFormat get_Format()
+  Single AdaptiveQuantizationStrength
+  Single get_AdaptiveQuantizationStrength()
   System.Nullable`1[System.Int32] AlphaQuality
   System.Nullable`1[System.Int32] get_AlphaQuality()
   System.String ToString()
   Void .ctor()
+  Void set_AdaptiveQuantizationStrength(Single)
   Void set_AlphaQuality(System.Nullable`1[System.Int32])
   Void set_MaxDegreeOfParallelism(Int32)
   Void set_Quality(Int32)

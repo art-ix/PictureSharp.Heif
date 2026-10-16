@@ -24,13 +24,25 @@ internal static class HeifImageEncoder
         int codedHeight = grid ? tile : (height + 1) & ~1;
         int columns = grid ? (width + tile - 1) / tile : 1;
         int rows = grid ? (height + tile - 1) / tile : 1;
-        var colorSettings = new HevcEncoderSettings { Width = codedWidth, Height = codedHeight, Qp = qp };
+        var colorSettings = new HevcEncoderSettings
+        {
+            Width = codedWidth,
+            Height = codedHeight,
+            Qp = qp,
+            AqStrength = options.AdaptiveQuantizationStrength,
+            AqReferenceLogVariance = options.AdaptiveQuantizationStrength > 0 ? LogVariance(pixels) : 0,
+        };
         HeifCodedImage color = EncodeTiles(pixels, width, height, codedWidth, codedHeight, columns, rows, colorSettings,
             isAlpha: false, options, cancellationToken);
         HeifCodedImage? alphaImage = null;
         if (alpha)
         {
-            var alphaSettings = colorSettings with { ChromaFormatIdc = 0, Qp = QpFromQuality(options.AlphaQuality ?? options.Quality) };
+            var alphaSettings = colorSettings with
+            {
+                ChromaFormatIdc = 0,
+                Qp = QpFromQuality(options.AlphaQuality ?? options.Quality),
+                AqStrength = 0,
+            };
             alphaImage = EncodeTiles(pixels, width, height, codedWidth, codedHeight, columns, rows, alphaSettings,
                 isAlpha: true, options, cancellationToken);
         }
@@ -56,6 +68,29 @@ internal static class HeifImageEncoder
         byte[]? xmp = (options.Metadata & MetadataKinds.Xmp) != 0 ? metadata.Xmp : null;
         return HeifWriter.Write(new HeifWriter.Content(color, alphaImage, icc, (1, 13, 6, true), clap, Transforms(orientation),
             exif, xmp));
+    }
+
+    // ln of the summed Y, Cb and Cr variances of the whole image: the reference of variance adaptive quantization, so
+    // all tiles of a grid share one quality scale.
+    private static double LogVariance(Rgba32[] pixels)
+    {
+        double sy = 0, syy = 0, sb = 0, sbb = 0, sr = 0, srr = 0;
+        foreach (Rgba32 p in pixels)
+        {
+            double y = (0.299 * p.R) + (0.587 * p.G) + (0.114 * p.B);
+            double cb = 128 + ((p.B - y) / 1.772);
+            double cr = 128 + ((p.R - y) / 1.402);
+            sy += y;
+            syy += y * y;
+            sb += cb;
+            sbb += cb * cb;
+            sr += cr;
+            srr += cr * cr;
+        }
+
+        double n = pixels.Length;
+        double variance = (syy / n) - Math.Pow(sy / n, 2) + (sbb / n) - Math.Pow(sb / n, 2) + (srr / n) - Math.Pow(sr / n, 2);
+        return Math.Log(Math.Max(variance, 1e-3));
     }
 
     // QP = round(0.51 * (100 - quality)): 0 maps to QP 51, 100 to QP 0.

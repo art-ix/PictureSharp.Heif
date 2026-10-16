@@ -50,7 +50,10 @@ public sealed class HevcEncoderTests
     [Arguments(8, 8, 51, false)]
     [Arguments(200, 136, 37, false)]
     [Arguments(72, 40, 27, true)]
-    public async Task Encode_DecoderReproducesTheReconstruction(int width, int height, int qp, bool monochrome)
+    [Arguments(200, 136, 30, false, 1.5)]
+    [Arguments(96, 64, 8, false, 3.0)]
+    [Arguments(160, 96, 45, true, 1.0)]
+    public async Task Encode_DecoderReproducesTheReconstruction(int width, int height, int qp, bool monochrome, double aq = 0)
     {
         var settings = new HevcEncoderSettings
         {
@@ -59,6 +62,9 @@ public sealed class HevcEncoderTests
             Qp = qp,
             ChromaFormatIdc = monochrome ? 0 : 1,
             DeblockingDisabled = true,
+            SaoEnabled = false,
+            AqStrength = aq,
+            AqReferenceLogVariance = Math.Log(1500),
         };
         ushort[][] planes = Picture(width, height, monochrome, width + height + qp);
         (List<byte[]> nals, ushort[][] reconstruction) = HevcPictureEncoder.EncodeWithReconstruction(settings, planes, CancellationToken.None);
@@ -79,9 +85,9 @@ public sealed class HevcEncoderTests
         string work = Directory.CreateTempSubdirectory("picturesharp-heif-enc-").FullName;
         try
         {
-            foreach ((int width, int height, int qp) in new[] { (96, 64, 30), (200, 136, 40), (64, 64, 12) })
+            foreach ((int width, int height, int qp, double aq) in new[] { (96, 64, 30, 0.0), (200, 136, 40, 0.0), (64, 64, 12, 0.0), (200, 136, 32, 2.0) })
             {
-                var settings = new HevcEncoderSettings { Width = width, Height = height, Qp = qp };
+                var settings = new HevcEncoderSettings { Width = width, Height = height, Qp = qp, AqStrength = aq, AqReferenceLogVariance = Math.Log(1500) };
                 List<byte[]> nals = HevcPictureEncoder.Encode(settings, Picture(width, height, false, qp), CancellationToken.None);
                 string stream = Path.Combine(work, "s.hevc");
                 File.WriteAllBytes(stream, HeifTestItems.ToAnnexB(nals.Select(n => (ReadOnlyMemory<byte>)n)));

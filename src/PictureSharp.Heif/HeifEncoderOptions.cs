@@ -12,6 +12,20 @@ public sealed record HeifEncoderOptions : EncoderOptions
     /// </summary>
     public int Quality { get; init => field = InRange(value, 0, 100, nameof(Quality)); } = 50;
 
+    /// <summary>
+    /// Strength 0–3 of variance adaptive quantization: textured regions get a coarser and smooth regions a finer
+    /// quantizer, which keeps gradients and skin free of banding at the same file size. 0 disables it.
+    /// Default: <see cref="DefaultAdaptiveQuantizationStrength"/>.
+    /// </summary>
+    public float AdaptiveQuantizationStrength
+    {
+        get;
+        init => field = value is >= 0 and <= 3 ? value : throw new ArgumentOutOfRangeException(nameof(AdaptiveQuantizationStrength), value, "Use a value from 0 to 3.");
+    } = DefaultAdaptiveQuantizationStrength;
+
+    /// <summary>The default <see cref="AdaptiveQuantizationStrength"/>.</summary>
+    public const float DefaultAdaptiveQuantizationStrength = 1;
+
     /// <summary>Quality of the alpha plane 0–100, or null to use <see cref="Quality"/>. Default: null.</summary>
     public int? AlphaQuality { get; init => field = value is null ? null : InRange(value.Value, 0, 100, nameof(AlphaQuality)); }
 

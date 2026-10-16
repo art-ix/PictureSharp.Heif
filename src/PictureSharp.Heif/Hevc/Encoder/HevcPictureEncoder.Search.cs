@@ -10,6 +10,7 @@ internal sealed partial class HevcPictureEncoder
     private readonly int[] quantized = new int[32 * 32];
     private readonly int[] temporary = new int[32 * 32];
     private readonly int[] reconstructed = new int[32 * 32];
+    private readonly HevcRdoq rdoq = new();
     private readonly RegionState[] savedLeaf = [new(), new(), new(), new()];
 
     // Rate-distortion search for the coding quadtree rooted at (x0, y0); leaves the chosen reconstruction, levels and
@@ -168,7 +169,7 @@ internal sealed partial class HevcPictureEncoder
         for (int i = 0; i < trials; i++)
         {
             int mode = trial[i];
-            double distortion = CodeBlock(0, x, y, log2Size, mode, x, y);
+            double distortion = CodeBlock(0, x, y, log2Size, mode, x, y, ctx, HevcContext.CbfLuma + (trafoDepth == 0 ? 1 : 0));
             double bits = LumaModeBits(mode, candidates, ctx) + ResidualBits(0, x, y, log2Size, ScanIndex(mode, log2Size, true), ctx, trafoDepth);
             double cost = distortion + (lambda * bits);
             if (cost < best)
@@ -179,7 +180,7 @@ internal sealed partial class HevcPictureEncoder
         }
 
         Fill(intraModes, x, y, size, (byte)bestMode);
-        return CodeBlock(0, x, y, log2Size, bestMode, x, y);
+        return CodeBlock(0, x, y, log2Size, bestMode, x, y, ctx, HevcContext.CbfLuma + (trafoDepth == 0 ? 1 : 0));
     }
 
     // Chooses intra_chroma_pred_mode for the coding unit (both chroma blocks). Returns their distortion.
@@ -199,7 +200,8 @@ internal sealed partial class HevcPictureEncoder
         for (int syntax = 4; syntax >= 0; syntax--)
         {
             int mode = ChromaModeFromSyntax(syntax, lumaMode);
-            double distortion = CodeBlock(1, xc, yc, chromaLog2, mode, x0, y0) + CodeBlock(2, xc, yc, chromaLog2, mode, x0, y0);
+            double distortion = CodeBlock(1, xc, yc, chromaLog2, mode, x0, y0, ctx, HevcContext.CbfChroma)
+                + CodeBlock(2, xc, yc, chromaLog2, mode, x0, y0, ctx, HevcContext.CbfChroma);
             int scan = ScanIndex(mode, chromaLog2, false);
             double bits = ChromaModeBits(syntax, ctx) + ResidualBits(1, xc, yc, chromaLog2, scan, ctx, -1)
                 + ResidualBits(2, xc, yc, chromaLog2, scan, ctx, -1);
@@ -213,7 +215,8 @@ internal sealed partial class HevcPictureEncoder
 
         Fill(chromaSyntax, x0, y0, 1 << log2Size, (byte)bestSyntax);
         int chosen = ChromaModeFromSyntax(bestSyntax, lumaMode);
-        return CodeBlock(1, xc, yc, chromaLog2, chosen, x0, y0) + CodeBlock(2, xc, yc, chromaLog2, chosen, x0, y0);
+        return CodeBlock(1, xc, yc, chromaLog2, chosen, x0, y0, ctx, HevcContext.CbfChroma)
+            + CodeBlock(2, xc, yc, chromaLog2, chosen, x0, y0, ctx, HevcContext.CbfChroma);
     }
 
     private double LumaModeBits(int mode, ReadOnlySpan<int> candidates, byte[] ctx)
@@ -260,7 +263,7 @@ internal sealed partial class HevcPictureEncoder
 
     // Predicts, transforms, quantizes and reconstructs one transform block; returns its squared error.
     // (xTbY, yTbY) is the luma location of the block for neighbour availability.
-    private double CodeBlock(int cIdx, int x, int y, int log2Size, int mode, int xTbY, int yTbY)
+    private double CodeBlock(int cIdx, int x, int y, int log2Size, int mode, int xTbY, int yTbY, byte[] ctx, int cbfContext)
     {
         int size = 1 << log2Size;
         int count = size * size;
@@ -280,7 +283,10 @@ internal sealed partial class HevcPictureEncoder
         bool dst = cIdx == 0 && log2Size == 2;
         int blockQp = cIdx == 0 ? qp : chromaQp;
         HevcForwardTransform.Forward(residual, coefficients, temporary, log2Size, dst, 8);
-        int nonZero = HevcForwardTransform.Quantize(coefficients, quantized, log2Size, blockQp, 8);
+        int nonZero = settings.Rdoq
+            ? rdoq.Quantize(coefficients, quantized, log2Size, blockQp, cIdx == 0, ScanIndex(mode, log2Size, cIdx == 0), ctx,
+                cbfContext, lambda, settings.SignHidingEnabled)
+            : HevcForwardTransform.Quantize(coefficients, quantized, log2Size, blockQp, 8);
         Span<int> levelPlane = levels[cIdx];
         for (int j = 0; j < size; j++)
         {

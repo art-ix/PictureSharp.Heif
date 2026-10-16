@@ -12,6 +12,80 @@ internal static class HevcSyntaxWriter
 
     private static ReadOnlySpan<byte> ContextIndexMap4x4 => [0, 1, 4, 5, 2, 3, 4, 5, 6, 6, 8, 8, 7, 7, 8, 8];
 
+    // 7.3.8.3 sao (port: HM TEncSbac::codeSAOBlkParam, codeSaoMaxUvlc, codeSaoTypeIdx) for 8-bit samples.
+    public static void Sao(HevcCabacWriter writer, Span<byte> contexts, in HevcSaoParameters sao, bool leftAvailable,
+        bool upAvailable, int components)
+    {
+        if (leftAvailable)
+        {
+            writer.EncodeBin(ref contexts[HevcContext.SaoMerge], sao.MergeLeft ? 1 : 0);
+            if (sao.MergeLeft)
+            {
+                return;
+            }
+        }
+
+        if (upAvailable)
+        {
+            writer.EncodeBin(ref contexts[HevcContext.SaoMerge], sao.MergeUp ? 1 : 0);
+            if (sao.MergeUp)
+            {
+                return;
+            }
+        }
+
+        for (int c = 0; c < components; c++)
+        {
+            int type = sao.Type(c);
+            if (c != 2)
+            {
+                writer.EncodeBin(ref contexts[HevcContext.SaoTypeIdx], type != 0 ? 1 : 0);
+                if (type != 0)
+                {
+                    writer.EncodeBypass(type == 1 ? 0 : 1);
+                }
+            }
+
+            if (type == 0)
+            {
+                continue;
+            }
+
+            const int maximum = 7;
+            for (int i = 0; i < 4; i++)
+            {
+                int magnitude = Math.Abs(sao.Offset(c, i));
+                for (int k = 0; k < magnitude; k++)
+                {
+                    writer.EncodeBypass(1);
+                }
+
+                if (magnitude < maximum)
+                {
+                    writer.EncodeBypass(0);
+                }
+            }
+
+            if (type == 1)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    int offset = sao.Offset(c, i);
+                    if (offset != 0)
+                    {
+                        writer.EncodeBypass(offset < 0 ? 1 : 0);
+                    }
+                }
+
+                writer.EncodeBypassBits((uint)sao.Class(c), 5);
+            }
+            else if (c != 2)
+            {
+                writer.EncodeBypassBits((uint)sao.Class(c), 2);
+            }
+        }
+    }
+
     public static void SplitCuFlag(HevcCabacWriter writer, Span<byte> contexts, bool split, int ctxInc) =>
         writer.EncodeBin(ref contexts[HevcContext.SplitCuFlag + ctxInc], split ? 1 : 0);
 
@@ -67,6 +141,41 @@ internal static class HevcSyntaxWriter
         if (syntaxValue != 4)
         {
             writer.EncodeBypassBits((uint)syntaxValue, 2);
+        }
+    }
+
+    // 7.3.8.14 cu_qp_delta_abs (TU prefix, cMax 5, then EG0) and cu_qp_delta_sign_flag (port: TEncSbac::codeDeltaQP).
+    public static void CuQpDelta(HevcCabacWriter writer, Span<byte> contexts, int delta)
+    {
+        int magnitude = Math.Abs(delta);
+        int prefix = Math.Min(magnitude, 5);
+        writer.EncodeBin(ref contexts[HevcContext.CuQpDeltaAbs], prefix > 0 ? 1 : 0);
+        for (int i = 1; i < 5 && i <= prefix; i++)
+        {
+            writer.EncodeBin(ref contexts[HevcContext.CuQpDeltaAbs + 1], i < prefix ? 1 : 0);
+        }
+
+        if (prefix == 5)
+        {
+            int suffix = magnitude - 5;
+            int k = 0;
+            while (suffix >= (1 << k))
+            {
+                writer.EncodeBypass(1);
+                suffix -= 1 << k;
+                k++;
+            }
+
+            writer.EncodeBypass(0);
+            if (k > 0)
+            {
+                writer.EncodeBypassBits((uint)suffix, k);
+            }
+        }
+
+        if (magnitude > 0)
+        {
+            writer.EncodeBypass(delta < 0 ? 1 : 0);
         }
     }
 
@@ -323,7 +432,7 @@ internal static class HevcSyntaxWriter
     }
 
     // Same derivation as the decoder (port: TComTrQuant::getSigCtxInc).
-    private static int SignificanceContext(int xC, int yC, int log2Size, int pattern, int firstContext, bool luma)
+    internal static int SignificanceContext(int xC, int yC, int log2Size, int pattern, int firstContext, bool luma)
     {
         if (xC + yC == 0)
         {

@@ -115,6 +115,15 @@ internal sealed partial class HevcPictureEncoder
     {
         bool cbfLuma = HasLevels(0, x, y, log2Size);
         HevcSyntaxWriter.CbfLuma(writer, ctx, cbfLuma, trafoDepth);
+        if (settings.AdaptiveQuantization && !qpDeltaCoded && (cbfLuma || cbfCb || cbfCr))
+        {
+            HevcSyntaxWriter.CuQpDelta(writer, ctx, qp - lastQpY);
+            if (writer is HevcCabacEncoder)
+            {
+                qpDeltaCoded = true;
+            }
+        }
+
         if (cbfLuma)
         {
             WriteResidual(writer, ctx, 0, x, y, log2Size, ScanIndex(lumaMode, log2Size, true));
@@ -152,7 +161,7 @@ internal sealed partial class HevcPictureEncoder
         }
 
         HevcSyntaxWriter.Residual(writer, ctx, block, log2Size, cIdx == 0, scanIdx, settings.TransformSkip, false,
-            settings.SignDataHiding);
+            settings.SignHidingEnabled);
     }
 
     private bool HasLevels(int cIdx, int x, int y, int log2Size)

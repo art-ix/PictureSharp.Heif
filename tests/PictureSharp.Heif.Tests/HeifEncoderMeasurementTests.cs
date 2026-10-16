@@ -15,77 +15,40 @@ public sealed class HeifEncoderMeasurementTests
     public async Task BdRate_AgainstX265Medium()
     {
         string root = Root();
-        string heifEnc = Path.Combine(Environment.GetEnvironmentVariable("PICTURESHARP_HEIF_TOOLS") ?? Path.Combine(root, "reference", "tools"), "bin", "heif-enc");
         string[] samples = Directory.Exists(Path.Combine(root, "samples"))
             ? [.. Directory.GetFiles(Path.Combine(root, "samples")).Where(p => Path.GetExtension(p).Equals(".heic", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal)]
             : [];
-        Skip.Unless(samples.Length > 0 && File.Exists(heifEnc), "Needs private samples and heif-enc.");
-        string work = Directory.CreateTempSubdirectory("picturesharp-heif-bd-").FullName;
-        var report = new StringBuilder("image\tencoder\tquality\tbytes\tpsnr_rgb\tssim_db\n");
-        var deltas = new List<double>();
-        var ssimDeltas = new List<double>();
-        try
+        Skip.Unless(samples.Length > 0 && File.Exists(HeifEnc()), "Needs private samples and heif-enc.");
+        var images = new List<(string Name, Image Image)>();
+        foreach (string sample in samples)
         {
-            foreach (string sample in samples)
-            {
-                using Image photo = Image.Load(File.ReadAllBytes(sample).AsSpan(), new DecoderOptions { Configuration = Configuration });
-                // A 768x512 crop from the centre keeps the run short and avoids the private photo's metadata.
-                using Image crop = photo.Clone();
-                crop.Mutate(x => x.Crop(new System.Drawing.Rectangle((photo.Width - 768) / 2, (photo.Height - 512) / 2, 768, 512)));
-                crop.Metadata.Clear();
-                string png = Path.Combine(work, "crop.png");
-                crop.Save(png);
-                var ours = new List<(double Rate, double Psnr)>();
-                var x265 = new List<(double Rate, double Psnr)>();
-                var oursSsim = new List<(double Rate, double Psnr)>();
-                var x265Ssim = new List<(double Rate, double Psnr)>();
-                foreach (int quality in new[] { 30, 45, 60, 75 })
-                {
-                    using var stream = new MemoryStream();
-                    new HeifFormat().Encoder.Encode(crop, stream, new HeifEncoderOptions { Quality = quality }, CancellationToken.None);
-                    byte[] encoded = stream.ToArray();
-                    using (Image decoded = Image.Load(encoded.AsSpan(), new DecoderOptions { Configuration = Configuration }))
-                    {
-                        ours.Add((encoded.Length, HeifEncodeTests.Psnr(crop, decoded)));
-                        oursSsim.Add((encoded.Length, SsimDb(crop, decoded)));
-                    }
-
-                    string output = Path.Combine(work, "x265.heic");
-                    await Run(heifEnc, ["-e", "x265", "-q", quality.ToString(CultureInfo.InvariantCulture), "-p", "preset=medium",
-                        "-p", "x265:pools=none", "--no-thumb-alpha", "-o", output, png]);
-                    byte[] reference = File.ReadAllBytes(output);
-                    using (Image decoded = Image.Load(reference.AsSpan(), new DecoderOptions { Configuration = Configuration }))
-                    {
-                        x265.Add((reference.Length, HeifEncodeTests.Psnr(crop, decoded)));
-                        x265Ssim.Add((reference.Length, SsimDb(crop, decoded)));
-                    }
-
-                    report.Append(CultureInfo.InvariantCulture, $"{Path.GetFileNameWithoutExtension(sample)}\tpicturesharp\t{quality}\t{ours[^1].Rate}\t{ours[^1].Psnr:F3}\t{oursSsim[^1].Psnr:F3}\n");
-                    report.Append(CultureInfo.InvariantCulture, $"{Path.GetFileNameWithoutExtension(sample)}\tx265-medium\t{quality}\t{x265[^1].Rate}\t{x265[^1].Psnr:F3}\t{x265Ssim[^1].Psnr:F3}\n");
-                }
-
-                double delta = BjontegaardRate(x265, ours);
-                double ssimDelta = BjontegaardRate(x265Ssim, oursSsim);
-                deltas.Add(delta);
-                ssimDeltas.Add(ssimDelta);
-                report.Append(CultureInfo.InvariantCulture, $"{Path.GetFileNameWithoutExtension(sample)}\tbd-rate\t\t\t{delta:F2}%\t{ssimDelta:F2}%\n");
-            }
-        }
-        finally
-        {
-            Directory.Delete(work, recursive: true);
+            using Image photo = Image.Load(File.ReadAllBytes(sample).AsSpan(), new DecoderOptions { Configuration = Configuration });
+            // A 768x512 crop from the centre keeps the run short and avoids the private photo's metadata.
+            Image crop = photo.Clone();
+            crop.Mutate(x => x.Crop(new System.Drawing.Rectangle((photo.Width - 768) / 2, (photo.Height - 512) / 2, 768, 512)));
+            crop.Metadata.Clear();
+            images.Add((Path.GetFileNameWithoutExtension(sample), crop));
         }
 
-        double average = deltas.Average();
-        double ssimAverage = ssimDeltas.Average();
-        report.Append(CultureInfo.InvariantCulture, $"average\tbd-rate\t\t\t{average:F2}%\t{ssimAverage:F2}%\n");
-        Console.WriteLine(report.ToString());
-        string measurements = Path.Combine(root, "docs", "measurements");
-        Directory.CreateDirectory(measurements);
-        File.WriteAllText(Path.Combine(measurements, "encoder-bdrate-x265-medium.tsv"), report.ToString());
+        (double psnr, double ssim) = await Measure(images, Path.Combine(root, "docs", "measurements", "encoder-bdrate-x265-medium.tsv"));
         // Size ratio 1.5 at equal quality is a BD-rate of +50%.
-        await Assert.That(average).IsLessThanOrEqualTo(50.0);
-        await Assert.That(ssimAverage).IsLessThanOrEqualTo(50.0);
+        await Assert.That(psnr).IsLessThanOrEqualTo(50.0);
+        await Assert.That(ssim).IsLessThanOrEqualTo(50.0);
+    }
+
+    // The public Kodak suite (scripts/fetch-kodak.py --approved), whose results can be published.
+    [Test]
+    [Property("Category", "Measurement")]
+    public async Task BdRate_Kodak_AgainstX265Medium()
+    {
+        string root = Root();
+        string directory = Path.Combine(root, "tests", "assets", "external", "kodak");
+        string[] files = Directory.Exists(directory) ? [.. Directory.GetFiles(directory, "kodim*.png").Order(StringComparer.Ordinal)] : [];
+        Skip.Unless(files.Length == 24 && File.Exists(HeifEnc()), "Needs the Kodak suite and heif-enc.");
+        var images = files.Select(f => (Path.GetFileNameWithoutExtension(f), Image.Load(f))).ToList();
+        (double psnr, double ssim) = await Measure(images, Path.Combine(root, "docs", "measurements", "encoder-bdrate-kodak-x265-medium.tsv"));
+        await Assert.That(psnr).IsLessThanOrEqualTo(50.0);
+        await Assert.That(ssim).IsLessThanOrEqualTo(50.0);
     }
 
     // SSIM of BT.601 luma over 8x8 windows (stride 4, C1/C2 from Wang et al.), reported as -10 log10(1 - SSIM).
@@ -127,6 +90,136 @@ public sealed class HeifEncoderMeasurementTests
         }
 
         return -10 * Math.Log10(1 - (total / windows));
+    }
+
+    // Sweeps the adaptive quantization strength on Kodak; prints BD-rates per strength (x265 is encoded once).
+    [Test]
+    [Property("Category", "Measurement")]
+    public async Task Sweep_AdaptiveQuantization_Kodak()
+    {
+        string root = Root();
+        string directory = Path.Combine(root, "tests", "assets", "external", "kodak");
+        string[] files = Directory.Exists(directory) ? [.. Directory.GetFiles(directory, "kodim*.png").Order(StringComparer.Ordinal)] : [];
+        Skip.Unless(files.Length == 24 && File.Exists(HeifEnc()) && Environment.GetEnvironmentVariable("PICTURESHARP_HEIF_SWEEP") == "1",
+            "Set PICTURESHARP_HEIF_SWEEP=1 with the Kodak suite and heif-enc.");
+        float[] strengths = [0f, 0.5f, 1f, 1.5f, 2f];
+        string work = Directory.CreateTempSubdirectory("picturesharp-heif-sweep-").FullName;
+        var psnr = new double[strengths.Length];
+        var ssim = new double[strengths.Length];
+        try
+        {
+            foreach (string file in files)
+            {
+                using Image image = Image.Load(file);
+                var x265 = new List<(double, double)>();
+                var x265Ssim = new List<(double, double)>();
+                foreach (int quality in new[] { 30, 45, 60, 75 })
+                {
+                    string output = Path.Combine(work, "x265.heic");
+                    await Run(HeifEnc(), ["-e", "x265", "-q", quality.ToString(CultureInfo.InvariantCulture), "-p", "preset=medium", "-p", "x265:pools=none", "-o", output, file]);
+                    byte[] reference = File.ReadAllBytes(output);
+                    using Image decoded = Image.Load(reference.AsSpan(), new DecoderOptions { Configuration = Configuration });
+                    x265.Add((reference.Length, HeifEncodeTests.Psnr(image, decoded)));
+                    x265Ssim.Add((reference.Length, SsimDb(image, decoded)));
+                }
+
+                for (int s = 0; s < strengths.Length; s++)
+                {
+                    var ours = new List<(double, double)>();
+                    var oursSsim = new List<(double, double)>();
+                    foreach (int quality in new[] { 30, 45, 60, 75 })
+                    {
+                        using var stream = new MemoryStream();
+                        new HeifFormat().Encoder.Encode(image, stream, new HeifEncoderOptions { Quality = quality, AdaptiveQuantizationStrength = strengths[s] }, CancellationToken.None);
+                        using Image decoded = Image.Load(stream.ToArray().AsSpan(), new DecoderOptions { Configuration = Configuration });
+                        ours.Add((stream.Length, HeifEncodeTests.Psnr(image, decoded)));
+                        oursSsim.Add((stream.Length, SsimDb(image, decoded)));
+                    }
+
+                    psnr[s] += BjontegaardRate(x265, ours) / files.Length;
+                    ssim[s] += BjontegaardRate(x265Ssim, oursSsim) / files.Length;
+                }
+            }
+        }
+        finally
+        {
+            Directory.Delete(work, recursive: true);
+        }
+
+        for (int s = 0; s < strengths.Length; s++)
+        {
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"AQ {strengths[s]:F1}: BD-rate PSNR {psnr[s]:F2}%, SSIM {ssim[s]:F2}%"));
+        }
+
+        await Assert.That(strengths.Length).IsEqualTo(5);
+    }
+
+    private static string HeifEnc() =>
+        Path.Combine(Environment.GetEnvironmentVariable("PICTURESHARP_HEIF_TOOLS") ?? Path.Combine(Root(), "reference", "tools"), "bin", "heif-enc");
+
+    // Encodes every image with PictureSharp.Heif and with heif-enc (x265 medium) at qualities 30/45/60/75, writes a TSV
+    // report and returns the average BD-rates on RGB PSNR and luma SSIM. The images are disposed.
+    private static async Task<(double Psnr, double Ssim)> Measure(List<(string Name, Image Image)> images, string reportPath)
+    {
+        string work = Directory.CreateTempSubdirectory("picturesharp-heif-bd-").FullName;
+        var report = new StringBuilder("image\tencoder\tquality\tbytes\tpsnr_rgb\tssim_db\n");
+        var deltas = new List<double>();
+        var ssimDeltas = new List<double>();
+        try
+        {
+            foreach ((string name, Image crop) in images)
+            {
+                using Image image = crop;
+                string png = Path.Combine(work, "input.png");
+                image.Save(png);
+                var ours = new List<(double Rate, double Psnr)>();
+                var x265 = new List<(double Rate, double Psnr)>();
+                var oursSsim = new List<(double Rate, double Psnr)>();
+                var x265Ssim = new List<(double Rate, double Psnr)>();
+                foreach (int quality in new[] { 30, 45, 60, 75 })
+                {
+                    using var stream = new MemoryStream();
+                    new HeifFormat().Encoder.Encode(image, stream, new HeifEncoderOptions { Quality = quality }, CancellationToken.None);
+                    byte[] encoded = stream.ToArray();
+                    using (Image decoded = Image.Load(encoded.AsSpan(), new DecoderOptions { Configuration = Configuration }))
+                    {
+                        ours.Add((encoded.Length, HeifEncodeTests.Psnr(image, decoded)));
+                        oursSsim.Add((encoded.Length, SsimDb(image, decoded)));
+                    }
+
+                    string output = Path.Combine(work, "x265.heic");
+                    await Run(HeifEnc(), ["-e", "x265", "-q", quality.ToString(CultureInfo.InvariantCulture), "-p", "preset=medium",
+                        "-p", "x265:pools=none", "--no-thumb-alpha", "-o", output, png]);
+                    byte[] reference = File.ReadAllBytes(output);
+                    using (Image decoded = Image.Load(reference.AsSpan(), new DecoderOptions { Configuration = Configuration }))
+                    {
+                        x265.Add((reference.Length, HeifEncodeTests.Psnr(image, decoded)));
+                        x265Ssim.Add((reference.Length, SsimDb(image, decoded)));
+                    }
+
+                    report.Append(CultureInfo.InvariantCulture, $"{name}\tpicturesharp\t{quality}\t{ours[^1].Rate}\t{ours[^1].Psnr:F3}\t{oursSsim[^1].Psnr:F3}\n");
+                    report.Append(CultureInfo.InvariantCulture, $"{name}\tx265-medium\t{quality}\t{x265[^1].Rate}\t{x265[^1].Psnr:F3}\t{x265Ssim[^1].Psnr:F3}\n");
+                }
+
+                double delta = BjontegaardRate(x265, ours);
+                double ssimDelta = BjontegaardRate(x265Ssim, oursSsim);
+                deltas.Add(delta);
+                ssimDeltas.Add(ssimDelta);
+                report.Append(CultureInfo.InvariantCulture, $"{name}\tbd-rate\t\t\t{delta:F2}%\t{ssimDelta:F2}%\n");
+            }
+        }
+        finally
+        {
+            Directory.Delete(work, recursive: true);
+        }
+
+        double average = deltas.Average();
+        double ssimAverage = ssimDeltas.Average();
+        report.Append(CultureInfo.InvariantCulture, $"average\tbd-rate\t\t\t{average:F2}%\t{ssimAverage:F2}%\n");
+        Console.WriteLine(report.ToString());
+        Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
+        File.WriteAllText(reportPath, report.ToString());
+        return (average, ssimAverage);
     }
 
     [Test]
