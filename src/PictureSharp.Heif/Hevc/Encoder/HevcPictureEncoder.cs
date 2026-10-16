@@ -25,6 +25,7 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
     private readonly byte[] intraModes;
     private readonly byte[] partNxN;
     private readonly byte[] chromaSyntax;
+    private readonly byte[] tuDepth;
     private readonly byte[] contexts = new byte[HevcContext.Count];
     private double lambda;
     private double sqrtLambda;
@@ -65,6 +66,7 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
         intraModes = new byte[blocks];
         partNxN = new byte[blocks];
         chromaSyntax = new byte[blocks];
+        tuDepth = new byte[blocks];
         SetQp(settings.Qp);
     }
 

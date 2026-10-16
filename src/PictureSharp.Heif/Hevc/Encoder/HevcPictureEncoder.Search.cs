@@ -12,6 +12,8 @@ internal sealed partial class HevcPictureEncoder
     private readonly int[] reconstructed = new int[32 * 32];
     private readonly HevcRdoq rdoq = new();
     private readonly RegionState[] savedLeaf = [new(), new(), new(), new()];
+    private readonly ushort[][] savedTreeRecon = [new ushort[32 * 32], new ushort[16 * 16], new ushort[8 * 8], new ushort[4 * 4]];
+    private readonly int[][] savedTreeLevels = [new int[32 * 32], new int[16 * 16], new int[8 * 8], new int[4 * 4]];
 
     // Rate-distortion search for the coding quadtree rooted at (x0, y0); leaves the chosen reconstruction, levels and
     // modes in place and ctx in the state after coding them. Returns the cost.
@@ -77,7 +79,7 @@ internal sealed partial class HevcPictureEncoder
         int size = 1 << log2Size;
         Fill(partNxN, x0, y0, size, 0);
         double distortion = SearchLumaBlock(x0, y0, log2Size, ctx, 0);
-        distortion += SearchChroma(x0, y0, log2Size, false, ctx);
+        distortion += SearchChroma(x0, y0, log2Size, ctx);
         double cost = distortion + (lambda * CodingUnitBits(x0, y0, log2Size, ctx, update: false));
         if (log2Size == MinCbLog2)
         {
@@ -90,7 +92,7 @@ internal sealed partial class HevcPictureEncoder
                 nxnDistortion += SearchLumaBlock(x0 + ((i & 1) * 4), y0 + ((i >> 1) * 4), 2, ctx, 1);
             }
 
-            nxnDistortion += SearchChroma(x0, y0, log2Size, true, ctx);
+            nxnDistortion += SearchChroma(x0, y0, log2Size, ctx);
             double nxnCost = nxnDistortion + (lambda * CodingUnitBits(x0, y0, log2Size, ctx, update: false));
             if (nxnCost < cost)
             {
@@ -180,11 +182,80 @@ internal sealed partial class HevcPictureEncoder
         }
 
         Fill(intraModes, x, y, size, (byte)bestMode);
-        return CodeBlock(0, x, y, log2Size, bestMode, x, y, ctx, HevcContext.CbfLuma + (trafoDepth == 0 ? 1 : 0));
+        if (trafoDepth == 0)
+        {
+            SearchLumaTree(x, y, log2Size, 0, bestMode, ctx, out double distortion);
+            return distortion;
+        }
+
+        Fill(tuDepth, x, y, size, (byte)trafoDepth);
+        return CodeBlock(0, x, y, log2Size, bestMode, x, y, ctx, HevcContext.CbfLuma);
     }
 
-    // Chooses intra_chroma_pred_mode for the coding unit (both chroma blocks). Returns their distortion.
-    private double SearchChroma(int x0, int y0, int log2Size, bool nxn, byte[] ctx)
+    // Residual quadtree for the chosen luma mode: the block whole, or split into four with the same mode, by
+    // rate-distortion cost (port: HM TEncSearch::xRecurIntraCodingLumaQT, the final full RQT check of the best mode
+    // under HHI_RQT_INTRA_SPEEDUP). Returns the cost; leaves the chosen reconstruction, levels and depth map.
+    private double SearchLumaTree(int x, int y, int log2Size, int depth, int mode, byte[] ctx, out double distortion)
+    {
+        int size = 1 << log2Size;
+        Fill(tuDepth, x, y, size, (byte)depth);
+        distortion = CodeBlock(0, x, y, log2Size, mode, x, y, ctx, HevcContext.CbfLuma + (depth == 0 ? 1 : 0));
+        bool splittable = log2Size > 2 && depth < settings.MaxTransformDepth;
+        int splitContext = HevcContext.SplitTransformFlag + 5 - log2Size;
+        double bits = ResidualBits(0, x, y, log2Size, ScanIndex(mode, log2Size, true), ctx, depth)
+            + (splittable ? HevcCabacCounter.Cost(ctx[splitContext], 0) * Fraction : 0);
+        double cost = distortion + (lambda * bits);
+
+        // A block without residual is predicted as well as it can be at this size; splitting rarely pays off.
+        if (!splittable || !HasLevels(0, x, y, log2Size))
+        {
+            return cost;
+        }
+
+        CopyLuma(x, y, size, savedTreeRecon[depth], savedTreeLevels[depth], save: true);
+        double splitCost = lambda * HevcCabacCounter.Cost(ctx[splitContext], 1) * Fraction;
+        double splitDistortion = 0;
+        int half = size >> 1;
+        for (int i = 0; i < 4 && splitCost < cost; i++)
+        {
+            splitCost += SearchLumaTree(x + ((i & 1) * half), y + ((i >> 1) * half), log2Size - 1, depth + 1, mode, ctx,
+                out double childDistortion);
+            splitDistortion += childDistortion;
+        }
+
+        if (splitCost < cost)
+        {
+            distortion = splitDistortion;
+            return splitCost;
+        }
+
+        CopyLuma(x, y, size, savedTreeRecon[depth], savedTreeLevels[depth], save: false);
+        Fill(tuDepth, x, y, size, (byte)depth);
+        return cost;
+    }
+
+    private void CopyLuma(int x, int y, int size, ushort[] reconCopy, int[] levelCopy, bool save)
+    {
+        int stride = strides[0];
+        for (int j = 0; j < size; j++)
+        {
+            int offset = ((y + j) * stride) + x;
+            if (save)
+            {
+                recon[0].AsSpan(offset, size).CopyTo(reconCopy.AsSpan(j * size));
+                levels[0].AsSpan(offset, size).CopyTo(levelCopy.AsSpan(j * size));
+            }
+            else
+            {
+                reconCopy.AsSpan(j * size, size).CopyTo(recon[0].AsSpan(offset));
+                levelCopy.AsSpan(j * size, size).CopyTo(levels[0].AsSpan(offset));
+            }
+        }
+    }
+
+    // Chooses intra_chroma_pred_mode for the coding unit (both chroma blocks, following the luma transform tree).
+    // Returns their distortion.
+    private double SearchChroma(int x0, int y0, int log2Size, byte[] ctx)
     {
         if (chromaFormat == 0)
         {
@@ -192,19 +263,13 @@ internal sealed partial class HevcPictureEncoder
         }
 
         int lumaMode = intraModes[BlockIndex(x0, y0)];
-        int chromaLog2 = nxn ? 2 : log2Size - 1;
-        int xc = x0 >> 1;
-        int yc = y0 >> 1;
         double best = double.MaxValue;
         int bestSyntax = 4;
         for (int syntax = 4; syntax >= 0; syntax--)
         {
             int mode = ChromaModeFromSyntax(syntax, lumaMode);
-            double distortion = CodeBlock(1, xc, yc, chromaLog2, mode, x0, y0, ctx, HevcContext.CbfChroma)
-                + CodeBlock(2, xc, yc, chromaLog2, mode, x0, y0, ctx, HevcContext.CbfChroma);
-            int scan = ScanIndex(mode, chromaLog2, false);
-            double bits = ChromaModeBits(syntax, ctx) + ResidualBits(1, xc, yc, chromaLog2, scan, ctx, -1)
-                + ResidualBits(2, xc, yc, chromaLog2, scan, ctx, -1);
+            double bits = ChromaModeBits(syntax, ctx);
+            double distortion = CodeChromaTree(x0, y0, log2Size, 0, mode, ctx, ref bits);
             double cost = distortion + (lambda * bits);
             if (cost < best)
             {
@@ -214,9 +279,36 @@ internal sealed partial class HevcPictureEncoder
         }
 
         Fill(chromaSyntax, x0, y0, 1 << log2Size, (byte)bestSyntax);
-        int chosen = ChromaModeFromSyntax(bestSyntax, lumaMode);
-        return CodeBlock(1, xc, yc, chromaLog2, chosen, x0, y0, ctx, HevcContext.CbfChroma)
-            + CodeBlock(2, xc, yc, chromaLog2, chosen, x0, y0, ctx, HevcContext.CbfChroma);
+        double unused = 0;
+        return CodeChromaTree(x0, y0, log2Size, 0, ChromaModeFromSyntax(bestSyntax, lumaMode), ctx, ref unused);
+    }
+
+    // Codes both chroma blocks at every chroma transform node under the luma node (x, y, log2Size); a luma node split
+    // into 4x4 blocks keeps 4x4 chroma at its own level. Adds the residual bits; returns the distortion.
+    private double CodeChromaTree(int x, int y, int log2Size, int depth, int mode, byte[] ctx, ref double bits)
+    {
+        if (log2Size > 3 && tuDepth[BlockIndex(x, y)] > depth)
+        {
+            int half = 1 << (log2Size - 1);
+            double total = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                total += CodeChromaTree(x + ((i & 1) * half), y + ((i >> 1) * half), log2Size - 1, depth + 1, mode, ctx, ref bits);
+            }
+
+            return total;
+        }
+
+        int chromaLog2 = log2Size - 1;
+        int scan = ScanIndex(mode, chromaLog2, false);
+        double distortion = 0;
+        for (int c = 1; c <= 2; c++)
+        {
+            distortion += CodeBlock(c, x >> 1, y >> 1, chromaLog2, mode, x, y, ctx, HevcContext.CbfChroma + depth);
+            bits += ResidualBits(c, x >> 1, y >> 1, chromaLog2, scan, ctx, depth);
+        }
+
+        return distortion;
     }
 
     private double LumaModeBits(int mode, ReadOnlySpan<int> candidates, byte[] ctx)
@@ -250,7 +342,7 @@ internal sealed partial class HevcPictureEncoder
         }
         else
         {
-            HevcSyntaxWriter.CbfChroma(counter, state, coded, 0);
+            HevcSyntaxWriter.CbfChroma(counter, state, coded, trafoDepth);
         }
 
         if (coded)
@@ -374,7 +466,7 @@ internal sealed partial class HevcPictureEncoder
     {
         private readonly ushort[][] reconCopy = [new ushort[32 * 32], new ushort[16 * 16], new ushort[16 * 16]];
         private readonly int[][] levelCopy = [new int[32 * 32], new int[16 * 16], new int[16 * 16]];
-        private readonly byte[][] mapCopy = [new byte[64], new byte[64], new byte[64], new byte[64]];
+        private readonly byte[][] mapCopy = [new byte[64], new byte[64], new byte[64], new byte[64], new byte[64]];
         private readonly byte[] contextCopy = new byte[HevcContext.Count];
         private int x0;
         private int y0;
@@ -398,7 +490,7 @@ internal sealed partial class HevcPictureEncoder
                 }
             }
 
-            byte[][] maps = [encoder.ctDepth, encoder.intraModes, encoder.partNxN, encoder.chromaSyntax];
+            byte[][] maps = [encoder.ctDepth, encoder.intraModes, encoder.partNxN, encoder.chromaSyntax, encoder.tuDepth];
             int blocks = size >> 2;
             for (int m = 0; m < maps.Length; m++)
             {
@@ -424,7 +516,7 @@ internal sealed partial class HevcPictureEncoder
                 }
             }
 
-            byte[][] maps = [encoder.ctDepth, encoder.intraModes, encoder.partNxN, encoder.chromaSyntax];
+            byte[][] maps = [encoder.ctDepth, encoder.intraModes, encoder.partNxN, encoder.chromaSyntax, encoder.tuDepth];
             int blocks = size >> 2;
             for (int m = 0; m < maps.Length; m++)
             {

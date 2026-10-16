@@ -81,40 +81,69 @@ internal sealed partial class HevcPictureEncoder
         HevcSyntaxWriter.IntraLumaModes(writer, ctx, modes, candidates);
     }
 
-    private void WriteTransformTree(HevcCabacWriter writer, Span<byte> ctx, int x0, int y0, int log2Size, bool nxn, int chromaMode)
+    private void WriteTransformTree(HevcCabacWriter writer, Span<byte> ctx, int x0, int y0, int log2Size, bool nxn, int chromaMode) =>
+        WriteTransformNode(writer, ctx, x0, y0, x0, y0, log2Size, 0, 0, nxn, chromaMode, false, false);
+
+    // 7.3.8.8 transform_tree from the transform depth map. For a 4x4 luma node the chroma flags are the parent's
+    // (cbf_cb[xBase][yBase][trafoDepth - 1]), and chroma is coded with its last block.
+    private void WriteTransformNode(HevcCabacWriter writer, Span<byte> ctx, int x, int y, int xBase, int yBase, int log2Size,
+        int depth, int blkIdx, bool nxn, int chromaMode, bool parentCb, bool parentCr)
     {
-        bool cbfCb = false;
-        bool cbfCr = false;
-        if (chromaFormat != 0)
+        int maxDepth = settings.MaxTransformDepth + (nxn ? 1 : 0);
+        bool split;
+        if (log2Size <= 5 && log2Size > 2 && depth < maxDepth && !(nxn && depth == 0))
         {
-            cbfCb = HasLevels(1, x0 >> 1, y0 >> 1, log2Size - 1);
-            cbfCr = HasLevels(2, x0 >> 1, y0 >> 1, log2Size - 1);
-            HevcSyntaxWriter.CbfChroma(writer, ctx, cbfCb, 0);
-            HevcSyntaxWriter.CbfChroma(writer, ctx, cbfCr, 0);
+            split = tuDepth[BlockIndex(x, y)] > depth;
+            HevcSyntaxWriter.SplitTransformFlag(writer, ctx, split, log2Size);
+        }
+        else
+        {
+            split = log2Size > 5 || (nxn && depth == 0);
         }
 
-        if (!nxn)
+        bool cbfCb = parentCb;
+        bool cbfCr = parentCr;
+        if (chromaFormat == 0)
         {
-            WriteTransformUnit(writer, ctx, x0, y0, log2Size, 0, intraModes[BlockIndex(x0, y0)], true, chromaMode, cbfCb, cbfCr);
+            cbfCb = cbfCr = false;
+        }
+        else if (log2Size > 2)
+        {
+            cbfCb = (depth == 0 || parentCb) && HasLevels(1, x >> 1, y >> 1, log2Size - 1);
+            cbfCr = (depth == 0 || parentCr) && HasLevels(2, x >> 1, y >> 1, log2Size - 1);
+            if (depth == 0 || parentCb)
+            {
+                HevcSyntaxWriter.CbfChroma(writer, ctx, cbfCb, depth);
+            }
+
+            if (depth == 0 || parentCr)
+            {
+                HevcSyntaxWriter.CbfChroma(writer, ctx, cbfCr, depth);
+            }
+        }
+
+        if (split)
+        {
+            int half = 1 << (log2Size - 1);
+            for (int i = 0; i < 4; i++)
+            {
+                WriteTransformNode(writer, ctx, x + ((i & 1) * half), y + ((i >> 1) * half), x, y, log2Size - 1, depth + 1, i,
+                    nxn, chromaMode, cbfCb, cbfCr);
+            }
+
             return;
         }
 
-        // NxN: four 4x4 luma blocks; chroma of the 8x8 area is coded with the last one.
-        int half = 1 << (log2Size - 1);
-        for (int i = 0; i < 4; i++)
-        {
-            int x = x0 + ((i & 1) * half);
-            int y = y0 + ((i >> 1) * half);
-            WriteTransformUnit(writer, ctx, x, y, log2Size - 1, 1, intraModes[BlockIndex(x, y)], i == 3, chromaMode, cbfCb, cbfCr);
-        }
+        WriteTransformUnit(writer, ctx, x, y, xBase, yBase, log2Size, depth, blkIdx, chromaMode, cbfCb, cbfCr);
     }
 
-    // cbf_luma, then the luma residual and (for TU = CU, or the last NxN block) both chroma residuals.
-    private void WriteTransformUnit(HevcCabacWriter writer, Span<byte> ctx, int x, int y, int log2Size, int trafoDepth,
-        int lumaMode, bool withChroma, int chromaMode, bool cbfCb, bool cbfCr)
+    // 7.3.8.10 transform_unit: cbf_luma, cu_qp_delta, the luma residual, then chroma at this node (or, for 4x4 luma
+    // blocks, the parent's 4x4 chroma with the last block).
+    private void WriteTransformUnit(HevcCabacWriter writer, Span<byte> ctx, int x, int y, int xBase, int yBase, int log2Size,
+        int depth, int blkIdx, int chromaMode, bool cbfCb, bool cbfCr)
     {
         bool cbfLuma = HasLevels(0, x, y, log2Size);
-        HevcSyntaxWriter.CbfLuma(writer, ctx, cbfLuma, trafoDepth);
+        HevcSyntaxWriter.CbfLuma(writer, ctx, cbfLuma, depth);
         if (settings.AdaptiveQuantization && !qpDeltaCoded && (cbfLuma || cbfCb || cbfCr))
         {
             HevcSyntaxWriter.CuQpDelta(writer, ctx, qp - lastQpY);
@@ -126,18 +155,17 @@ internal sealed partial class HevcPictureEncoder
 
         if (cbfLuma)
         {
-            WriteResidual(writer, ctx, 0, x, y, log2Size, ScanIndex(lumaMode, log2Size, true));
+            WriteResidual(writer, ctx, 0, x, y, log2Size, ScanIndex(intraModes[BlockIndex(x, y)], log2Size, true));
         }
 
-        if (!withChroma || chromaFormat == 0)
+        if (chromaFormat == 0 || (log2Size == 2 && blkIdx != 3))
         {
             return;
         }
 
-        // For NxN the chroma block belongs to the parent 8x8 luma area.
-        int chromaLog2 = trafoDepth == 0 ? log2Size - 1 : 2;
-        int xc = trafoDepth == 0 ? x >> 1 : (x - 4) >> 1;
-        int yc = trafoDepth == 0 ? y >> 1 : (y - 4) >> 1;
+        int chromaLog2 = log2Size == 2 ? 2 : log2Size - 1;
+        int xc = (log2Size == 2 ? xBase : x) >> 1;
+        int yc = (log2Size == 2 ? yBase : y) >> 1;
         int scan = ScanIndex(chromaMode, chromaLog2, false);
         if (cbfCb)
         {

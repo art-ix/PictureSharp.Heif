@@ -179,6 +179,9 @@ internal static class HevcSyntaxWriter
         }
     }
 
+    public static void SplitTransformFlag(HevcCabacWriter writer, Span<byte> contexts, bool split, int log2TrafoSize) =>
+        writer.EncodeBin(ref contexts[HevcContext.SplitTransformFlag + 5 - log2TrafoSize], split ? 1 : 0);
+
     public static void CbfLuma(HevcCabacWriter writer, Span<byte> contexts, bool cbf, int trafoDepth) =>
         writer.EncodeBin(ref contexts[HevcContext.CbfLuma + (trafoDepth == 0 ? 1 : 0)], cbf ? 1 : 0);
 

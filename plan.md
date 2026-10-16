@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: brak wydania; 0.1.0–0.3.0 zamknięte lokalnie (PictureSharp 0.6.9 z NuGet): `Identify`, `Decode` (YCbCr bit-exact z HM, RGB = heif-dec) i `SaveAsHeic` (BD-rate PSNR −4,6%/SSIM +0,7% względem x265 medium na Kodaku po poprawach enkodera), 2026-10-16. Następna 0.4.0 (wymaga rdzenia 0.7.0).** PictureSharp.Heif to wtyczka formatu dla
+**Bieżąca wersja: brak wydania; 0.1.0–0.3.0 zamknięte lokalnie (PictureSharp 0.6.9 z NuGet): `Identify`, `Decode` (YCbCr bit-exact z HM, RGB = heif-dec) i `SaveAsHeic` (BD-rate PSNR −4,7%/SSIM +0,6% względem x265 medium na Kodaku po poprawach enkodera), 2026-10-16. Następna 0.4.0 (wymaga rdzenia 0.7.0).** PictureSharp.Heif to wtyczka formatu dla
 PictureSharp: moduł `IImageFormatModule` (rejestracja przez `ImageConfigurationBuilder.AddFormat`), który odczytuje i
 zapisuje HEIC (HEVC w kontenerze HEIF) bez kodu natywnego. Zdjęcia HEIC zawierają tylko obrazy intra, więc port
 obejmuje HEVC intra, bez kompensacji ruchu.
@@ -94,10 +94,10 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
 ## Poprawy enkodera po 0.3.0 (2026-10-16, niewydane)
 
 - AQ wariancyjne (kvazaar VAQ, `cu_qp_delta`, `HeifEncoderOptions.AdaptiveQuantizationStrength` = 1), RDOQ i sign data
-  hiding (HM), SAO z decyzją na obrazie po deblockingu (dwa przebiegi zapisu wycinka).
-- BD-rate względem x265 medium (PSNR RGB / SSIM luma): Kodak −4,55% / +0,73% (było −3,84% / +9,25%), prywatne wycinki
-  −2,89% / +0,56% (było −1,18% / +9,16%). 12 MP w ~8,1 s (było 5,6 s).
-- Dalsze kandydaty: podział TU (RQT), psy-rd, przyspieszenie wyszukiwania (SIMD SATD/transformacji).
+  hiding (HM), SAO z decyzją na obrazie po deblockingu (dwa przebiegi zapisu wycinka), podział TU (RQT, głębokość 2).
+- BD-rate względem x265 medium (PSNR RGB / SSIM luma): Kodak −4,72% / +0,57% (było −3,84% / +9,25%), prywatne wycinki
+  −2,98% / +0,53% (było −1,18% / +9,16%). 12 MP w ~9,2 s (było 5,6 s).
+- Dalsze kandydaty: psy-rd, przyspieszenie wyszukiwania (SIMD SATD/transformacji).
 
 ## Kryterium i plan 0.3.0 (ustalone 2026-10-16, przed implementacją)
 

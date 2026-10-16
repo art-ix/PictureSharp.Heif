@@ -17,6 +17,9 @@ internal sealed record HevcEncoderSettings
     public bool SignHidingEnabled => Rdoq && SignDataHiding;
     public bool TransformSkip { get; init; }
 
+    // max_transform_hierarchy_depth_intra: transform units may split this many times below a 2Nx2N coding unit (RQT).
+    public int MaxTransformDepth { get; init; } = 2;
+
     // Variance adaptive quantization strength d (QP offset d * (ln var(CTB) - AqReferenceLogVariance), as kvazaar's
     // --vaq with d = vaq / 10); 0 disables it. Enables cu_qp_delta with one quantization group per CTB.
     public double AqStrength { get; init; }
@@ -102,7 +105,7 @@ internal static class HevcParameterSetWriter
         w.WriteUe(0); // log2_min_luma_transform_block_size_minus2
         w.WriteUe(3); // log2_diff_max_min_luma_transform_block_size (4..32)
         w.WriteUe(0); // max_transform_hierarchy_depth_inter
-        w.WriteUe(0); // max_transform_hierarchy_depth_intra
+        w.WriteUe((uint)settings.MaxTransformDepth); // max_transform_hierarchy_depth_intra
         w.Write(0, 1); // scaling_list_enabled_flag
         w.Write(0, 1); // amp_enabled_flag
         w.WriteFlag(settings.SaoEnabled);

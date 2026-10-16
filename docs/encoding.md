@@ -29,7 +29,8 @@ image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60 });
   carries the same matrix and range), chroma averaged over 2×2 blocks. Odd sizes are coded one sample larger and
   cropped with a clean aperture.
 - **HEVC:** Main profile, one IDR picture per tile, CTB 32, intra 2N×2N coding units of 32, 16 and 8 and N×N at 8,
-  transform units equal to coding units, deblocking enabled. Decisions follow HM's intra search: SATD pre-selection of
+  a residual quadtree of up to two transform splits below each 2N×2N unit (chosen for the best luma mode by
+  rate-distortion cost, as HM's final RQT check), deblocking enabled. Decisions follow HM's intra search: SATD pre-selection of
   all 35 luma modes, rate-distortion choice among the best candidates and the most probable modes with CABAC rate
   estimation, five chroma modes and a rate-distortion split decision for each coding unit.
 - **Psychovisual and rate-distortion tools:** variance adaptive quantization (kvazaar's VAQ: a QP offset per CTB of
@@ -56,10 +57,11 @@ image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60 });
 
   | Data | RGB PSNR | luma SSIM | Results |
   | --- | --- | --- | --- |
-  | Kodak, 24 images 768×512 (`Category=Measurement`) | −4.6% | +0.7% | `docs/measurements/encoder-bdrate-kodak-x265-medium.tsv` |
-  | 5 crops 768×512 of private photos (`Category=Local`) | −2.9% | +0.6% | `docs/measurements/encoder-bdrate-x265-medium.tsv` |
+  | Kodak, 24 images 768×512 (`Category=Measurement`) | −4.7% | +0.6% | `docs/measurements/encoder-bdrate-kodak-x265-medium.tsv` |
+  | 5 crops 768×512 of private photos (`Category=Local`) | −3.0% | +0.5% | `docs/measurements/encoder-bdrate-x265-medium.tsv` |
 
   Each tool on Kodak (PSNR / SSIM): the 0.3.0 encoder −3.8% / +9.3%; with adaptive quantization −0.7% / +4.4%; plus
-  RDOQ and sign hiding −4.0% / +0.6%; plus SAO −4.6% / +0.7%. Adaptive quantization trades PSNR for SSIM by design.
-  Kodak images are fetched with `scripts/fetch-kodak.py --approved`. A 12 MP photo encodes in about 8 s on 16 threads
+  RDOQ and sign hiding −4.0% / +0.6%; plus SAO −4.6% / +0.7%; plus the residual quadtree
+  −4.7% / +0.6%. Adaptive quantization trades PSNR for SSIM by design.
+  Kodak images are fetched with `scripts/fetch-kodak.py --approved`. A 12 MP photo encodes in about 9 s on 16 threads
   with this scalar encoder.
