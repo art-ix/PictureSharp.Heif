@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: brak wydania; 0.1.0 zamknięta lokalnie na paczce PictureSharp 0.6.9 z NuGet (2026-10-16), następna 0.2.0.** PictureSharp.Heif to wtyczka formatu dla
+**Bieżąca wersja: brak wydania; 0.1.0 zamknięta lokalnie (PictureSharp 0.6.9 z NuGet); trwa 0.2.0 — skalarny dekoder HEVC intra bitowo zgodny z HM, w toku integracja z `Decode` (2026-10-16).** PictureSharp.Heif to wtyczka formatu dla
 PictureSharp: moduł `IImageFormatModule` (rejestracja przez `ImageConfigurationBuilder.AddFormat`), który odczytuje i
 zapisuje HEIC (HEVC w kontenerze HEIF) bez kodu natywnego. Zdjęcia HEIC zawierają tylko obrazy intra, więc port
 obejmuje HEVC intra, bez kompensacji ruchu.
@@ -17,8 +17,8 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 
 | Wersja | Zakres | Minimalny PictureSharp | Status |
 | --- | --- | --- | --- |
-| 0.1.0 | Szkielet repo, CI, kontener HEIF (ISOBMFF), detekcja, `Identify`, limity, fuzzing parsera | 0.6.9 | Zamknięta lokalnie (DoD spełnione; pierwszy przebieg CI na GitHub po pierwszym pushu) |
-| 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | Planowana |
+| 0.1.0 | Szkielet repo, CI, kontener HEIF (ISOBMFF), detekcja, `Identify`, limity, fuzzing parsera | 0.6.9 | Zamknięta lokalnie (DoD spełnione; CI na GitHub odłożone decyzją użytkownika) |
+| 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | W trakcie (YCbCr bit-exact gotowe; RGB/siatka/alfa/metadane w toku) |
 | 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Planowana |
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.0 | Planowana |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.0 | Planowana |
@@ -58,10 +58,28 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
   `Identify` ustawia `ImageInfo.ContainerItemCount` na liczbę wpisów `iinf` (kafle, alfa, miniatury i elementy
   Exif/XMP; `FrameCount` pozostaje 1). Manifest korpusu zawiera `itemCount` liczony niezależnie przez generator
   i zgodny z `heif-info`; testy syntetyczne (1/2/3 elementy), korpus i Local. Publiczne API wtyczki bez zmian.
-- Do wykonania przy pierwszym pushu (decyzja użytkownika): przebieg workflow CI na GitHub.
+- Repozytorium prywatne `art-ix/PictureSharp.Heif` (2026-10-16), GitHub Actions wyłączone na życzenie użytkownika ("na razie bez pipeline'ów"); workflow `.github/workflows/ci.yml` pozostaje w repo do późniejszego włączenia.
 - Ograniczenia identyfikacji: jawne niezerowe długości extentów, całkowitopikselowy `clap`; funkcje nieobsługiwane
   zgłaszają `NotSupportedException`. `Identify` nie potwierdza poprawności HEVC ani możliwości dekodu profilu.
   `Decode` weryfikuje kontener i nadal zgłasza `NotSupportedException` — piksele są zakresem 0.2.0.
+
+## Stan implementacji 0.2.0 (2026-10-16)
+
+- Gotowe: referencje bit-exact — `tests/assets/generate-hevc-corpus.py` (43 strumienie HM/kvazaar pokrywające narzędzia
+  kodowania + 10 elementów korpusu HEIF), SHA-256 płaszczyzn YCbCr z HM; libde265 musi się zgadzać, chyba że jego własny
+  hash SEI zawodzi (2 strumienie z `slice_loop_filter_across_slices_enabled_flag=0`). Narzędzia: dec265 i HM `TAppEncoder`
+  dodane do `scripts/build-heif-reference.sh`.
+- Gotowe: skalarny dekoder HEVC intra w `src/PictureSharp.Heif/Hevc/` (port z HM 16.20, BSD-3, nota w THIRD-PARTY-NOTICES):
+  NAL/RBSP, SPS (z VUI/HRD/RPS do pominięcia), PPS, nagłówek slice'a, CABAC, SAO, drzewo kodowania, PCM, transquant bypass,
+  cu_qp_delta, listy skalowania, transform skip, DST/DCT 4–32, predykcja intra (35 trybów, wygładzanie, strong smoothing),
+  deblocking, SAO, kafle, WPP, slice'y i segmenty zależne, Main/Main10/Main Still Picture i 4:0:0 bez narzędzi RExt.
+  Slice'y P/B, 4:2:2/4:4:4, głębie > 10 bitów i narzędzia RExt/SCC → `NotSupportedException`.
+- Wyniki: 43/43 strumienie i 10/10 elementów HEIF bitowo zgodne z HM; Local: 423 elementy HEVC (kafle, miniatury, obrazy
+  pomocnicze) z 5 prywatnych zdjęć zgodne z HM i libde265; fuzzing 6000 mutacji bez niekontrolowanych wyjątków.
+- Testy YCbCr linkują źródła `Hevc/` do projektu testów (bez `InternalsVisibleTo`); warstwa HEVC nie zależy od kontenera.
+- Pozostało do DoD 0.2.0: `Decode` (składanie siatki, YCbCr→RGB zgodne z `heif-dec` wg nclx/VUI, 10→8 bit, monochrom),
+  alfa z `auxC` (+`prem`), `irot`/`imir`/`clap`, ICC/EXIF/XMP do `ImageMetadata`, `TargetSize`/`ApplyExifOrientation`
+  bez podwójnego obrotu, limity `MaxPixels` i anulowanie między kaflami, uszkodzone pliki HEIC na ścieżce `Decode`.
 
 ## Zasady
 

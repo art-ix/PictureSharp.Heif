@@ -13,6 +13,13 @@
   <ItemGroup>
     <None Include="../assets/PublicApi.approved.txt" Link="PublicApi.approved.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../assets/corpus/**" Link="corpus/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../assets/hevc/**" Link="hevc/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The HEVC layer is self-contained; compiling its sources into the tests checks YCbCr output bit for bit without
+         InternalsVisibleTo on the plugin. -->
+    <Compile Include="../../src/PictureSharp.Heif/Hevc/**/*.cs" Link="Hevc/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

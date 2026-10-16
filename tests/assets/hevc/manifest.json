@@ -1,0 +1,1045 @@
+{
+  "streams": [
+    {
+      "file": "hm-main-qp32.hevc",
+      "encoder": "hm",
+      "sha256": "cc742edfa56dd3c152a6dc590b3eab6e501bb35b64b53a90e5347ae3f5a095d3",
+      "notSupported": false,
+      "width": 192,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "56fd5f7b17b482ff2ec8ed048d769169a7638c91dfda52331c3ddc3b62d21a69",
+        "b40063dfcfae6bde3975a62b473d1bb31e1bbe2d18be9b5082b221fac2e0fd63",
+        "9b57ecc581457bf9af029f117c9e6d9cbf645264521f767afaf1ad125e41ffe1"
+      ]
+    },
+    {
+      "file": "hm-main-qp22.hevc",
+      "encoder": "hm",
+      "sha256": "8ef8d6597a24be69f5276458f4365c86f850a079287794fee98faef6a9c5826f",
+      "notSupported": false,
+      "width": 192,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "b8980b093c1ab59aa42480bf9c108fd8cd7773d0c5898c995a375765dcc83b82",
+        "ecf2ce2c5fcdb4226f90b94a1210b7e14e220b521bf881d06592748cdf4a5785",
+        "f013070cbf59d1b04ba40484eec6781f971c31633363734cf7a73a46e668fe66"
+      ]
+    },
+    {
+      "file": "hm-main-qp4.hevc",
+      "encoder": "hm",
+      "sha256": "67d60564a1d59f65dd43feeebc97aed83bb832d229795dbd053ede67631d779f",
+      "notSupported": false,
+      "width": 96,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "d19a1b5a0fef119113a98605f8f9e82cb5e151be47dc109ab7a30b444bf3270d",
+        "27fa099ca70b3a6fd8c34e9757d4d38540fc50db8218cf9195a84f6350cd23fe",
+        "2a106fd9971617d18e9d36faf0b4f0fe527e8f379ea0b132ace4b6b453465822"
+      ]
+    },
+    {
+      "file": "hm-main-qp51.hevc",
+      "encoder": "hm",
+      "sha256": "a7178730b6911ec95f348014a2b600e34f00d2f550e59a7b57641cbecf7441c5",
+      "notSupported": false,
+      "width": 96,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "767c6fee9e0e654fa4e55e02a72f690dfdabd5e04c294b098047a2c009f0f28f",
+        "73266e27b2a2ab9a5006aa93f9ba562689f72eb8fbeb24599f1237a5bff23451",
+        "70380a1ac0c97bd57599d495d6f915b6332ac733a4e4ad72fecf61e186ef5b41"
+      ]
+    },
+    {
+      "file": "hm-conformance-window.hevc",
+      "encoder": "hm",
+      "sha256": "430e85cb3adbd8dee658007e33a447b3964d690b6a58d9145f2e50e29ba0b22e",
+      "notSupported": false,
+      "width": 102,
+      "height": 58,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "755e2f6a4a53abaecdb28ac35895a928454fd99dc90a3308f03820441722c35a",
+        "78a38f344fbc21a62c711e44ba5594fbe998f38516743157ca8afed80b8efc88",
+        "0fec085cf63b5d6e9cc2b113f9e2a63f35de7a752e13f84c3ff4190531d53a8e"
+      ]
+    },
+    {
+      "file": "hm-ctu16.hevc",
+      "encoder": "hm",
+      "sha256": "7d04b3089d8557a62f5b7c653c283a09c5a853a6cead8d115bb66bfa40be5c70",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "a6a05372a457fa872bdfd2fc5e25a431d2fe914f416ea887a38f000886f197a5",
+        "d7efd7505c6b109c5b5063eec8b420aedbcafe8ef0b11a5b757f912671bb8826",
+        "c7c8f8253b3b423221b4acfdfd4fec910b90b6fafed3a6408c43d51a297d9954"
+      ]
+    },
+    {
+      "file": "hm-ctu32-tu8.hevc",
+      "encoder": "hm",
+      "sha256": "24908ed1788537515d308627da349fd9252765e9bdb0017bb9b7af1bfc72480f",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "661370d469525539c210800a45b71a0aaf6c96986ecc4ae51a042d7480d49a5b",
+        "6b337e1ab00f1b44ea249442a909caa5213acbefa5f511b6239015d1891e259e",
+        "ef7f7ba3af0d4656f1ff9e33b0d376561a23fca0dbf461b01a1e5e55cfab53a0"
+      ]
+    },
+    {
+      "file": "hm-tu-depth1.hevc",
+      "encoder": "hm",
+      "sha256": "dc9399e7ef2fef374eef14ce2f9bceaa69c159202800153099dbf639dd38ced8",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "80e20173867bb3ea9825715d1fa0c7ac4d5a08cec77e3a7864e24ed7ef788f9d",
+        "87d840c787d3215f643b4ee50435e6bb407e31250cd8dcde2ee25fddff834c1b",
+        "8e550934badf8855529c5a5fce38ecdf3ffa50e59bb38180bf5510f2f10402b2"
+      ]
+    },
+    {
+      "file": "hm-no-transform-skip-no-signhide.hevc",
+      "encoder": "hm",
+      "sha256": "dc785507ce3777e42fb0e3539adc0923862f71157f6682a428d81ac3d763ae9e",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "4df136161bb5e2eef5e09a72996d7d9180b6bc25166d44a676056315bdc5e15e",
+        "71dc6e57ee9522465a935cf09e786c67f1112e2ca00ef536e37d7779e7d4b0bd",
+        "3ce5df92b22262389f2e9b9719f4e99df63a10ce3c5641e3e1f53ffa649b50ba"
+      ]
+    },
+    {
+      "file": "hm-transform-skip-qp12.hevc",
+      "encoder": "hm",
+      "sha256": "a1f00fdbc96b882b4610073272f31b13de8a2eb1ff62a97041638595f39f44aa",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "d35d05582f85ac94507cf673a4b48d7cb125b6039d39deef725d7ea9518ea617",
+        "8879eb0398404654d0406d314556a94d7547d55d595dd978a8818facef8476f2",
+        "c28ecaa687a37d51bddfbe87d29f6deeaad7fe848011073a6497f9f966c037de"
+      ]
+    },
+    {
+      "file": "hm-scaling-default.hevc",
+      "encoder": "hm",
+      "sha256": "07af43d930a3e60f3b73886c33c4a742943c2d9c88df83be66f06ba172907dab",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "5d68329097277a68c6e6926fc9658ce96115b0a0a7d397897c2f3a602dd2f978",
+        "4a16062ed6f36c24b2ff8e98d274090405a53a47a5949fb60d578d84a56cdd7f",
+        "711bc127c61fd7393a3ed33c0fb94439d288bee8848fa56ac6e131f327aaa546"
+      ]
+    },
+    {
+      "file": "hm-scaling-file.hevc",
+      "encoder": "hm",
+      "sha256": "187206946fc7bc397a07cb26914b18ce7ef040fd603487a641f584be1233516b",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "f8aea83cbda81d0a89f93aec558b5feb86a403d7a686f9b140d95aae8a53d3f4",
+        "34a57146213a743385e1c28c52eac387bf2b75388717c434345a889d88bc9e4e",
+        "05234e0730ba39053d9cc38fb7aec3b48e56f5686fda9a294700553b8188281c"
+      ]
+    },
+    {
+      "file": "hm-pcm.hevc",
+      "encoder": "hm",
+      "sha256": "f14133beb9b51d5b35c481db896aa0c6e901b08d9c761e04f7e70a677291f882",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "ea87040a21a437f2348dce5f73c68a7b1ee2ad7b32b1a2756396149fc9d2e033",
+        "77b7f2ad1519f3b64fe2068adf106e435b3efa5a362067fbfd26c0e357c0c4ab",
+        "1ad509243ea6bd9326aeacd1f8e87c1c15784e3d07d27d6c43a767c529e01e66"
+      ]
+    },
+    {
+      "file": "hm-pcm-nofilter.hevc",
+      "encoder": "hm",
+      "sha256": "7e2c9fd0f5b3ae98cfb237412330ee84124ec8efaac45e87dbdf418317858c86",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "2182124728187ec9b4b35bd657c80a68358d794ace07d42ebaa919be4fd87c94",
+        "dffcf5d980478a0156feb9f68cd80174a78ad812a1474cbf3b48e70d2a724cc9",
+        "9efcb9bc202feb8122f371d72b5647e57d9d1aeb172e6a7c2d4ffd42de6d4159"
+      ]
+    },
+    {
+      "file": "hm-transquant-bypass.hevc",
+      "encoder": "hm",
+      "sha256": "376c25cdf9700565459a7eb70afdb2cd43426e5b91218fcc9bd1ae653c5fd83a",
+      "notSupported": false,
+      "width": 96,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "54093ceae119a817cb97b9f6e325a2f4e83d13f881610fb26880ce601cc2c8ea",
+        "f0387e87d9d6045d842a72b1c7d1ef5066af88e4d559b7bcd3c1f3085b9d7c38",
+        "e1727f1c1e17a3d13f1add96186682af07f21a67c8bcc8102ae0c17d00c50f82"
+      ]
+    },
+    {
+      "file": "hm-cu-qp-delta.hevc",
+      "encoder": "hm",
+      "sha256": "fda4f56ef7ecbec01ef7febbe41dd2516b51507e9f36f5356ec627432661a187",
+      "notSupported": false,
+      "width": 192,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "a59753c8d07a98127bac62be809ee5cd91ba09ac4ba8786f5ccd80486aa3fdeb",
+        "b28f2e84b90f27201cbd7ac57239d6988b037603a4292e40a1bdb7394a329754",
+        "3da7baf6bdc5f4d90e181118c813fe8f6a5318439adcabd5d0f5a62403726cde"
+      ]
+    },
+    {
+      "file": "hm-slice-chroma-qp-offsets.hevc",
+      "encoder": "hm",
+      "sha256": "544d0f8187b36e6d892b4edda80d011c42da71643ab13ed0cc66bb297be517a7",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "562d7c434e17d0aecb70515045caec0a7d5cfca10779a5a03286f1c9df30555f",
+        "74ab835853a4e602234ff7f0f44a729f164e6b1730cc695f0c61eb600d1c689d",
+        "eafb207ca28da44dd8386a3f48a0a02dbe22d48fe54a484a591d0458679fb698"
+      ]
+    },
+    {
+      "file": "hm-deblock-off-sao-off.hevc",
+      "encoder": "hm",
+      "sha256": "5797cd377a2a02c4dc151cef2f68ded9c955dfeb6c665e5c9047fdbe00b57450",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "386aa3dd1c54fbaff78c4b520fe152bff907d835f1ced26292c3f7ca869ac489",
+        "43327846b93f31cd9a08662b9b826faa4ca794fa2ef05877e3b569ed99b9635c",
+        "1b5d8465236787ec361691a1a4aca6328550883abc3b28c0dc7e84a5595a28fc"
+      ]
+    },
+    {
+      "file": "hm-deblock-offsets.hevc",
+      "encoder": "hm",
+      "sha256": "2e3170006b5338907ef26eb77ecfba20640f19361450cb08293dc8e68b006fa4",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "f1f99d834ebbc747efcc42297c09c8192662f2f473a250f85e8422e9f0d44ae8",
+        "aa827c9af2c244624feaed34a7e8bae3a466c5a2ecf06eea00c043fcab3b2426",
+        "8c427b147bd414bbf45528408c5d6de0ea80833a6f9b37b4086e0bf41dd8f000"
+      ]
+    },
+    {
+      "file": "hm-deblock-slice-offsets.hevc",
+      "encoder": "hm",
+      "sha256": "ce4edd1089135a373b16bd62f110cf9db4c72c7359883f90fbc3bbe1b1644613",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "8a23beeebe63b1fee816143961b88066be5c1d78f10934c06bff059bde460c09",
+        "def65ea3e9acd919c81948c6ac10ba2ecb728d20e60b713e7a1a652d305a7c7b",
+        "05372816ca2317156957279fd173f4f78866da1903ff743ab9490c0ca7ebd669"
+      ]
+    },
+    {
+      "file": "hm-sao-only.hevc",
+      "encoder": "hm",
+      "sha256": "797e1f1cd01c4c1ed3140c8e6cbc7a9e2bee09d8d05a71118566cd44e656b853",
+      "notSupported": false,
+      "width": 192,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "88958bc23b2a2e84db4db6cd4753035fbeed05db37eacbba6f8a7ae17fe2fef0",
+        "fb2c027ba641de25708769dfaa3572a55357afa4538bad204602cc285c4d9da0",
+        "2ca69d181c4f02962aa7a345a10d92b0ac5d069f480c2d70b1d2879df192506e"
+      ]
+    },
+    {
+      "file": "hm-sao-lcu-boundary.hevc",
+      "encoder": "hm",
+      "sha256": "879c4f74c1fe01f4711def79eec2b684e5ee2939125d805431b7733d50522069",
+      "notSupported": false,
+      "width": 192,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "0151970c9da7bc99ff59af57c7cb6f9fc0acb96300b79aa7b147d24546a9337d",
+        "1b058ee40469ae477ed967efe70d840047b0fe86151ae696ca19ca3ce1120234",
+        "974f3aa9a9510f79f2a66859f636238222753d20a20ef63f56fd987b600a41a4"
+      ]
+    },
+    {
+      "file": "hm-strong-intra-off.hevc",
+      "encoder": "hm",
+      "sha256": "06d7b74b65d9a0159c54a122ec9fa9c027573b8b0331a1f9a4400d5248b44c8b",
+      "notSupported": false,
+      "width": 192,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "3d3e04ff5f3a9b5342773bdab6901dbb229236d131ad0befe4e5880c6e77ac6f",
+        "ebece61babf9a0c895b3561ac51e379e6a26027c4fd2d8a48c86f1f004edbee2",
+        "f11321441e497b09b110983be384cb981e644603f413f71898811a1b28ad0297"
+      ]
+    },
+    {
+      "file": "hm-tiles-uniform.hevc",
+      "encoder": "hm",
+      "sha256": "9aa6efd578e79582dda9c00eb48784be3d817cf37e898c3d933ae45afa274fa6",
+      "notSupported": false,
+      "width": 768,
+      "height": 160,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "608abdb78ac9d4c54f3093636e3573e867098bf04474c64845a6facd3e109b43",
+        "7fcc7fe4759d645169b4554eab6316186e23974f65f9560081114506444a455e",
+        "a4156d943eb2dd5440d694fcdf77326b0e747412bfe0f0b33b154d0dda96bb66"
+      ]
+    },
+    {
+      "file": "hm-tiles-explicit-nocross.hevc",
+      "encoder": "hm",
+      "sha256": "ec28b9fcce502714c107051fb56cad8ea02e5a0dd7cf55f3336910165f283567",
+      "notSupported": false,
+      "width": 576,
+      "height": 192,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "d40bc1078e3c69835749909a48e5ab1b3a4d7ffe548dd093aec3495460b1d75e",
+        "2e80e5a9bcd2573a40271f1b738e489da53b192e95181e2724a9867c8d3ea21a",
+        "a302bd853218cae9a8af6de445f21af9007a75eae98b092198ba2842806aa099"
+      ]
+    },
+    {
+      "file": "hm-wpp.hevc",
+      "encoder": "hm",
+      "sha256": "cff54765b2faadf4de94f5658228d7f2b3ad3c280309fb3bcb99dd97fa4be287",
+      "notSupported": false,
+      "width": 256,
+      "height": 192,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "6ea8fafd3e52f8fd3353773829570919bcbac4e06563911bd59a840b3f262236",
+        "e75d6967edfacd27d70af86f4d800440946b5b4dbf16f94b36f7a4b197963978",
+        "29d05097d33a7e79f27c8a2b8350cdce2e5a7c3e0864ee80fc2c7c44acf38c4c"
+      ]
+    },
+    {
+      "file": "hm-slices-ctu.hevc",
+      "encoder": "hm",
+      "sha256": "6708f026e717ed90005b2032555eb976af9108a592f5844275782a816d251518",
+      "notSupported": false,
+      "width": 256,
+      "height": 192,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash"
+      ],
+      "planes": [
+        "b43bf5285ff2923b60a0fb4430883e56cd77c2cefe8e8ab9872f262b4e764f60",
+        "07cde0fabe06527c8b78fddfb4a210f41a572d27d576397748636a2e7e662d90",
+        "01423a7caef6af21f79d6ec629bf3dd6fb0a05d0594563cce0840aa55bcf9243"
+      ]
+    },
+    {
+      "file": "hm-slice-segments.hevc",
+      "encoder": "hm",
+      "sha256": "5cfac7cdec00c1f95ec2689d4a78f23cdbb063b5c0238de955487caec13ba1b3",
+      "notSupported": false,
+      "width": 256,
+      "height": 192,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "d8eece69d5333ff10e63c3a79a04593bfdae681144a177450c05b36b16df4a66",
+        "b59f95d6f8645464ebcdde91db074d2795575eb3ffbd521f0e53018045e8e522",
+        "f2550cdb79d58193bccb282bcf0ce24d3ee2b0b9da53b585100734bc8336b95c"
+      ]
+    },
+    {
+      "file": "hm-wpp-slices.hevc",
+      "encoder": "hm",
+      "sha256": "e7761a89411e678a11a919b4d833a03178091e794ca55d754a9a3646ef5f6ca2",
+      "notSupported": false,
+      "width": 256,
+      "height": 192,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "7cef2df86a825e50c60e394bb3b6af7f22a60d69f498795b6bca39c67fb2124c",
+        "b8c2f674a5465b928587f40f7db92063b6db2321a733496bf07266443ccfe979",
+        "a6229133eeecb395dae42345b41ad5f5997e8b2cc29b0a82a5ff4d282465aa50"
+      ]
+    },
+    {
+      "file": "hm-tiles-slice-per-tile.hevc",
+      "encoder": "hm",
+      "sha256": "0e5e74e0e53ca1e646d8e39e540b30aba321365e3c5198441fd7f418642c279c",
+      "notSupported": false,
+      "width": 512,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "dda5bb7b1986a51d06157110aea6d5806087beadc0bb3b6ebde1c7c7bc11ffe6",
+        "39ec7849878b5811b4beb3e541c78adcaf4093f7dd6e5ef02cbbafc326885288",
+        "0e6c03c648939b68c63694b5e9697335aedb1a3e9a71d7559cc11a7085998907"
+      ]
+    },
+    {
+      "file": "hm-main10-qp30.hevc",
+      "encoder": "hm",
+      "sha256": "c283574dc0cb3c6e1e3f08f92ecbec3e2a5aecac19df35822e726f7d1f85f9e1",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 10,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "d4b7d20376125bf09bdb308e8de2da43b75cece7d1007ff0c2bde8440aad5423",
+        "cbb879b9b1846d9d13da05cac102f0228f227705257a724a87fe7e2b04c77e1a",
+        "f9a3d5893e8d3965056ea551dba1931960ebcc38694e67bf1d23d444f9abbbd5"
+      ]
+    },
+    {
+      "file": "hm-main10-qp8-tskip.hevc",
+      "encoder": "hm",
+      "sha256": "89324a735a6d2d787fe673115005247faf20efb8875a009655c8f7740781c345",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 10,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "749bb53242736ac17356b825ffe7ce3b28573d23edcb65a9e69da21094cf8e8a",
+        "ac87c544d5231e1644e6dd33c0717fd1c5dc711568b849720e58fa3e1a0a4e34",
+        "4a5c574911730321f6a5872b48eee33a3a337ef3c23b3c1ac0f1e83adc4f2bee"
+      ]
+    },
+    {
+      "file": "hm-main10-pcm.hevc",
+      "encoder": "hm",
+      "sha256": "e5bf01554074c1088b40d80d0d146f8f7dcc5961c6d2b8f1b638b19b40665829",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 10,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "e92b6da05eaccc376f3e66b6127acae4bbc1158fb4e4b8fb7b32608b1361a874",
+        "616ce970a3c46886501925b9e5e790a39fca72fa1a0ec7c2f909c880d80765eb",
+        "26d3a5ea7f7b237cfe761e0685e8d9d7801de5951bcf69cf86ce59a277e8fd89"
+      ]
+    },
+    {
+      "file": "hm-mono8.hevc",
+      "encoder": "hm",
+      "sha256": "8de3346b8b42355d7e4ef291196b2e2dcf201fc91d6cd9f422c817a30b5c768c",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 0,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "228ce386dd1becc8c6ca67ac530880c65c0fb37f5a8c6f84d4b7bf77f32e53da"
+      ]
+    },
+    {
+      "file": "hm-mono10.hevc",
+      "encoder": "hm",
+      "sha256": "543c7e2e7490a0f013094c945942ba55e6995facb4687a6c36eef03e8d5d3c7e",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 10,
+      "chromaFormat": 0,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "138f1377442f1921706be78b51d09403adb6fed82428a740b20583321679dc00"
+      ]
+    },
+    {
+      "file": "hm-mono8-rext-tools.hevc",
+      "encoder": "hm",
+      "sha256": "be3b61661482e5f9c7a28ba7aef8b401fcdef3ab8c426b886f2309c9589fc6ae",
+      "notSupported": true,
+      "width": 64,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 0,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "f0df490c86faafbbb6f4d17b4180dc142f01ca574598937f02a3a14371bcbfaf"
+      ]
+    },
+    {
+      "file": "kvazaar-default.hevc",
+      "encoder": "kvazaar",
+      "sha256": "a947d5b286b9ce7cb84f8dee1661494f4c110ac4fb8d12542bb9ac71e914676c",
+      "notSupported": false,
+      "width": 192,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "b2fed11b9ff05ae629cda194379415de8250fab8ec3cccc8c3c58d1857a270bb",
+        "b1d210336bf0cbc158f568f1a55a19af9d7958ad78ccd44393d41c978e191bfb",
+        "80ac212c4df4d9d0ea0bdc5b87caac207e29a5287a028210ea41b442bfabc280"
+      ]
+    },
+    {
+      "file": "kvazaar-qp12-signhide-tskip.hevc",
+      "encoder": "kvazaar",
+      "sha256": "cb89190ad036755221d8610921797439a8c4b712f8c348379cf6fb611e63b589",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "b5a931953d7859de32eda28b4e74bdb34c4d128f3df1ee7d229c3c97b228a5dd",
+        "acf6f2e813a4b21c36f6c3d8c9a3f1d93c6a4a8d71a2340319214020f33a7512",
+        "f8069ed5835f3d7b1a1f4d5eef55adbfb945957e9754e73773a63eed0f2e66cd"
+      ]
+    },
+    {
+      "file": "kvazaar-scaling-default.hevc",
+      "encoder": "kvazaar",
+      "sha256": "cea8762fc44419026b64783a785ab128f399017715f053cc95acd835921dd842",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "5824b4b23156764367d57d11744cf40f372d4204c139db66d85107ccc454aa62",
+        "ed5b3ead8d8aafff0c56d3b1bd7483f3c2b0ff7392e25771f9d99430b52c89a3",
+        "78a358c3e6c13f98c33af6bb86f05887a82dde04d37890ec180eeebca97e792f"
+      ]
+    },
+    {
+      "file": "kvazaar-tiles.hevc",
+      "encoder": "kvazaar",
+      "sha256": "21d645ea4e8b9c433195bc2fb56648c578449a56a0018ae945be6a9ac9e69317",
+      "notSupported": false,
+      "width": 512,
+      "height": 192,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "ef6c2be4130e3ef399f64eaa72454be0efc01aef0cf7bfbb9376ba97de7b19cb",
+        "aa1b335822c8424ea73a99f649d238170364e091327ac4d467bb417262c260df",
+        "8a4e6f13475b9f017f2f2e5001e3a3e403f249181d919a0f4b98eab0d14789ee"
+      ]
+    },
+    {
+      "file": "kvazaar-wpp.hevc",
+      "encoder": "kvazaar",
+      "sha256": "83f6677f359290b48f610a323f3475721d7d118a4dc2d2bc97d4bb7f3d06d3e9",
+      "notSupported": false,
+      "width": 256,
+      "height": 192,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "0f0f86c7bd0ed1a4c0dc605a09c04cea4209740df9ff56b1c72eeb54e8c61933",
+        "5c022e1cf9ff3822e172a5d7442cfe1cf6070bd8e5f12e32346a3db2f4967e8c",
+        "207e4f5733eb35e87f7621f58671637c529a7a6acade2ec60322d1cf904b9e5d"
+      ]
+    },
+    {
+      "file": "kvazaar-slices.hevc",
+      "encoder": "kvazaar",
+      "sha256": "5eab08bcc9881763af5d40aa5d77e0e06c3b69e6705647bfd58cb9a20c7bab03",
+      "notSupported": false,
+      "width": 512,
+      "height": 128,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash"
+      ],
+      "planes": [
+        "9a0c1b27755e3851b58df3299499d32d6ef416e6ee811bca31fe1f0e80d4d0a9",
+        "4c82b1c261a20024162275c5572a1069928a8991782041d85b8d2230c06faabf",
+        "fa6578f65ea3570864507e5f0ef7994554c5b0ba3eb431b377052edf72b12111"
+      ]
+    },
+    {
+      "file": "kvazaar-mono.hevc",
+      "encoder": "kvazaar",
+      "sha256": "59e2c2e48e3fba468c5f1e262d186260c801207b4dac9075a5f186453cede08e",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 0,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "7596555a831affce467555f9ed9cc1c451fa1449a1e898368ccbdb5ec6b56b09"
+      ]
+    },
+    {
+      "file": "kvazaar-qp45-deblock.hevc",
+      "encoder": "kvazaar",
+      "sha256": "a312bf6bcddc3fff084976a76061ae5a69bfeba6860f03b5ec54d341ec8d77e1",
+      "notSupported": false,
+      "width": 128,
+      "height": 96,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "7f5af4616b987f43d55042911e8b287c8b1f67534195fed293d5e2905a380307",
+        "21ef5f49f0189bd29c55e77dfbc9a68b4b8941f4de8706a04ada464d4618aa90",
+        "3d2bac8ee9748e1ab981e202bc7aa83067cb3cf7803d93efd78d4b7f67eba886"
+      ]
+    }
+  ],
+  "heifItems": [
+    {
+      "file": "grid-2x1.heic",
+      "itemId": 2,
+      "width": 64,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "9a192be1013838ecf214f9fb50364292999b9b00ba5cd746da1f7a09eccf2cf7",
+        "2acd99a8e7a847a649f783f5c5107f46f3ef980f15b44adf4e7ed42948e6993e",
+        "f0cb7197c573865efa93f89930675731e2f6085d3a712b86bba13a2eaf3868ac"
+      ]
+    },
+    {
+      "file": "grid-2x1.heic",
+      "itemId": 3,
+      "width": 64,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "9a192be1013838ecf214f9fb50364292999b9b00ba5cd746da1f7a09eccf2cf7",
+        "2acd99a8e7a847a649f783f5c5107f46f3ef980f15b44adf4e7ed42948e6993e",
+        "f0cb7197c573865efa93f89930675731e2f6085d3a712b86bba13a2eaf3868ac"
+      ]
+    },
+    {
+      "file": "grid-rotated-mirrored.heic",
+      "itemId": 2,
+      "width": 64,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "9a192be1013838ecf214f9fb50364292999b9b00ba5cd746da1f7a09eccf2cf7",
+        "2acd99a8e7a847a649f783f5c5107f46f3ef980f15b44adf4e7ed42948e6993e",
+        "f0cb7197c573865efa93f89930675731e2f6085d3a712b86bba13a2eaf3868ac"
+      ]
+    },
+    {
+      "file": "grid-rotated-mirrored.heic",
+      "itemId": 3,
+      "width": 64,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "9a192be1013838ecf214f9fb50364292999b9b00ba5cd746da1f7a09eccf2cf7",
+        "2acd99a8e7a847a649f783f5c5107f46f3ef980f15b44adf4e7ed42948e6993e",
+        "f0cb7197c573865efa93f89930675731e2f6085d3a712b86bba13a2eaf3868ac"
+      ]
+    },
+    {
+      "file": "kvazaar-rgb8.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "SEI hash",
+        "libde265"
+      ],
+      "planes": [
+        "35e0b4be860f33b4479174c15e955083067dd63d8260488fff0cd539cdc7043c",
+        "47584d72220fbf3dafbb2d0ef9cb933719e9abde378f1a5c6a90087b14b57c4e",
+        "56f0e12cb75eb95ee7eb13d1f002cdf9b50f54ab2e248598b8febd4b899cdc33"
+      ]
+    },
+    {
+      "file": "x265-rgb10.heic",
+      "itemId": 1,
+      "width": 96,
+      "height": 64,
+      "bitDepth": 10,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "4962d88324ab049e32a2908debd71d70182d14fab0f953745145d7cd1dfbb725",
+        "84271bd10f252114a7a8835d829c2f2e0ae495e1372e2f000d6f8347f06390f1",
+        "5ed611b4dad86d0e21010d854b1e35acadd5a68e1f11c1963702901d042a6689"
+      ]
+    },
+    {
+      "file": "x265-rgb8.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "c70e77355f21706862d3ac566130857cbd84d513fd731834bd944c37923ff24e",
+        "33970624f93b2cbaef73073b4a618354adcfb39385c8917d9235f81768d3bcde",
+        "73eed3ebceb7b37072c1f2b43a8000c2d08ea1b6e42b9d7294407378669335ba"
+      ]
+    },
+    {
+      "file": "x265-rgba8.heic",
+      "itemId": 1,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "c70e77355f21706862d3ac566130857cbd84d513fd731834bd944c37923ff24e",
+        "33970624f93b2cbaef73073b4a618354adcfb39385c8917d9235f81768d3bcde",
+        "73eed3ebceb7b37072c1f2b43a8000c2d08ea1b6e42b9d7294407378669335ba"
+      ]
+    },
+    {
+      "file": "x265-rgba8.heic",
+      "itemId": 2,
+      "width": 80,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 0,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "e14de32fdf21860821be034f16547676d3b738f03cd9da861ccdba66c90fcf70"
+      ]
+    },
+    {
+      "file": "x265-tile64.heic",
+      "itemId": 1,
+      "width": 64,
+      "height": 64,
+      "bitDepth": 8,
+      "chromaFormat": 1,
+      "oracles": [
+        "HM",
+        "libde265"
+      ],
+      "planes": [
+        "9a192be1013838ecf214f9fb50364292999b9b00ba5cd746da1f7a09eccf2cf7",
+        "2acd99a8e7a847a649f783f5c5107f46f3ef980f15b44adf4e7ed42948e6993e",
+        "f0cb7197c573865efa93f89930675731e2f6085d3a712b86bba13a2eaf3868ac"
+      ]
+    }
+  ]
+}

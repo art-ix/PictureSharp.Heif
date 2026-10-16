@@ -40,7 +40,7 @@ ln -sf "$build/x265-10/libx265.a" "$build/x265/libx265_main10.a"
 configure x265 "$build/source-x265/source" -DEXTRA_LIB=x265_main10.a -DEXTRA_LINK_FLAGS="-L$build/x265" \
   -DLINKED_10BIT=ON -DENABLE_CLI=OFF -DENABLE_SHARED=ON -DENABLE_LIBNUMA=OFF
 install_build x265
-configure libde265 "$build/source-libde265" -DENABLE_SDL=OFF -DENABLE_DECODER=OFF -DENABLE_ENCODER=OFF
+configure libde265 "$build/source-libde265" -DENABLE_SDL=OFF -DENABLE_DECODER=ON -DENABLE_ENCODER=OFF
 install_build libde265
 configure kvazaar "$build/source-kvazaar" -DBUILD_TESTS=OFF -DGIT_SUBMODULE=OFF
 install_build kvazaar
@@ -48,11 +48,12 @@ configure libheif-1.20.2 "$build/source-libheif-1.20.2" -DWITH_X265=ON -DWITH_KV
   -DENABLE_PLUGIN_LOADING=OFF -DWITH_EXAMPLES=ON -DBUILD_TESTING=OFF -DWITH_GDK_PIXBUF=OFF \
   -DWITH_AOM_DECODER=OFF -DWITH_AOM_ENCODER=OFF -DWITH_DAV1D=OFF -DWITH_LIBSHARPYUV=OFF
 install_build libheif-1.20.2
-for target in lib/TLibVideoIO lib/TLibCommon lib/TLibDecoder lib/TAppCommon app/TAppDecoder; do
+for target in lib/TLibVideoIO lib/TLibCommon lib/TLibDecoder lib/TLibEncoder lib/TAppCommon app/TAppDecoder app/TAppEncoder; do
   make -C "$build/source-HM/build/linux/$target" -j "$jobs" release \
     RELEASE_CPPFLAGS='-O3 -Wno-error' RELEASE_CFLAGS='-O3 -Wno-error'
 done
 install -m 755 "$build/source-HM/bin/TAppDecoderStatic" "$prefix/bin/TAppDecoder"
+install -m 755 "$build/source-HM/bin/TAppEncoderStatic" "$prefix/bin/TAppEncoder"
 cp "$root/scripts/heif-reference-versions.tsv" "$prefix/versions.tsv"
 "$prefix/bin/heif-enc" --list-encoders
 "$prefix/bin/heif-info" --version
