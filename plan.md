@@ -22,6 +22,7 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Zamknięta lokalnie (DoD spełnione) |
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.1 | Zamknięta lokalnie (DoD spełnione, 2026-10-17) |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Zamknięta 2026-10-17 (x64 i ARM64), pierwsze publiczne wydanie (GitHub Release, NuGet przez Trusted Publishing) |
+| 0.5.1 | Skompresowane XMP (`content_encoding` w `infe`) przez `System.IO.Compression` | 0.7.1 | Planowana (decyzja użytkownika 2026-10-17) |
 | dalej | Zapis gain map w HEIC, ewentualnie szybka miniatura `thmb` i opcje dekodera | 0.8.0 | Do decyzji |
 
 Numery określają kolejność, nie terminy. Każda wersja wymaga własnego DoD (niżej) oraz wspólnej bramki jakości.
@@ -41,6 +42,13 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
   jakości/rozmiaru ustalone przed implementacją, wynik niezależny od liczby wątków, `SaveAsHeic`/`ToHeic`, opcje.
 - **0.4.0:** `ToHdr` dla HEIC z mapą Apple i ISO w budżetach referencji rdzenia; `Image.ReadMetadata` bez dekodu HEVC.
 - **0.5.0:** SIMD x64/ARM64 bitowo identyczne ze skalarem, równoległe kafle, pomiary 12/48 MP względem libheif.
+- **0.5.1:** element `mime` XMP z `content_encoding` = `deflate` rozpakowany przez `ZLibStream` (z zapasowym
+  `DeflateStream`, gdy brak nagłówka zlib) i dostępny w `Metadata.Xmp` przy `Decode` i `ReadMetadata`; rozmiar
+  po rozpakowaniu liczony przez `ReserveMetadata` i ograniczony (bomba dekompresji → `ImageFormatException`, bez
+  alokacji ponad limit). Nieznane kodowanie lub uszkodzony strumień XMP nie blokuje obrazu: blok jest pomijany
+  (dziś cały plik kończy się `NotSupportedException`). Zapis bez zmian (XMP nieskompresowane). Testy: pliki z
+  `heif-enc` z kompresją metadanych (jeśli dostępna) i syntetyczne `infe`; zawartość = XMP źródłowe; fuzzing
+  skompresowanego bloku; snapshot API bez zmian.
 
 ## Stan implementacji 0.1.0 (2026-10-16)
 
@@ -191,7 +199,8 @@ orientacjach, z siatką i bez); warstwa `Hevc/` (porty) bez zmian.
 
 ## Zasady
 
-- Te same reguły co rdzeń: `net10.0`, C# 14, BCL-only, bez `unsafe`, P/Invoke i `System.IO.Compression`; zależność
+- Te same reguły co rdzeń: `net10.0`, C# 14, BCL-only, bez `unsafe` i P/Invoke (`System.IO.Compression` dozwolone do dekompresji, decyzja użytkownika z
+  2026-10-17); zależność
   wyłącznie od `PictureSharp` przez publiczne API (test architektury jak dla adapterów). Wyjątki, limity, anulowanie,
   pule buforów, `Rgba32` z prostą alfą.
 - Licencje: port tylko z kodu zgodnego z MIT. Dekoder HEVC według ITU-T H.265 (bezpłatna specyfikacja) i

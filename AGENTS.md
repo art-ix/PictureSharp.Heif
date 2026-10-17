@@ -15,7 +15,8 @@ repository as copies of internal code.
 
 - Target `net10.0` with C# 14 (`LangVersion=14.0`); support .NET 10 and later.
 - `src/PictureSharp.Heif` depends only on the `PictureSharp` package (minimum version in `Directory.Build.props`) and
-  the BCL: no other `PackageReference`, native libraries, P/Invoke or `System.IO.Compression`. Use only public
+  the BCL: no other `PackageReference`, native libraries or P/Invoke (`System.IO.Compression` is allowed for
+  decompression, decided by the user on 2026-10-17). Use only public
   PictureSharp API; no `InternalsVisibleTo`, reflection or copied internal code. An architecture test checks this.
 - Do not use the `unsafe` keyword. Use `Span<T>`, `ref`, `Unsafe.Add` and `MemoryMarshal`.
 - Implement the plugin through `PictureSharp.Formats`: `IImageFormatModule`, `IImageFormatDecoder`,
