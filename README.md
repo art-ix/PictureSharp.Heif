@@ -5,7 +5,9 @@
 Reads and writes HEIC, the default photo format of iPhones, on **.NET 10 and later**. No native libraries and no
 P/Invoke: the only dependency is the `PictureSharp` package (0.7.1 or later).
 
-> **Status:** 0.4.0 in development, not yet published on NuGet. Reference the project from source for now.
+```bash
+dotnet add package PictureSharp.Heif
+```
 
 ## 1. Register the plugin
 
@@ -43,7 +45,7 @@ image.SaveAsHeic("photo.heic");                                          // qual
 image.SaveAsHeic("small.heic", new HeifEncoderOptions { Quality = 35 }); // smaller file
 ```
 
-Alpha, ICC, EXIF and XMP are written too. Every option is described in [encoding](docs/encoding.md).
+Alpha, ICC, EXIF and XMP are written too. Every option is described in [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md).
 
 ## HDR photos
 
@@ -68,9 +70,9 @@ HEIC as for the built-in formats.
 
 ## More
 
-- [Decoding](docs/decoding.md): colour conversion, HDR gain maps, metadata-only reads.
-- [Encoding](docs/encoding.md): options, file layout, quality and speed measurements.
-- [Container](docs/container.md): identification, limits and the test oracles.
+- [Decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/decoding.md): colour conversion, HDR gain maps, metadata-only reads.
+- [Encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md): options, file layout, quality and speed measurements.
+- [Container](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md): identification, limits and the test oracles.
 
 Decoded pixels match the HM reference decoder and libheif's `heif-dec` exactly; encoded files decode identically in
 both.

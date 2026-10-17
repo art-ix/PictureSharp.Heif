@@ -21,7 +21,7 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | Zamknięta lokalnie (DoD spełnione, w tym strumienie konformacyjne JCT-VC) |
 | 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Zamknięta lokalnie (DoD spełnione) |
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.1 | Zamknięta lokalnie (DoD spełnione, 2026-10-17) |
-| 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Zamknięta lokalnie 2026-10-17 (x64 i ARM64) |
+| 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Zamknięta 2026-10-17 (x64 i ARM64), pierwsze publiczne wydanie (GitHub Release, NuGet przez Trusted Publishing) |
 | dalej | Zapis gain map w HEIC, ewentualnie szybka miniatura `thmb` i opcje dekodera | 0.8.0 | Do decyzji |
 
 Numery określają kolejność, nie terminy. Każda wersja wymaga własnego DoD (niżej) oraz wspólnej bramki jakości.
