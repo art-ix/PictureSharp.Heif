@@ -114,6 +114,18 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
   `AttachGainMap(metadata, map, detected)` i `DeclareGainMap`, więc HEIC z iOS 18 zgłasza `Iso21496, Apple` jak JPEG z
   tego zdjęcia. Manifest korpusu ma pole `detected`; test Local sprawdza zbiór modeli zdjęć iPhone.
 
+## Porządki modelu kontenera (2026-10-17, niewydane)
+
+Refaktoryzacja bez zmiany wyników (dekod i bajty enkodera identyczne z commitem 1bfaef8 na całym korpusie, w 8
+orientacjach, z siatką i bez); warstwa `Hevc/` (porty) bez zmian.
+- Język domeny: `HeifFourCc` nazywa kody pudełek, elementów, właściwości, referencji i brandów zamiast liczb `0x…`.
+- Wartości: transformacje `HeifRotation`/`HeifMirror`/`HeifCleanAperture` (odczyt raz w kontenerze, te same typy w
+  dekoderze i enkoderze, `Payload()` przy zapisie), `HeifNclx`, `HeifGridLayout`.
+- Węzły renderowania jako typy (`HeifCodedNode`, `HeifGridNode`, `HeifIdentityNode`) zamiast enuma z opcjonalnymi
+  polami; renderer i `HeifCanvas.Apply` dopasowują wzorce.
+- `HeifItem` bez stanu walidacji (stan DFS i pamięć opisów w kontenerze), `Targets`/`RefersTo` zamiast powtarzanych
+  `TryGetValue`; `HeifMetadataReader.ApplyColour`/`ApplyDescriptive` zamiast flagi; alfa w `HeifCanvas.SetAlpha`.
+
 ## Poprawy enkodera po 0.3.0 (2026-10-16, niewydane)
 
 - AQ wariancyjne (kvazaar VAQ, `cu_qp_delta`, `HeifEncoderOptions.AdaptiveQuantizationStrength` = 1), RDOQ i sign data

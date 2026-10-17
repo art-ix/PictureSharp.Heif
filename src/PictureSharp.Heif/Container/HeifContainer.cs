@@ -8,6 +8,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
     private const int MaxReferenceDepth = 32;
     private readonly Dictionary<uint, HeifItem> items = [];
     private readonly List<HeifBox> properties = [];
+    private readonly Dictionary<HeifItem, HeifImageDescription> descriptions = [];
     private ReadOnlyMemory<byte> itemData;
     private bool hasItemData;
     private uint primaryId;
@@ -33,46 +34,42 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
         Require(HeifSignature.IsHevcImage(data.Span), "Unrecognized HEIF signature.");
         var reader = new HeifReader(data);
         HeifBox ftyp = NextBox(ref reader);
-        Require(ftyp.Type == 0x66747970, "Missing ftyp.");
+        Require(ftyp.Type == HeifFourCc.Ftyp, "Missing ftyp.");
         bool meta = false;
         while (reader.Remaining > 0)
         {
             HeifBox box = NextBox(ref reader);
             switch (box.Type)
             {
-                case 0x6d657461: // meta
+                case HeifFourCc.Meta:
                     Require(!meta, "Duplicate meta box.");
                     meta = true;
                     ParseMeta(box.Data);
                     break;
-                case 0x6d6f6f76: // moov
+                case HeifFourCc.Moov:
                     throw new NotSupportedException("HEIF image sequences are not supported.");
-                case 0x66747970:
+                case HeifFourCc.Ftyp:
                     throw HeifReader.Error("Duplicate ftyp box.");
             }
         }
 
         Require(meta, "Missing meta box.");
-        Require(items.TryGetValue(primaryId, out HeifItem? primary) && primary.Defined, "Missing primary image item.");
+        Require(items.TryGetValue(primaryId, out HeifItem? found) && found.Defined, "Missing primary image item.");
+        HeifItem primary = found!;
         ValidateItems();
-        HeifImageDescription description = Describe(primary!, 0);
-        PrimaryItem = primary!;
-        bool alpha = false;
-        var required = new HashSet<uint>();
+        HeifImageDescription description = Describe(primary, 0);
+        PrimaryItem = primary;
+        var charged = new HashSet<uint>();
         long pixels = 0;
-        ChargePixels(primary!, required, ref pixels);
-        foreach (HeifItem item in items.Values)
+        ChargePixels(primary, charged, ref pixels);
+        foreach (HeifItem item in items.Values.Where(item => item.RefersTo(HeifFourCc.Auxl, primary) && IsAlpha(item)))
         {
-            if (item.References.TryGetValue(0x6175786c, out List<uint>? targets) && targets.Contains(primaryId) && IsAlpha(item))
-            {
-                Require(!alpha, "Multiple alpha images for the primary image.");
-                alpha = true;
-                AlphaItem = item;
-                HeifImageDescription alphaDescription = Describe(item, 0);
-                Require(alphaDescription.Width == description.Width && alphaDescription.Height == description.Height,
-                    "Alpha image dimensions do not match the primary image.");
-                ChargePixels(item, required, ref pixels);
-            }
+            Require(AlphaItem is null, "Multiple alpha images for the primary image.");
+            AlphaItem = item;
+            HeifImageDescription alphaDescription = Describe(item, 0);
+            Require(alphaDescription.Width == description.Width && alphaDescription.Height == description.Height,
+                "Alpha image dimensions do not match the primary image.");
+            ChargePixels(item, charged, ref pixels);
         }
 
         return new ImageInfo
@@ -81,7 +78,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
             Width = description.Width,
             Height = description.Height,
             BitsPerChannel = description.BitsPerChannel,
-            HasAlpha = alpha,
+            HasAlpha = AlphaItem is not null,
             FrameCount = 1,
             // Every iinf entry (tiles, alpha, thumbnails, metadata), independent of the single-frame FrameCount.
             ContainerItemCount = itemInfoCount,
@@ -100,45 +97,45 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
             HeifBox box = NextBox(ref reader);
             switch (box.Type)
             {
-                case 0x68646c72: // hdlr
-                case 0x7069746d: // pitm
-                case 0x69696e66: // iinf
-                case 0x696c6f63: // iloc
-                case 0x69726566: // iref
-                case 0x69707270: // iprp
-                case 0x69646174: // idat
+                case HeifFourCc.Hdlr:
+                case HeifFourCc.Pitm:
+                case HeifFourCc.Iinf:
+                case HeifFourCc.Iloc:
+                case HeifFourCc.Iref:
+                case HeifFourCc.Iprp:
+                case HeifFourCc.Idat:
                     Require(seen.Add(box.Type), "Duplicate metadata box.");
                     break;
             }
 
             switch (box.Type)
             {
-                case 0x68646c72:
+                case HeifFourCc.Hdlr:
                     var handler = new HeifReader(box.Data);
                     handler.FullBox();
                     handler.Read(4);
-                    Require(handler.UInt32() == 0x70696374, "HEIF requires a pict handler.");
+                    Require(handler.UInt32() == HeifFourCc.Pict, "HEIF requires a pict handler.");
                     handler.Read(12);
                     handler.String();
                     handler.End();
                     break;
-                case 0x7069746d:
+                case HeifFourCc.Pitm:
                     var pitm = new HeifReader(box.Data);
                     byte version = Version(ref pitm, 1);
                     primaryId = version == 0 ? pitm.UInt16() : pitm.UInt32();
                     Require(primaryId != 0, "Invalid primary item identifier.");
                     pitm.End();
                     break;
-                case 0x69696e66: ParseItemInfo(box.Data); break;
-                case 0x696c6f63: ParseLocations(box.Data); break;
-                case 0x69726566: ParseReferences(box.Data); break;
-                case 0x69707270: ParseProperties(box.Data); break;
-                case 0x69646174: itemData = box.Data; hasItemData = true; break;
+                case HeifFourCc.Iinf: ParseItemInfo(box.Data); break;
+                case HeifFourCc.Iloc: ParseLocations(box.Data); break;
+                case HeifFourCc.Iref: ParseReferences(box.Data); break;
+                case HeifFourCc.Iprp: ParseProperties(box.Data); break;
+                case HeifFourCc.Idat: itemData = box.Data; hasItemData = true; break;
             }
         }
 
-        Require(seen.Contains(0x68646c72) && seen.Contains(0x7069746d) && seen.Contains(0x69696e66)
-            && seen.Contains(0x696c6f63) && seen.Contains(0x69707270), "Missing required metadata box.");
+        Require(seen.Contains(HeifFourCc.Hdlr) && seen.Contains(HeifFourCc.Pitm) && seen.Contains(HeifFourCc.Iinf)
+            && seen.Contains(HeifFourCc.Iloc) && seen.Contains(HeifFourCc.Iprp), "Missing required metadata box.");
     }
 
     private void ParseItemInfo(ReadOnlyMemory<byte> bytes)
@@ -151,7 +148,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
         for (uint i = 0; i < count; i++)
         {
             HeifBox box = NextBox(ref reader);
-            Require(box.Type == 0x696e6665, "Expected infe box.");
+            Require(box.Type == HeifFourCc.Infe, "Expected infe box.");
             var info = new HeifReader(box.Data);
             byte itemVersion = info.FullBox(out uint flags);
             Require((flags & ~1u) == 0, "Invalid infe flags.");
@@ -170,7 +167,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
 
             item.Type = info.UInt32();
             info.String();
-            if (item.Type == 0x6d696d65) // mime
+            if (item.Type == HeifFourCc.Mime)
             {
                 item.IsXmp = info.String().Span.SequenceEqual("application/rdf+xml"u8);
                 if (info.Remaining > 0)
@@ -182,7 +179,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
                     }
                 }
             }
-            else if (item.Type == 0x75726920)
+            else if (item.Type == HeifFourCc.Uri)
             {
                 info.String();
             }

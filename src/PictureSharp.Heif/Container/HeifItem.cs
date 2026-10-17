@@ -1,5 +1,7 @@
 namespace PictureSharp.Formats.Heif.Container;
 
+// An item as the meta box declares it: infe (Defined), iloc (Located) and ipma (Associated) entries and its iref
+// references by type.
 internal sealed class HeifItem(uint id)
 {
     public uint Id { get; } = id;
@@ -12,9 +14,14 @@ internal sealed class HeifItem(uint id)
     public List<HeifExtent> Extents { get; } = [];
     public List<HeifAssociation> Properties { get; } = [];
     public Dictionary<uint, List<uint>> References { get; } = [];
-    public HeifImageDescription? Description { get; set; }
-    public int ReferenceDepth { get; set; }
-    public byte VisitState { get; set; }
+
+    public bool IsExif => Type == HeifFourCc.Exif;
+
+    // The item identifiers this item refers to with the given reference type, in reference order.
+    public IReadOnlyList<uint> Targets(uint referenceType) =>
+        References.TryGetValue(referenceType, out List<uint>? targets) ? targets : [];
+
+    public bool RefersTo(uint referenceType, HeifItem target) => Targets(referenceType).Contains(target.Id);
 }
 
 internal readonly record struct HeifExtent(ulong Offset, ulong Length);

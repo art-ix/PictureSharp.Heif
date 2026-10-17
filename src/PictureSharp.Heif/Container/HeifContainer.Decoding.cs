@@ -5,28 +5,14 @@ namespace PictureSharp.Formats.Heif.Container;
 // Item data access for decoding, valid after Open(): all references, extents and properties were checked there.
 internal sealed partial class HeifContainer
 {
-    private const uint Hvc1 = 0x68766331;
-    private const uint Grid = 0x67726964;
-    private const uint Iden = 0x6964656e;
-
     public HeifItem PrimaryItem { get; private set; } = null!;
 
     public HeifItem? AlphaItem { get; private set; }
 
     // ISO/IEC 23008-12 prem: the master image's colour samples are premultiplied by its alpha.
-    public bool PremultipliedAlpha =>
-        AlphaItem is not null && PrimaryItem.References.TryGetValue(0x7072656d, out List<uint>? targets)
-        && targets.Contains(AlphaItem.Id);
-
-    public static bool IsCoded(HeifItem item) => item.Type == Hvc1;
-
-    public static bool IsGrid(HeifItem item) => item.Type == Grid;
-
-    public static bool IsIdentity(HeifItem item) => item.Type == Iden;
+    public bool PremultipliedAlpha => AlphaItem is not null && PrimaryItem.RefersTo(HeifFourCc.Prem, AlphaItem);
 
     public IEnumerable<HeifItem> Items => items.Values;
-
-    public HeifItem Source(HeifItem item, int index) => items[item.References[0x64696d67][index]];
 
     // Displayed size after the item's transforms; throws NotSupportedException for items that are not images.
     public (int Width, int Height) DisplaySize(HeifItem item)
@@ -40,53 +26,30 @@ internal sealed partial class HeifContainer
     {
         Require(depth <= MaxReferenceDepth, "Derived image nesting exceeds the limit.");
         context?.ThrowIfCancellationRequested();
-        var transforms = new List<HeifBox>();
-        foreach (HeifBox transform in Transforms(item))
+        IReadOnlyList<HeifTransform> transforms = [.. Transforms(item)];
+        HeifNclx? nclx = Nclx(item);
+        switch (item.Type)
         {
-            transforms.Add(detach ? transform with { Data = transform.Data.ToArray() } : transform);
-        }
-
-        if (IsCoded(item))
-        {
-            List<ReadOnlyMemory<byte>> nals = HevcNalUnits(item);
-            if (detach)
-            {
-                for (int i = 0; i < nals.Count; i++)
+            case HeifFourCc.Hvc1:
+                List<ReadOnlyMemory<byte>> nals = HevcNalUnits(item);
+                if (detach)
                 {
-                    nals[i] = nals[i].ToArray();
+                    for (int i = 0; i < nals.Count; i++)
+                    {
+                        nals[i] = nals[i].ToArray();
+                    }
                 }
-            }
 
-            return new HeifImageNode
-            {
-                Kind = HeifImageNodeKind.Coded, NalUnits = nals, StoredSize = StoredSize(item), Transforms = transforms, Nclx = Nclx(item),
-            };
+                return new HeifCodedNode(nals, StoredSize(item), transforms, nclx);
+            case HeifFourCc.Grid:
+                return new HeifGridNode(GridLayout(item), [.. Sources(item).Select(tile => Node(tile, detach, depth + 1))],
+                    transforms, nclx);
+            case HeifFourCc.Iden:
+                return new HeifIdentityNode(Node(Sources(item)[0], detach, depth + 1), transforms, nclx);
+            default:
+                throw new NotSupportedException("Unsupported HEIF image item type.");
         }
-
-        if (!IsGrid(item) && !IsIdentity(item))
-        {
-            throw new NotSupportedException("Unsupported HEIF image item type.");
-        }
-
-        var sources = new List<HeifImageNode>();
-        int count = IsGrid(item) ? SourceCount(item) : 1;
-        for (int i = 0; i < count; i++)
-        {
-            sources.Add(Node(Source(item, i), detach, depth + 1));
-        }
-
-        return new HeifImageNode
-        {
-            Kind = IsGrid(item) ? HeifImageNodeKind.Grid : HeifImageNodeKind.Identity,
-            Grid = IsGrid(item) ? GridLayout(item) : default,
-            Sources = sources,
-            Transforms = transforms,
-            Nclx = Nclx(item),
-        };
     }
-
-    public int SourceCount(HeifItem item) =>
-        item.References.TryGetValue(0x64696d67, out List<uint>? sources) ? sources.Count : 0;
 
     // Concatenated item payload; a single extent is returned without copying.
     public ReadOnlyMemory<byte> ItemData(HeifItem item)
@@ -116,9 +79,9 @@ internal sealed partial class HeifContainer
     }
 
     // ISO/IEC 14496-15 8.3.3: parameter set NAL units from hvcC followed by the length-prefixed NAL units of the item.
-    public List<ReadOnlyMemory<byte>> HevcNalUnits(HeifItem item)
+    private List<ReadOnlyMemory<byte>> HevcNalUnits(HeifItem item)
     {
-        ReadOnlyMemory<byte> configuration = PropertyOf(item, 0x68766343)!.Value.Data;
+        ReadOnlyMemory<byte> configuration = PropertyOf(item, HeifFourCc.HvcC)!.Value.Data;
         var nals = new List<ReadOnlyMemory<byte>>();
         var reader = new HeifReader(configuration);
         reader.Read(21);
@@ -158,53 +121,45 @@ internal sealed partial class HeifContainer
         return nals;
     }
 
-    // ISO/IEC 23008-12 6.6.2.3 ImageGrid; validated by DescribeGrid.
-    public (int Rows, int Columns, int Width, int Height) GridLayout(HeifItem item)
+    // ISO/IEC 23008-12 6.6.2.3 ImageGrid with 16- or 32-bit output dimensions.
+    private HeifGridLayout GridLayout(HeifItem item)
     {
         Span<byte> header = stackalloc byte[12];
         ReadItemPrefix(item, header[..8]);
+        Require(header[0] == 0 && (header[1] & ~1) == 0, "Invalid grid header.");
         int rows = header[2] + 1;
         int columns = header[3] + 1;
         if ((header[1] & 1) == 0)
         {
-            return (rows, columns, BinaryPrimitives.ReadUInt16BigEndian(header[4..]), BinaryPrimitives.ReadUInt16BigEndian(header[6..]));
+            return new(rows, columns, BinaryPrimitives.ReadUInt16BigEndian(header[4..]), BinaryPrimitives.ReadUInt16BigEndian(header[6..]));
         }
 
         ReadItemPrefix(item, header);
-        return (rows, columns, (int)BinaryPrimitives.ReadUInt32BigEndian(header[4..]), (int)BinaryPrimitives.ReadUInt32BigEndian(header[8..]));
+        return new(rows, columns, Dimension(BinaryPrimitives.ReadUInt32BigEndian(header[4..])),
+            Dimension(BinaryPrimitives.ReadUInt32BigEndian(header[8..])));
     }
 
     // Stored (pre-transform) size from ispe.
-    public (int Width, int Height) StoredSize(HeifItem item)
+    private (int Width, int Height) StoredSize(HeifItem item)
     {
-        var reader = new HeifReader(PropertyOf(item, 0x69737065)!.Value.Data);
+        var reader = new HeifReader(PropertyOf(item, HeifFourCc.Ispe)!.Value.Data);
         reader.FullBox();
         return ((int)reader.UInt32(), (int)reader.UInt32());
     }
 
     // irot, imir and clap properties in association order.
-    public IEnumerable<HeifBox> Transforms(HeifItem item)
-    {
-        foreach (HeifAssociation association in item.Properties)
-        {
-            HeifBox property = Property(association);
-            if (property.Type is 0x69726f74 or 0x696d6972 or 0x636c6170)
-            {
-                yield return property;
-            }
-        }
-    }
+    private IEnumerable<HeifTransform> Transforms(HeifItem item) =>
+        item.Properties.Select(Property).Where(property => HeifTransform.IsTransform(property.Type)).Select(HeifTransform.Read);
 
-    // colr nclx as (primaries, transfer, matrix, fullRange), when present.
-    public (int Primaries, int Transfer, int Matrix, bool FullRange)? Nclx(HeifItem item)
+    // colr nclx, when present.
+    private HeifNclx? Nclx(HeifItem item)
     {
-        foreach (HeifAssociation association in item.Properties)
+        foreach (HeifBox property in item.Properties.Select(Property))
         {
-            HeifBox property = Property(association);
-            if (property.Type == 0x636f6c72 && property.Data.Span[..4].SequenceEqual("nclx"u8))
+            ReadOnlySpan<byte> data = property.Data.Span;
+            if (property.Type == HeifFourCc.Colr && BinaryPrimitives.ReadUInt32BigEndian(data) == HeifFourCc.Nclx)
             {
-                ReadOnlySpan<byte> data = property.Data.Span;
-                return (BinaryPrimitives.ReadUInt16BigEndian(data[4..]), BinaryPrimitives.ReadUInt16BigEndian(data[6..]),
+                return new HeifNclx(BinaryPrimitives.ReadUInt16BigEndian(data[4..]), BinaryPrimitives.ReadUInt16BigEndian(data[6..]),
                     BinaryPrimitives.ReadUInt16BigEndian(data[8..]), (data[10] & 0x80) != 0);
             }
         }
@@ -215,10 +170,10 @@ internal sealed partial class HeifContainer
     // colr prof or rICC (an ICC profile either way).
     public ReadOnlyMemory<byte>? Icc(HeifItem item)
     {
-        foreach (HeifAssociation association in item.Properties)
+        foreach (HeifBox property in item.Properties.Select(Property))
         {
-            HeifBox property = Property(association);
-            if (property.Type == 0x636f6c72 && (property.Data.Span[..4].SequenceEqual("prof"u8) || property.Data.Span[..4].SequenceEqual("rICC"u8)))
+            if (property.Type == HeifFourCc.Colr
+                && BinaryPrimitives.ReadUInt32BigEndian(property.Data.Span) is HeifFourCc.Prof or HeifFourCc.RIcc)
             {
                 return property.Data[4..];
             }
@@ -228,23 +183,14 @@ internal sealed partial class HeifContainer
     }
 
     // Exif and XMP items describing the given image (cdsc references).
-    public IEnumerable<(bool Exif, ReadOnlyMemory<byte> Data)> DescriptiveMetadata(HeifItem image)
-    {
-        foreach (HeifItem item in items.Values)
-        {
-            if ((item.Type == 0x45786966 || item.IsXmp) && item.References.TryGetValue(0x63647363, out List<uint>? targets)
-                && targets.Contains(image.Id))
-            {
-                yield return (item.Type == 0x45786966, ItemData(item));
-            }
-        }
-    }
+    public IEnumerable<(bool Exif, ReadOnlyMemory<byte> Data)> DescriptiveMetadata(HeifItem image) =>
+        items.Values.Where(item => (item.IsExif || item.IsXmp) && item.RefersTo(HeifFourCc.Cdsc, image))
+            .Select(item => (item.IsExif, ItemData(item)));
 
     private HeifBox? PropertyOf(HeifItem item, uint type)
     {
-        foreach (HeifAssociation association in item.Properties)
+        foreach (HeifBox property in item.Properties.Select(Property))
         {
-            HeifBox property = Property(association);
             if (property.Type == type)
             {
                 return property;

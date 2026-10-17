@@ -8,16 +8,16 @@ internal static class HeifSignature
     /// <summary>Enough for the <c>ftyp</c> boxes written by cameras and encoders, which list a handful of brands.</summary>
     public const int HeaderSize = 256;
 
-    private const uint Ftyp = 0x66747970;   // 'ftyp'
 
     /// <summary>Brands that declare HEVC-coded images or sequences (ISO/IEC 23008-12 Annex B).</summary>
-    private static ReadOnlySpan<uint> HevcBrands => [0x68656963, 0x68656978, 0x6865696d, 0x68656973, 0x68657663, 0x68657678];   // heic heix heim heis hevc hevx
+    private static ReadOnlySpan<uint> HevcBrands =>
+        [HeifFourCc.Heic, HeifFourCc.Heix, HeifFourCc.Heim, HeifFourCc.Heis, HeifFourCc.Hevc, HeifFourCc.Hevx];
 
     /// <summary>AV1 brands: AVIF shares the container but not the codec.</summary>
-    private static ReadOnlySpan<uint> AvifBrands => [0x61766966, 0x61766973];   // avif avis
+    private static ReadOnlySpan<uint> AvifBrands => [HeifFourCc.Avif, HeifFourCc.Avis];
 
     /// <summary>Generic HEIF brands that do not name the codec.</summary>
-    private static ReadOnlySpan<uint> GenericBrands => [0x6d696631, 0x6d736631];   // mif1 msf1
+    private static ReadOnlySpan<uint> GenericBrands => [HeifFourCc.Mif1, HeifFourCc.Msf1];
 
     /// <summary>
     /// Whether <paramref name="header"/> starts with an <c>ftyp</c> box of an HEVC-coded HEIF file: an HEVC brand, or a
@@ -25,7 +25,7 @@ internal static class HeifSignature
     /// </summary>
     public static bool IsHevcImage(ReadOnlySpan<byte> header)
     {
-        if (header.Length < 16 || BinaryPrimitives.ReadUInt32BigEndian(header[4..]) != Ftyp)
+        if (header.Length < 16 || BinaryPrimitives.ReadUInt32BigEndian(header[4..]) != HeifFourCc.Ftyp)
         {
             return false;
         }

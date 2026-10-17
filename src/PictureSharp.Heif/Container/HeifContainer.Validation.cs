@@ -4,6 +4,10 @@ internal sealed partial class HeifContainer
 {
     private void ValidateItems()
     {
+        // Longest reference chain below each item whose references were all checked; an item still being checked is
+        // absent from it but in the path, which makes a reference to it a cycle.
+        var depths = new Dictionary<HeifItem, int>();
+        var path = new HashSet<HeifItem>();
         foreach (HeifItem item in items.Values)
         {
             context?.ThrowIfCancellationRequested();
@@ -25,48 +29,49 @@ internal sealed partial class HeifContainer
                     {
                         throw new NotSupportedException("Implicit HEIF item extent lengths are not supported.");
                     }
+
                     total += (long)extent.Length;
                     Require(total <= data.Length, "Item extents exceed the input size.");
                 }
 
-                if (item.Type == 0x45786966 || item.IsXmp)
+                if (item.IsExif || item.IsXmp)
                 {
                     ChargeMetadata(total);
                 }
             }
 
-            ValidateGraph(item, 0);
+            ValidateGraph(item, 0, depths, path);
         }
     }
 
-    private int ValidateGraph(HeifItem item, int depth)
+    private int ValidateGraph(HeifItem item, int depth, Dictionary<HeifItem, int> depths, HashSet<HeifItem> path)
     {
         Require(depth <= MaxReferenceDepth, "Item reference nesting exceeds the limit.");
-        Require(item.VisitState != 1, "Cyclic item references.");
-        if (item.VisitState == 2)
+        Require(!path.Contains(item), "Cyclic item references.");
+        if (depths.TryGetValue(item, out int known))
         {
-            Require(depth + item.ReferenceDepth <= MaxReferenceDepth, "Item reference nesting exceeds the limit.");
-            return item.ReferenceDepth;
+            Require(depth + known <= MaxReferenceDepth, "Item reference nesting exceeds the limit.");
+            return known;
         }
 
-        item.VisitState = 1;
+        path.Add(item);
         int longest = 0;
         foreach ((uint type, List<uint> targets) in item.References)
         {
             // prem is a reverse relationship to auxl, not a decoding dependency.
-            if (type is not (0x64696d67 or 0x6175786c or 0x74686d62 or 0x63647363))
+            if (type is not (HeifFourCc.Dimg or HeifFourCc.Auxl or HeifFourCc.Thmb or HeifFourCc.Cdsc))
             {
                 continue;
             }
 
             foreach (uint target in targets)
             {
-                longest = Math.Max(longest, 1 + ValidateGraph(items[target], depth + 1));
+                longest = Math.Max(longest, 1 + ValidateGraph(items[target], depth + 1, depths, path));
             }
         }
 
-        item.VisitState = 2;
-        item.ReferenceDepth = longest;
+        path.Remove(item);
+        depths.Add(item, longest);
         return longest;
     }
 
@@ -98,13 +103,13 @@ internal sealed partial class HeifContainer
     private HeifImageDescription Describe(HeifItem item, int depth)
     {
         Require(depth <= MaxReferenceDepth, "Derived image nesting exceeds the limit.");
-        if (item.Description is { } cached)
+        if (descriptions.TryGetValue(item, out HeifImageDescription cached))
         {
             return cached;
         }
 
         context?.ThrowIfCancellationRequested();
-        if (item.Type is not (0x68766331 or 0x67726964 or 0x6964656e)) // hvc1, grid, iden
+        if (item.Type is not (HeifFourCc.Hvc1 or HeifFourCc.Grid or HeifFourCc.Iden))
         {
             throw new NotSupportedException("Unsupported HEIF image item type.");
         }
@@ -120,7 +125,7 @@ internal sealed partial class HeifContainer
                 throw new NotSupportedException("Unknown essential HEIF item property.");
             }
 
-            if (KnownProperty(property.Type) && property.Type != 0x636f6c72)
+            if (KnownProperty(property.Type) && property.Type != HeifFourCc.Colr)
             {
                 Require(unique.Add(property.Type), "Duplicate image property.");
             }
@@ -128,12 +133,12 @@ internal sealed partial class HeifContainer
             var reader = new HeifReader(property.Data);
             switch (property.Type)
             {
-                case 0x69737065:
+                case HeifFourCc.Ispe:
                     reader.FullBox();
                     width = Dimension(reader.UInt32());
                     height = Dimension(reader.UInt32());
                     break;
-                case 0x70697869:
+                case HeifFourCc.Pixi:
                     reader.FullBox();
                     int channels = reader.Byte();
                     for (int i = 0; i < channels; i++)
@@ -144,7 +149,7 @@ internal sealed partial class HeifContainer
                     }
 
                     break;
-                case 0x68766343:
+                case HeifFourCc.HvcC:
                     configuration = true;
                     ReadOnlySpan<byte> config = property.Data.Span;
                     // Identification needs the declared depth, not a pixel decoder for the signalled profile.
@@ -155,7 +160,7 @@ internal sealed partial class HeifContainer
         }
 
         Require(width > 0 && height > 0, "Image item has no spatial extents.");
-        if (item.Type == 0x68766331)
+        if (item.Type == HeifFourCc.Hvc1)
         {
             Require(item.Located && configuration, "HEVC image is missing its data or configuration.");
             Require(bits == 0 || bits == configurationBits, "Pixel information disagrees with HEVC configuration.");
@@ -163,11 +168,11 @@ internal sealed partial class HeifContainer
         }
         else
         {
-            Require(item.References.TryGetValue(0x64696d67, out List<uint>? sources) && sources.Count > 0,
-                "Derived image has no source images.");
-            if (item.Type == 0x6964656e)
+            IReadOnlyList<uint> sources = item.Targets(HeifFourCc.Dimg);
+            Require(sources.Count > 0, "Derived image has no source images.");
+            if (item.Type == HeifFourCc.Iden)
             {
-                Require(sources!.Count == 1, "Identity image requires exactly one source.");
+                Require(sources.Count == 1, "Identity image requires exactly one source.");
                 HeifImageDescription source = Describe(items[sources[0]], depth + 1);
                 Require(width == source.Width && height == source.Height, "Identity image dimensions disagree with its source.");
                 Require(bits == 0 || bits == source.BitsPerChannel, "Identity image bit depth disagrees with its source.");
@@ -175,50 +180,34 @@ internal sealed partial class HeifContainer
             }
             else
             {
-                bits = DescribeGrid(item, sources!, width, height, bits, depth);
+                bits = DescribeGrid(item, sources, width, height, bits, depth);
             }
         }
 
         // Transform properties are applied in association order, not property-container order.
-        foreach (HeifAssociation association in item.Properties)
+        foreach (HeifTransform transform in Transforms(item))
         {
-            HeifBox property = Property(association);
-            if (property.Type == 0x69726f74 && (property.Data.Span[0] & 1) != 0)
+            switch (transform)
             {
-                (width, height) = (height, width);
-            }
-            else if (property.Type == 0x636c6170)
-            {
-                ApplyCleanAperture(property.Data, ref width, ref height);
+                case HeifRotation { SwapsDimensions: true }:
+                    (width, height) = (height, width);
+                    break;
+                case HeifCleanAperture clap:
+                    ApplyCleanAperture(clap, ref width, ref height);
+                    break;
             }
         }
 
         var result = new HeifImageDescription(width, height, bits);
-        item.Description = result;
+        descriptions.Add(item, result);
         return result;
     }
 
-    private int DescribeGrid(HeifItem item, List<uint> sources, int width, int height, int bits, int depth)
+    private int DescribeGrid(HeifItem item, IReadOnlyList<uint> sources, int width, int height, int bits, int depth)
     {
-        Span<byte> header = stackalloc byte[12];
-        ReadItemPrefix(item, header[..8]);
-        Require(header[0] == 0 && (header[1] & ~1) == 0, "Invalid grid header.");
-        int rows = header[2] + 1, columns = header[3] + 1;
-        Require(sources.Count == rows * columns, "Grid reference count does not match its dimensions.");
-        int gridWidth, gridHeight;
-        if ((header[1] & 1) == 0)
-        {
-            gridWidth = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(header[4..]);
-            gridHeight = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(header[6..]);
-        }
-        else
-        {
-            ReadItemPrefix(item, header);
-            gridWidth = Dimension(System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header[4..]));
-            gridHeight = Dimension(System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header[8..]));
-        }
-
-        Require(width == gridWidth && height == gridHeight, "Grid output dimensions disagree with ispe.");
+        HeifGridLayout grid = GridLayout(item);
+        Require(sources.Count == grid.Rows * grid.Columns, "Grid reference count does not match its dimensions.");
+        Require(width == grid.Width && height == grid.Height, "Grid output dimensions disagree with ispe.");
         HeifImageDescription first = Describe(items[sources[0]], depth + 1);
         Require(bits == 0 || bits == first.BitsPerChannel, "Grid bit depth disagrees with its tiles.");
         foreach (uint id in sources)
@@ -227,29 +216,22 @@ internal sealed partial class HeifContainer
             Require(tile == first, "Grid tiles have inconsistent dimensions or bit depths.");
         }
 
-        Require((long)first.Width * columns >= width && (long)first.Width * (columns - 1) < width
-            && (long)first.Height * rows >= height && (long)first.Height * (rows - 1) < height, "Invalid grid tile coverage.");
+        Require((long)first.Width * grid.Columns >= width && (long)first.Width * (grid.Columns - 1) < width
+            && (long)first.Height * grid.Rows >= height && (long)first.Height * (grid.Rows - 1) < height, "Invalid grid tile coverage.");
         return first.BitsPerChannel;
     }
 
-    private static void ApplyCleanAperture(ReadOnlyMemory<byte> bytes, ref int width, ref int height)
+    private static void ApplyCleanAperture(HeifCleanAperture clap, ref int width, ref int height)
     {
-        var reader = new HeifReader(bytes);
-        uint widthN = reader.UInt32(), widthD = reader.UInt32();
-        uint heightN = reader.UInt32(), heightD = reader.UInt32();
-        int horizontalN = unchecked((int)reader.UInt32());
-        uint horizontalD = reader.UInt32();
-        int verticalN = unchecked((int)reader.UInt32());
-        uint verticalD = reader.UInt32();
-        if (widthN % widthD != 0 || heightN % heightD != 0)
+        if (clap.WidthN % clap.WidthD != 0 || clap.HeightN % clap.HeightD != 0)
         {
             throw new NotSupportedException("Fractional-pixel clean apertures are not supported.");
         }
 
-        int croppedWidth = Dimension(widthN / widthD), croppedHeight = Dimension(heightN / heightD);
-        Int128 leftN = (Int128)(width - croppedWidth) * horizontalD + 2 * (Int128)horizontalN;
-        Int128 topN = (Int128)(height - croppedHeight) * verticalD + 2 * (Int128)verticalN;
-        Int128 leftD = 2 * (Int128)horizontalD, topD = 2 * (Int128)verticalD;
+        int croppedWidth = Dimension(clap.WidthN / clap.WidthD), croppedHeight = Dimension(clap.HeightN / clap.HeightD);
+        Int128 leftN = (Int128)(width - croppedWidth) * clap.HorizontalOffsetD + 2 * (Int128)clap.HorizontalOffsetN;
+        Int128 topN = (Int128)(height - croppedHeight) * clap.VerticalOffsetD + 2 * (Int128)clap.VerticalOffsetN;
+        Int128 leftD = 2 * (Int128)clap.HorizontalOffsetD, topD = 2 * (Int128)clap.VerticalOffsetD;
         Require(leftN >= 0 && topN >= 0 && leftN + croppedWidth * leftD <= width * leftD
             && topN + croppedHeight * topD <= height * topD, "Clean aperture lies outside the image.");
         if (leftN % leftD != 0 || topN % topD != 0)
@@ -273,7 +255,7 @@ internal sealed partial class HeifContainer
         foreach (HeifAssociation association in item.Properties)
         {
             HeifBox property = Property(association);
-            if (property.Type == 0x69737065)
+            if (property.Type == HeifFourCc.Ispe)
             {
                 var reader = new HeifReader(property.Data);
                 reader.FullBox();
@@ -283,12 +265,9 @@ internal sealed partial class HeifContainer
             }
         }
 
-        if (item.References.TryGetValue(0x64696d67, out List<uint>? sources))
+        foreach (uint id in item.Targets(HeifFourCc.Dimg))
         {
-            foreach (uint id in sources)
-            {
-                ChargePixels(items[id], charged, ref total, depth + 1);
-            }
+            ChargePixels(items[id], charged, ref total, depth + 1);
         }
     }
 }

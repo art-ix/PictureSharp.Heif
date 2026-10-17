@@ -14,13 +14,12 @@ internal sealed class HeifRenderer(CancellationToken cancellationToken)
 
     // The colour a node is converted with, as Render finds it for its first coded picture: colr nclx (an item's own over
     // its parent's), else the HEVC VUI, else the HEVC defaults (unspecified matrix, limited range).
-    public static (int Primaries, int Transfer, int Matrix, bool FullRange) ColourOf(HeifImageNode node,
-        (int Primaries, int Transfer, int Matrix, bool FullRange)? inherited = null)
+    public static HeifNclx ColourOf(HeifImageNode node, HeifNclx? inherited = null)
     {
-        (int Primaries, int Transfer, int Matrix, bool FullRange)? nclx = node.Nclx ?? inherited;
-        if (node.Kind == HeifImageNodeKind.Identity)
+        HeifNclx? nclx = node.Nclx ?? inherited;
+        if (node is HeifIdentityNode identity)
         {
-            return ColourOf(node.Sources[0], nclx);
+            return ColourOf(identity.Source, nclx);
         }
 
         if (nclx is { } known)
@@ -30,17 +29,15 @@ internal sealed class HeifRenderer(CancellationToken cancellationToken)
 
         // A grid takes the format of its first tile (HeifPlanes.Create); tile colr boxes are not consulted.
         HeifImageNode leaf = node;
-        while (leaf.Kind == HeifImageNodeKind.Grid && leaf.Sources.Count > 0)
+        while (leaf is HeifGridNode { Tiles: [var first, ..] })
         {
-            leaf = leaf.Sources[0];
+            leaf = first;
         }
 
-        return leaf.Kind == HeifImageNodeKind.Coded && HevcDecoder.ReadColour(leaf.NalUnits) is { } vui
-            ? (vui.Primaries, vui.Transfer, vui.Matrix, vui.FullRange)
-            : (2, 2, 2, false);
+        return leaf is HeifCodedNode coded ? FromVui(HevcDecoder.ReadColour(coded.NalUnits)) : HeifNclx.Unspecified;
     }
 
-    private HeifCanvas Render(HeifImageNode node, (int, int, int, bool)? inheritedNclx, bool alpha, int depth)
+    private HeifCanvas Render(HeifImageNode node, HeifNclx? inheritedNclx, bool alpha, int depth)
     {
         if (depth > MaxDepth)
         {
@@ -48,9 +45,13 @@ internal sealed class HeifRenderer(CancellationToken cancellationToken)
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        (int Primaries, int Transfer, int Matrix, bool FullRange)? nclx = node.Nclx ?? inheritedNclx;
+        HeifNclx? nclx = node.Nclx ?? inheritedNclx;
         HeifCanvas canvas;
-        if (node.Kind != HeifImageNodeKind.Identity)
+        if (node is HeifIdentityNode identity)
+        {
+            canvas = Render(identity.Source, nclx, alpha, depth + 1);
+        }
+        else
         {
             HeifPlanes planes = Assemble(node, depth);
             canvas = new HeifCanvas(planes.Width, planes.Height);
@@ -60,39 +61,32 @@ internal sealed class HeifRenderer(CancellationToken cancellationToken)
             }
             else
             {
-                // Colour comes from colr nclx, else the HEVC VUI, else the HEVC defaults (unspecified matrix, limited range).
-                (int Primaries, int Transfer, int Matrix, bool FullRange) description = nclx
-                    ?? (planes.Colour is { } vui ? (vui.Primaries, vui.Transfer, vui.Matrix, vui.FullRange) : (2, 2, 2, false));
+                HeifNclx colour = nclx ?? FromVui(planes.Colour);
                 bool bilinear = planes.ChromaFormatIdc == 1 && HasOddCrop(node, planes.Width, planes.Height);
-                var converter = new HeifColorConverter(planes.ChromaFormatIdc == 0 ? 6 : description.Matrix, description.FullRange);
+                var converter = new HeifColorConverter(planes.ChromaFormatIdc == 0 ? 6 : colour.Matrix, colour.FullRange);
                 converter.Convert(planes, canvas.Pixels, bilinear, cancellationToken);
             }
         }
-        else
-        {
-            canvas = Render(node.Sources[0], nclx, alpha, depth + 1);
-        }
 
-        foreach (HeifBox transform in node.Transforms)
+        foreach (HeifTransform transform in node.Transforms)
         {
-            canvas = transform.Type switch
-            {
-                0x636c6170 => canvas.Crop(transform.Data.Span),
-                0x69726f74 => canvas.Rotate(transform.Data.Span[0] & 3),
-                _ => canvas.Mirror(topBottom: (transform.Data.Span[0] & 1) == 0),
-            };
+            canvas = canvas.Apply(transform);
         }
 
         return canvas;
     }
 
+    // The HEVC VUI colour description, or the HEVC defaults without one.
+    private static HeifNclx FromVui(HevcColourDescription? vui) =>
+        vui is { } v ? new(v.Primaries, v.Transfer, v.Matrix, v.FullRange) : HeifNclx.Unspecified;
+
     // A decoded HEVC picture, or a grid of them assembled in YCbCr (libheif converts the assembled image).
     private HeifPlanes Assemble(HeifImageNode node, int depth)
     {
-        if (node.Kind == HeifImageNodeKind.Coded)
+        if (node is HeifCodedNode coded)
         {
-            HevcFrame frame = HevcDecoder.Decode(node.NalUnits, null, cancellationToken);
-            if (frame.CroppedWidth != node.StoredSize.Width || frame.CroppedHeight != node.StoredSize.Height)
+            HevcFrame frame = HevcDecoder.Decode(coded.NalUnits, null, cancellationToken);
+            if ((frame.CroppedWidth, frame.CroppedHeight) != coded.StoredSize)
             {
                 throw HeifReader.Error("HEVC picture size does not match the image item's spatial extents.");
             }
@@ -100,35 +94,34 @@ internal sealed class HeifRenderer(CancellationToken cancellationToken)
             return HeifPlanes.FromFrame(frame);
         }
 
-        if (node.Kind != HeifImageNodeKind.Grid || depth > MaxDepth)
+        if (node is not HeifGridNode grid || depth > MaxDepth)
         {
             throw new NotSupportedException("HEIF grids must consist of HEVC or grid image items.");
         }
 
-        (int rows, int columns, int gridWidth, int gridHeight) = node.Grid;
-        HeifPlanes? grid = null;
+        HeifPlanes? planes = null;
         int index = 0;
         int y = 0;
-        for (int row = 0; row < rows; row++)
+        for (int row = 0; row < grid.Layout.Rows; row++)
         {
             int x = 0;
             int tileHeight = 0;
-            for (int column = 0; column < columns; column++)
+            for (int column = 0; column < grid.Layout.Columns; column++)
             {
-                HeifImageNode tileNode = node.Sources[index++];
+                HeifImageNode tileNode = grid.Tiles[index++];
                 if (tileNode.Transforms.Count > 0)
                 {
                     throw new NotSupportedException("Transformed HEIF grid tiles are not supported.");
                 }
 
                 HeifPlanes tile = Assemble(tileNode, depth + 1);
-                grid ??= HeifPlanes.Create(gridWidth, gridHeight, tile);
-                if (!grid.HasSameFormat(tile) || (grid.ChromaFormatIdc == 1 && ((tile.Width | tile.Height) & 1) != 0))
+                planes ??= HeifPlanes.Create(grid.Layout.Width, grid.Layout.Height, tile);
+                if (!planes.HasSameFormat(tile) || (planes.ChromaFormatIdc == 1 && ((tile.Width | tile.Height) & 1) != 0))
                 {
                     throw HeifReader.Error("Grid tiles have inconsistent formats.");
                 }
 
-                grid.Paste(tile, x, y);
+                planes.Paste(tile, x, y);
                 x += tile.Width;
                 tileHeight = tile.Height;
             }
@@ -136,28 +129,28 @@ internal sealed class HeifRenderer(CancellationToken cancellationToken)
             y += tileHeight;
         }
 
-        return grid!;
+        return planes!;
     }
 
     // libheif crops 4:2:0 images at an odd column or row by upsampling chroma to 4:4:4 (bilinear) first.
     private static bool HasOddCrop(HeifImageNode node, int width, int height)
     {
-        foreach (HeifBox transform in node.Transforms)
+        foreach (HeifTransform transform in node.Transforms)
         {
-            ReadOnlySpan<byte> data = transform.Data.Span;
-            if (transform.Type == 0x69726f74 && (data[0] & 1) != 0)
+            switch (transform)
             {
-                (width, height) = (height, width);
-            }
-            else if (transform.Type == 0x636c6170)
-            {
-                (int left, int top, int croppedWidth, int croppedHeight) = HeifCanvas.CleanAperture(data, width, height);
-                if (((left | top) & 1) != 0)
-                {
-                    return true;
-                }
+                case HeifRotation { SwapsDimensions: true }:
+                    (width, height) = (height, width);
+                    break;
+                case HeifCleanAperture clap:
+                    (int left, int top, int croppedWidth, int croppedHeight) = clap.Window(width, height);
+                    if (((left | top) & 1) != 0)
+                    {
+                        return true;
+                    }
 
-                (width, height) = (croppedWidth, croppedHeight);
+                    (width, height) = (croppedWidth, croppedHeight);
+                    break;
             }
         }
 

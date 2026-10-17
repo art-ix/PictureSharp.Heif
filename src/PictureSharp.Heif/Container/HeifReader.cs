@@ -91,7 +91,7 @@ internal ref struct HeifReader(ReadOnlyMemory<byte> data)
 
         ReadOnlyMemory<byte> payload = Read((int)size - header);
         // Extended-type boxes have a 16-byte user type following the ordinary header.
-        if (type == 0x75756964 && payload.Length < 16)
+        if (type == HeifFourCc.Uuid && payload.Length < 16)
         {
             throw Error("Truncated uuid box.");
         }

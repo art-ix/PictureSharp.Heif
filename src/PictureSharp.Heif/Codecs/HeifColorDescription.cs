@@ -1,3 +1,5 @@
+using PictureSharp.Formats.Heif.Container;
+
 namespace PictureSharp.Formats.Heif.Codecs;
 
 // Maps CICP colour primaries and transfer characteristics (ITU-T H.273) without an ICC profile onto PictureSharp's
@@ -5,9 +7,13 @@ namespace PictureSharp.Formats.Heif.Codecs;
 // chromaticities. Power-law approximations: sRGB/BT.709-family curves 1/2.2, BT.470 M 1/2.2, BT.470 BG 1/2.8.
 internal static class HeifColorDescription
 {
-    public static void Apply(ImageMetadata metadata, int primaries, int transfer, DecoderOptions options)
+    private const int TransferPq = 16;
+    private const int TransferHlg = 18;
+
+    public static void Apply(ImageMetadata metadata, HeifNclx colour, DecoderOptions options)
     {
-        if (transfer is 16 or 18)
+        (int primaries, int transfer, _, _) = colour;
+        if (transfer is TransferPq or TransferHlg)
         {
             if (options.ColorConversion != ColorConversionMode.None)
             {

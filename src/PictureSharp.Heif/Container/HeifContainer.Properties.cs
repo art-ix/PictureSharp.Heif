@@ -10,7 +10,7 @@ internal sealed partial class HeifContainer
         while (reader.Remaining > 0)
         {
             HeifBox box = NextBox(ref reader);
-            if (box.Type == 0x6970636f) // ipco
+            if (box.Type == HeifFourCc.Ipco)
             {
                 Require(!ipco, "Duplicate property container.");
                 ipco = true;
@@ -23,7 +23,7 @@ internal sealed partial class HeifContainer
                     properties.Add(property);
                 }
             }
-            else if (box.Type == 0x69706d61) // ipma
+            else if (box.Type == HeifFourCc.Ipma)
             {
                 var associations = new HeifReader(box.Data);
                 byte version = associations.FullBox(out uint flags);
@@ -68,13 +68,13 @@ internal sealed partial class HeifContainer
         var reader = new HeifReader(property.Data);
         switch (property.Type)
         {
-            case 0x69737065: // ispe
+            case HeifFourCc.Ispe:
                 reader.FullBox();
                 Dimension(reader.UInt32());
                 Dimension(reader.UInt32());
                 reader.End();
                 break;
-            case 0x70697869: // pixi
+            case HeifFourCc.Pixi:
                 reader.FullBox();
                 int channels = reader.Byte();
                 Require(channels > 0, "Empty pixel information.");
@@ -85,15 +85,15 @@ internal sealed partial class HeifContainer
 
                 reader.End();
                 break;
-            case 0x69726f74: // irot
+            case HeifFourCc.Irot:
                 Require(reader.Byte() <= 3, "Invalid rotation bits.");
                 reader.End();
                 break;
-            case 0x696d6972: // imir
+            case HeifFourCc.Imir:
                 Require(reader.Byte() <= 1, "Invalid mirror bits.");
                 reader.End();
                 break;
-            case 0x636c6170: // clap
+            case HeifFourCc.Clap:
                 for (int i = 0; i < 4; i++)
                 {
                     uint numerator = reader.UInt32();
@@ -103,25 +103,25 @@ internal sealed partial class HeifContainer
 
                 reader.End();
                 break;
-            case 0x61757843: // auxC
+            case HeifFourCc.AuxC:
                 reader.FullBox();
                 reader.String(); // aux_subtype occupies the remaining bytes.
                 break;
-            case 0x636f6c72: // colr
+            case HeifFourCc.Colr:
                 uint colour = reader.UInt32();
-                if (colour == 0x6e636c78) // nclx
+                if (colour == HeifFourCc.Nclx)
                 {
                     reader.Read(6);
                     Require((reader.Byte() & 0x7f) == 0, "Invalid nclx reserved bits.");
                     reader.End();
                 }
-                else if (colour is 0x70726f66 or 0x72494343) // prof, rICC
+                else if (colour is HeifFourCc.Prof or HeifFourCc.RIcc)
                 {
                     ChargeMetadata(reader.Remaining);
                 }
 
                 break;
-            case 0x68766343: // hvcC, ISO/IEC 14496-15 HEVCDecoderConfigurationRecord
+            case HeifFourCc.HvcC: // ISO/IEC 14496-15 HEVCDecoderConfigurationRecord
                 Require(reader.Byte() == 1, "Invalid HEVC configuration version.");
                 reader.Read(12);
                 Require((reader.UInt16() & 0xf000) == 0xf000, "Invalid HEVC segmentation reserved bits.");
@@ -157,8 +157,8 @@ internal sealed partial class HeifContainer
         return properties[association.Index - 1];
     }
 
-    private static bool KnownProperty(uint type) => type is
-        0x69737065 or 0x70697869 or 0x69726f74 or 0x696d6972 or 0x636c6170 or 0x61757843 or 0x636f6c72 or 0x68766343;
+    private static bool KnownProperty(uint type) => type is HeifFourCc.Ispe or HeifFourCc.Pixi or HeifFourCc.Irot
+        or HeifFourCc.Imir or HeifFourCc.Clap or HeifFourCc.AuxC or HeifFourCc.Colr or HeifFourCc.HvcC;
 
     private bool IsAlpha(HeifItem item)
     {

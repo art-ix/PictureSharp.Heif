@@ -7,16 +7,16 @@ namespace PictureSharp.Formats.Heif.Codecs;
 // the nclx/VUI colour as chromaticities and gamma), EXIF and XMP.
 internal static class HeifMetadataReader
 {
-    // colourOnly sets just the colour description (a gain map needs it also with IgnoreMetadata); primaryNode avoids
-    // building the node twice when the caller already has it.
-    public static void Apply(HeifContainer container, ImageMetadata metadata, DecoderOptions options, bool colourOnly,
+    // The ICC profile, or the nclx/VUI colour as chromaticities and gamma; a gain map needs it also with IgnoreMetadata.
+    // primaryNode avoids building the node twice when the caller already has it.
+    public static void ApplyColour(HeifContainer container, ImageMetadata metadata, DecoderOptions options,
         HeifImageNode? primaryNode = null)
     {
         HeifItem primary = container.PrimaryItem;
         ReadOnlyMemory<byte>? icc = container.Icc(primary);
-        if (icc is null && !HeifContainer.IsCoded(primary) && container.SourceCount(primary) > 0)
+        if (icc is null && primary.Type != HeifFourCc.Hvc1 && container.Sources(primary) is [var source, ..])
         {
-            icc = container.Icc(container.Source(primary, 0));
+            icc = container.Icc(source);
         }
 
         if (icc is { Length: > 0 } profile)
@@ -25,16 +25,14 @@ internal static class HeifMetadataReader
         }
         else
         {
-            (int primaries, int transfer, _, _) = HeifRenderer.ColourOf(primaryNode ?? container.Node(primary, detach: false));
-            HeifColorDescription.Apply(metadata, primaries, transfer, options);
+            HeifColorDescription.Apply(metadata, HeifRenderer.ColourOf(primaryNode ?? container.Node(primary, detach: false)), options);
         }
+    }
 
-        if (colourOnly)
-        {
-            return;
-        }
-
-        foreach ((bool exif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(primary))
+    // EXIF and XMP.
+    public static void ApplyDescriptive(HeifContainer container, ImageMetadata metadata)
+    {
+        foreach ((bool exif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(container.PrimaryItem))
         {
             if (!exif)
             {

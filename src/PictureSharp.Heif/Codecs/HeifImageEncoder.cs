@@ -8,6 +8,9 @@ namespace PictureSharp.Formats.Heif.Codecs;
 // irot/imir, and the written EXIF says TopLeft, so readers display the image as the original was shown.
 internal static class HeifImageEncoder
 {
+    // sRGB primaries and transfer with BT.601 full-range YCbCr, as YCbCrPlanes converts.
+    private static readonly HeifNclx SignalledColour = new(Primaries: 1, Transfer: 13, Matrix: 6, FullRange: true);
+
     public static byte[] Encode(Image image, HeifEncoderOptions options, CancellationToken cancellationToken)
     {
         int width = image.Width;
@@ -53,9 +56,12 @@ internal static class HeifImageEncoder
             alphaImage = alphaImage is null ? null : alphaImage with { Width = codedWidth, Height = codedHeight };
         }
 
-        byte[]? clap = !grid && (codedWidth != width || codedHeight != height) ? CleanAperture(codedWidth, codedHeight, width, height) : null;
+        // The clean aperture comes first: it applies to the coded picture, before the orientation transforms.
+        List<HeifTransform> transforms = !grid && (codedWidth != width || codedHeight != height)
+            ? [HeifCleanAperture.TopLeft(codedWidth, codedHeight, width, height)]
+            : [];
         ImageMetadata metadata = image.Metadata;
-        ExifOrientation orientation = metadata.Orientation;
+        transforms.AddRange(Transforms(metadata.Orientation));
         byte[]? icc = (options.Metadata & MetadataKinds.Icc) != 0 ? metadata.IccProfile : null;
         byte[]? exif = null;
         if ((options.Metadata & MetadataKinds.Exif) != 0 && metadata.Exif is not null)
@@ -66,8 +72,7 @@ internal static class HeifImageEncoder
         }
 
         byte[]? xmp = (options.Metadata & MetadataKinds.Xmp) != 0 ? metadata.Xmp : null;
-        return HeifWriter.Write(new HeifWriter.Content(color, alphaImage, icc, (1, 13, 6, true), clap, Transforms(orientation),
-            exif, xmp));
+        return HeifWriter.Write(new HeifWriter.Content(color, alphaImage, icc, SignalledColour, transforms, exif, xmp));
     }
 
     // ln of the summed Y, Cb and Cr variances of the whole image: the reference of variance adaptive quantization, so
@@ -192,29 +197,16 @@ internal static class HeifImageEncoder
         return [.. record];
     }
 
-    // clap of width x height at the top-left corner of the coded picture (ISO/IEC 14496-12 12.1.4).
-    private static byte[] CleanAperture(int codedWidth, int codedHeight, int width, int height)
-    {
-        // Offsets are relative to the centre: (width - codedWidth) / 2, expressed as fractions with denominator 2.
-        static byte[] U32(long value) => [(byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value];
-        return [.. U32(width), .. U32(1), .. U32(height), .. U32(1), .. U32(width - codedWidth), .. U32(2), .. U32(height - codedHeight), .. U32(2)];
-    }
-
     // EXIF orientation as HEIF transforms in association order (irot rotates anti-clockwise; imir mode 1 is left-right).
-    private static List<(uint Type, byte[] Data)> Transforms(ExifOrientation orientation)
+    private static IEnumerable<HeifTransform> Transforms(ExifOrientation orientation) => orientation switch
     {
-        uint irot = HeifWriter.Fourcc("irot");
-        uint imir = HeifWriter.Fourcc("imir");
-        return orientation switch
-        {
-            ExifOrientation.TopRight => [(imir, [1])],
-            ExifOrientation.BottomRight => [(irot, [2])],
-            ExifOrientation.BottomLeft => [(imir, [0])],
-            ExifOrientation.LeftTop => [(irot, [3]), (imir, [1])],
-            ExifOrientation.RightTop => [(irot, [3])],
-            ExifOrientation.RightBottom => [(irot, [1]), (imir, [1])],
-            ExifOrientation.LeftBottom => [(irot, [1])],
-            _ => [],
-        };
-    }
+        ExifOrientation.TopRight => [new HeifMirror(TopBottom: false)],
+        ExifOrientation.BottomRight => [new HeifRotation(2)],
+        ExifOrientation.BottomLeft => [new HeifMirror(TopBottom: true)],
+        ExifOrientation.LeftTop => [new HeifRotation(3), new HeifMirror(TopBottom: false)],
+        ExifOrientation.RightTop => [new HeifRotation(3)],
+        ExifOrientation.RightBottom => [new HeifRotation(1), new HeifMirror(TopBottom: false)],
+        ExifOrientation.LeftBottom => [new HeifRotation(1)],
+        _ => [],
+    };
 }

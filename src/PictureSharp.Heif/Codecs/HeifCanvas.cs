@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+using PictureSharp.Formats.Heif.Container;
 
 namespace PictureSharp.Formats.Heif.Codecs;
 
@@ -24,47 +24,63 @@ internal sealed class HeifCanvas(int width, int height)
         return image;
     }
 
-    // Tiles extending past the grid's output size are cropped.
-    public void Paste(HeifCanvas tile, int x0, int y0)
+    public HeifCanvas Apply(HeifTransform transform) => transform switch
     {
-        int width = Math.Min(tile.Width, Width - x0);
-        int height = Math.Min(tile.Height, Height - y0);
-        for (int y = 0; y < height; y++)
+        HeifCleanAperture clap => Crop(clap),
+        HeifRotation rotation => Rotate(rotation.QuarterTurns),
+        HeifMirror mirror => Mirror(mirror.TopBottom),
+        _ => throw new ArgumentOutOfRangeException(nameof(transform)),
+    };
+
+    // Takes alpha from the red channel of a rendered auxiliary alpha image; premultiplied colour is converted back.
+    public void SetAlpha(HeifCanvas alpha, bool premultiplied)
+    {
+        if (alpha.Width != Width || alpha.Height != Height)
         {
-            tile.Pixels.AsSpan(y * tile.Width, width).CopyTo(Pixels.AsSpan(((y0 + y) * Width) + x0));
+            throw HeifReader.Error("Alpha image dimensions do not match the primary image.");
+        }
+
+        Span<Rgba32> pixels = Pixels;
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            pixels[i].A = alpha.Pixels[i].R;
+        }
+
+        if (premultiplied)
+        {
+            Unpremultiply(pixels);
         }
     }
 
-    // clap: the integral window validated by the container (ISO/IEC 23008-12 6.5.9).
-    public static (int Left, int Top, int Width, int Height) CleanAperture(ReadOnlySpan<byte> clap, int width, int height)
+    // Same rounding as PictureSharp's premultiplied-to-straight conversion.
+    private static void Unpremultiply(Span<Rgba32> pixels)
     {
-        Span<uint> v = stackalloc uint[8];
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < pixels.Length; i++)
         {
-            v[i] = BinaryPrimitives.ReadUInt32BigEndian(clap[(i * 4)..]);
+            Rgba32 p = pixels[i];
+            if (p.A is not (0 or 255))
+            {
+                pixels[i] = new Rgba32((byte)Math.Min(255, 255 * p.R / p.A), (byte)Math.Min(255, 255 * p.G / p.A),
+                    (byte)Math.Min(255, 255 * p.B / p.A), p.A);
+            }
         }
-
-        int croppedWidth = (int)(v[0] / v[1]);
-        int croppedHeight = (int)(v[2] / v[3]);
-        long left = (((long)(width - croppedWidth) * v[5]) + (2L * (int)v[4])) / (2L * v[5]);
-        long top = (((long)(height - croppedHeight) * v[7]) + (2L * (int)v[6])) / (2L * v[7]);
-        return ((int)left, (int)top, croppedWidth, croppedHeight);
     }
 
-    public HeifCanvas Crop(ReadOnlySpan<byte> clap)
+    // clap: the integral window validated by the container.
+    private HeifCanvas Crop(HeifCleanAperture clap)
     {
-        (int left, int top, int width, int height) = CleanAperture(clap, Width, Height);
+        (int left, int top, int width, int height) = clap.Window(Width, Height);
         var result = new HeifCanvas(width, height);
         for (int y = 0; y < height; y++)
         {
-            Pixels.AsSpan((int)(((top + y) * Width) + left), width).CopyTo(result.Pixels.AsSpan(y * width));
+            Pixels.AsSpan(((top + y) * Width) + left, width).CopyTo(result.Pixels.AsSpan(y * width));
         }
 
         return result;
     }
 
     // irot: anti-clockwise rotation by quarterTurns * 90 degrees.
-    public HeifCanvas Rotate(int quarterTurns)
+    private HeifCanvas Rotate(int quarterTurns)
     {
         if (quarterTurns == 0)
         {
@@ -91,7 +107,7 @@ internal sealed class HeifCanvas(int width, int height)
     }
 
     // imir (ISO/IEC 23008-12:2022 6.5.12): mode 0 exchanges top and bottom, mode 1 left and right, as libheif does.
-    public HeifCanvas Mirror(bool topBottom)
+    private HeifCanvas Mirror(bool topBottom)
     {
         var result = new HeifCanvas(Width, Height);
         for (int y = 0; y < Height; y++)

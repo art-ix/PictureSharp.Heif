@@ -12,7 +12,8 @@ internal sealed class HeifMetadataCodec : IImageFormatMetadataCodec
     {
         HeifContainer container = HeifContainer.Open(data, context.Options, context);
         var metadata = new ImageMetadata();
-        HeifMetadataReader.Apply(container, metadata, context.Options, colourOnly: false);
+        HeifMetadataReader.ApplyColour(container, metadata, context.Options);
+        HeifMetadataReader.ApplyDescriptive(container, metadata);
         return metadata;
     }
 }

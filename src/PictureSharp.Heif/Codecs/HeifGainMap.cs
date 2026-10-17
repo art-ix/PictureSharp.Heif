@@ -8,13 +8,10 @@ namespace PictureSharp.Formats.Heif.Codecs;
 // ICC profile in its colr box. Apple (iOS 14 and later): an auxiliary image of type
 // urn:com:apple:photo:2020:aux:hdrgainmap, described by its own XMP and the primary image's EXIF MakerNote. iPhones
 // since iOS 18 store both around one map. ISO wins, as in PictureSharp's JPEG reader, and invalid ISO metadata never
-// falls back to the Apple model; HdrInfo.Detected reports both. The map is rendered with its own transforms, which match the primary image's.
+// falls back to the Apple model; HdrInfo.Detected reports both. The map is rendered with its own transforms, which
+// match the primary image's.
 internal sealed class HeifGainMap
 {
-    private const uint Tmap = 0x746d6170;
-    private const uint DerivedImage = 0x64696d67;
-    private const uint Auxiliary = 0x6175786c;
-
     private readonly HeifContainer container;
     private readonly HeifItem source;
 
@@ -35,9 +32,9 @@ internal sealed class HeifGainMap
     public static HeifGainMap? Find(HeifContainer container)
     {
         HeifItem primary = container.PrimaryItem;
-        HeifItem? iso = container.Items.Where(item => item.Type == Tmap).OrderBy(item => item.Id)
+        HeifItem? iso = container.Items.Where(item => item.Type == HeifFourCc.Tmap).OrderBy(item => item.Id)
             .FirstOrDefault(item => container.Sources(item) is [var image, ..] && image == primary);
-        HeifItem? apple = container.Referencing(Auxiliary, primary).FirstOrDefault(
+        HeifItem? apple = container.Referencing(HeifFourCc.Auxl, primary).FirstOrDefault(
             item => container.AuxiliaryType(item).SequenceEqual("urn:com:apple:photo:2020:aux:hdrgainmap"u8));
         HdrGainMapKinds detected = (iso is null ? HdrGainMapKinds.None : HdrGainMapKinds.Iso21496)
             | (apple is null ? HdrGainMapKinds.None : HdrGainMapKinds.Apple);
