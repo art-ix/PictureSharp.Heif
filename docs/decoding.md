@@ -31,7 +31,7 @@ Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccPro
 
 ## HDR gain maps
 
-With `DecoderOptions.LoadGainMap`, the decoder attaches the primary image's HDR gain map (PictureSharp 0.7.0 SPI), so
+With `DecoderOptions.LoadGainMap`, the decoder attaches the primary image's HDR gain map (PictureSharp 0.7.1 SPI), so
 `Image.Hdr`, `HasHdr`, `ToHdr` and `ToneMap` work as for JPEG files; `Identify` reports the same `ImageInfo.Hdr`.
 
 - **ISO 21496-1:** a `tmap` item whose `dimg` references are the primary image and the map. Its payload is a version
@@ -40,8 +40,8 @@ With `DecoderOptions.LoadGainMap`, the decoder attaches the primary image's HDR 
 - **Apple:** an auxiliary image of type `urn:com:apple:photo:2020:aux:hdrgainmap` (`auxl` to the primary image). The
   headroom comes from the Apple MakerNote in the primary image's EXIF, or from the map's XMP without it.
 - iPhones since iOS 18 describe one map both ways; the ISO description wins, as in PictureSharp's JPEG reader, and
-  invalid ISO metadata never falls back to the Apple model. `HdrInfo.Detected` reports only the selected model until
-  PictureSharp 0.7.1 lets plugins report both.
+  invalid ISO metadata never falls back to the Apple model. `HdrInfo.Selected` is the ISO model and `HdrInfo.Detected`
+  reports both.
 - The map is rendered like any image item, with its own transforms (iPhone maps carry the primary image's `irot`), at
   its stored size; a monochrome map becomes gray RGB. Its compressed data is copied at load time and decoded on
   demand, so the input buffer may be reused. The base image keeps its ICC profile or nclx colour also with

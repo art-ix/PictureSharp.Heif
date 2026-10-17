@@ -436,8 +436,9 @@ def gain_map_fixtures():
             (OUTPUT / (name + '.info.txt')).write_text(report.stdout.replace(str(destination), destination.name))
             rotated = arguments.get('rotated', False)
             kind = arguments['kind']
-            gain_map = dict(kind='Apple' if kind == 'apple' else 'Iso21496', width=24 if rotated else 32, height=32 if rotated else 24,
-                            channels=3 if gain is rgb else 1)
+            gain_map = dict(kind='Apple' if kind == 'apple' else 'Iso21496',
+                            detected={'apple': 'Apple', 'iso': 'Iso21496', 'both': 'Iso21496, Apple'}[kind],
+                            width=24 if rotated else 32, height=32 if rotated else 24, channels=3 if gain is rgb else 1)
             entries.append(dict(file=destination.name, sha256=hashlib.sha256(destination.read_bytes()).hexdigest(),
                                 width=48 if rotated else 64, height=64 if rotated else 48, bitsPerChannel=8, hasAlpha=False,
                                 itemCount=item_count(destination), encoder='x265; independent gain map container writer',

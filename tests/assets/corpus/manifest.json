@@ -252,6 +252,7 @@
     "encoder": "x265; independent gain map container writer",
     "gainMap": {
       "kind": "Apple",
+      "detected": "Apple",
       "width": 32,
       "height": 24,
       "channels": 1,
@@ -272,6 +273,7 @@
     "encoder": "x265; independent gain map container writer",
     "gainMap": {
       "kind": "Iso21496",
+      "detected": "Iso21496",
       "width": 32,
       "height": 24,
       "channels": 1,
@@ -291,6 +293,7 @@
     "encoder": "x265; independent gain map container writer",
     "gainMap": {
       "kind": "Iso21496",
+      "detected": "Iso21496",
       "width": 32,
       "height": 24,
       "channels": 3,
@@ -310,6 +313,7 @@
     "encoder": "x265; independent gain map container writer",
     "gainMap": {
       "kind": "Iso21496",
+      "detected": "Iso21496, Apple",
       "width": 24,
       "height": 32,
       "channels": 1,
@@ -329,6 +333,7 @@
     "encoder": "x265; independent gain map container writer",
     "gainMap": {
       "kind": "Iso21496",
+      "detected": "Iso21496",
       "width": 32,
       "height": 24,
       "channels": 1
@@ -346,6 +351,7 @@
     "encoder": "x265; independent gain map container writer",
     "gainMap": {
       "kind": "Iso21496",
+      "detected": "Iso21496",
       "width": 32,
       "height": 24,
       "channels": 1

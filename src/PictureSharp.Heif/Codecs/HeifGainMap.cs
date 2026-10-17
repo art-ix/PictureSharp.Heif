@@ -8,7 +8,7 @@ namespace PictureSharp.Formats.Heif.Codecs;
 // ICC profile in its colr box. Apple (iOS 14 and later): an auxiliary image of type
 // urn:com:apple:photo:2020:aux:hdrgainmap, described by its own XMP and the primary image's EXIF MakerNote. iPhones
 // since iOS 18 store both around one map. ISO wins, as in PictureSharp's JPEG reader, and invalid ISO metadata never
-// falls back to the Apple model. The map is rendered with its own transforms, which match the primary image's.
+// falls back to the Apple model; HdrInfo.Detected reports both. The map is rendered with its own transforms, which match the primary image's.
 internal sealed class HeifGainMap
 {
     private const uint Tmap = 0x746d6170;
@@ -18,35 +18,35 @@ internal sealed class HeifGainMap
     private readonly HeifContainer container;
     private readonly HeifItem source;
 
-    private HeifGainMap(HeifContainer container, HdrGainMapKinds kind, HeifItem source)
+    private HeifGainMap(HeifContainer container, HdrGainMapKinds kind, HeifItem source, HdrGainMapKinds detected)
     {
         this.container = container;
         Kind = kind;
         this.source = source;
+        Detected = detected;
     }
 
+    // The selected model.
     public HdrGainMapKinds Kind { get; }
+
+    // Every model present, including the selected one.
+    public HdrGainMapKinds Detected { get; }
 
     public static HeifGainMap? Find(HeifContainer container)
     {
         HeifItem primary = container.PrimaryItem;
-        foreach (HeifItem item in container.Items.Where(item => item.Type == Tmap).OrderBy(item => item.Id))
+        HeifItem? iso = container.Items.Where(item => item.Type == Tmap).OrderBy(item => item.Id)
+            .FirstOrDefault(item => container.Sources(item) is [var image, ..] && image == primary);
+        HeifItem? apple = container.Referencing(Auxiliary, primary).FirstOrDefault(
+            item => container.AuxiliaryType(item).SequenceEqual("urn:com:apple:photo:2020:aux:hdrgainmap"u8));
+        HdrGainMapKinds detected = (iso is null ? HdrGainMapKinds.None : HdrGainMapKinds.Iso21496)
+            | (apple is null ? HdrGainMapKinds.None : HdrGainMapKinds.Apple);
+        return (iso, apple) switch
         {
-            if (container.Sources(item) is [var image, ..] && image == primary)
-            {
-                return new HeifGainMap(container, HdrGainMapKinds.Iso21496, item);
-            }
-        }
-
-        foreach (HeifItem item in container.Referencing(Auxiliary, primary))
-        {
-            if (container.AuxiliaryType(item).SequenceEqual("urn:com:apple:photo:2020:aux:hdrgainmap"u8))
-            {
-                return new HeifGainMap(container, HdrGainMapKinds.Apple, item);
-            }
-        }
-
-        return null;
+            ({ } item, _) => new HeifGainMap(container, HdrGainMapKinds.Iso21496, item, detected),
+            (null, { } item) => new HeifGainMap(container, HdrGainMapKinds.Apple, item, detected),
+            _ => null,
+        };
     }
 
     // The description Identify reports; a map that cannot be used is described, never thrown.
@@ -56,11 +56,11 @@ internal sealed class HeifGainMap
         {
             (GainMapMetadata metadata, HeifItem map) = Read();
             (int width, int height) = container.DisplaySize(map);
-            return metadata.ToHdrInfo(new Size(width, height));
+            return metadata.ToHdrInfo(new Size(width, height)) with { Detected = Detected };
         }
         catch (Exception ex) when (ex is ImageFormatException or NotSupportedException)
         {
-            return new HdrInfo { Detected = Kind, UnsupportedReason = ex.Message };
+            return new HdrInfo { Detected = Detected, UnsupportedReason = ex.Message };
         }
     }
 
@@ -71,11 +71,11 @@ internal sealed class HeifGainMap
         {
             (GainMapMetadata metadata, HeifItem map) = Read();
             (int width, int height) = container.DisplaySize(map);
-            context.AttachGainMap(metadata, new HeifGainMapImage(container.Node(map, detach: true), new Size(width, height)));
+            context.AttachGainMap(metadata, new HeifGainMapImage(container.Node(map, detach: true), new Size(width, height)), Detected);
         }
         catch (Exception ex) when (ex is ImageFormatException or NotSupportedException)
         {
-            context.DeclareGainMap(Kind, ex.Message, corrupt: ex is ImageFormatException);
+            context.DeclareGainMap(Detected, ex.Message, corrupt: ex is ImageFormatException);
         }
     }
 

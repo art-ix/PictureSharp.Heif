@@ -45,7 +45,7 @@ public sealed class HeifGainMapTests
         HdrInfo? hdr = Image.Identify(Read(file).AsMemory(), Options()).Hdr;
         await Assert.That(hdr).IsNotNull();
         await Assert.That(hdr!.Selected).IsEqualTo(Enum.Parse<HdrGainMapKinds>(gainMap.Kind));
-        await Assert.That(hdr.Detected).IsEqualTo(hdr.Selected);
+        await Assert.That(hdr.Detected).IsEqualTo(Enum.Parse<HdrGainMapKinds>(gainMap.Detected));
         await Assert.That(hdr.GainMapSize).IsEqualTo(new Size(gainMap.Width, gainMap.Height));
         await Assert.That(hdr.CanDecode).IsTrue();
         await Assert.That(hdr.Headroom).IsEqualTo(ExpectedMetadata(gainMap).Headroom);
@@ -78,6 +78,7 @@ public sealed class HeifGainMapTests
         using Image image = Image.Load(Read("gainmap-both-rotated.heic").AsSpan(), Options());
         await Assert.That((image.Width, image.Height)).IsEqualTo((48, 64));
         await Assert.That(image.Hdr!.Selected).IsEqualTo(HdrGainMapKinds.Iso21496);
+        await Assert.That(image.Hdr.Detected).IsEqualTo(HdrGainMapKinds.Iso21496 | HdrGainMapKinds.Apple);
         await Assert.That(image.Hdr.GainMapSize).IsEqualTo(new Size(24, 32));
     }
 
@@ -162,6 +163,6 @@ public sealed class HeifGainMapTests
 
     private sealed record Entry(string File, GainMapEntry? GainMap);
 
-    private sealed record GainMapEntry(string Kind, int Width, int Height, int Channels, string? MapPng, string? IsoPayload,
+    private sealed record GainMapEntry(string Kind, string Detected, int Width, int Height, int Channels, string? MapPng, string? IsoPayload,
         string? AppleXmp, string? AppleExif);
 }

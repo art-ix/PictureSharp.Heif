@@ -53,6 +53,8 @@ public sealed class HeifGainMapLocalTests
                     : GainMapMetadata.ParseApple(Tiff(items.First(item => item.Type == "Exif").Data),
                         items.First(item => item.Type == "mime" && Encoding.UTF8.GetString(item.Data).Contains("HDRGainMapVersion")).Data);
                 await Assert.That(image.Hdr!.Selected).IsEqualTo(metadata.Kind).Because(name);
+                // heif-dec found the Apple map; iOS 18 adds the ISO description of the same map.
+                await Assert.That(image.Hdr.Detected).IsEqualTo(HdrGainMapKinds.Apple | (metadata.Kind & HdrGainMapKinds.Iso21496)).Because(name);
                 await Assert.That(image.Hdr.CanDecode).IsTrue().Because(name);
 
                 var stopwatch = Stopwatch.StartNew();

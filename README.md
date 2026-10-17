@@ -79,7 +79,7 @@ After registration, PictureSharp's limits (`MaxPixels`, `MaxInputBytes`, `MaxMet
 ## Versions
 
 PictureSharp.Heif has its own version numbers, starting at 0.1.0. Each release states the minimum PictureSharp
-version it needs; HDR gain maps and metadata-only reads require PictureSharp 0.7.0 or later.
+version it needs; HDR gain maps and metadata-only reads require PictureSharp 0.7.1 or later.
 
 ## Compatibility and verification
 
