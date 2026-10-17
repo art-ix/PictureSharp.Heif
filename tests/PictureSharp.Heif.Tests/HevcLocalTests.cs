@@ -118,7 +118,7 @@ public sealed class HevcLocalTests
         ];
     }
 
-    private static async Task Run(string executable, string[] arguments)
+    internal static async Task Run(string executable, string[] arguments)
     {
         var start = new ProcessStartInfo(executable) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (string argument in arguments)
@@ -143,7 +143,7 @@ public sealed class HevcLocalTests
         await Assert.That(process.ExitCode).IsEqualTo(0).Because(await output + await error);
     }
 
-    private static string FindRoot()
+    internal static string FindRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PictureSharp.Heif.slnx")))

@@ -240,5 +240,116 @@
     "itemCount": 1,
     "encoder": "x265; independent single-image container writer",
     "rgbaSha256": "bcae2f56068c6303b718a68748aa0b6faa2cc92a08eae0b23096baec02869711"
+  },
+  {
+    "file": "gainmap-apple.heic",
+    "sha256": "f404e0b9fda30b9dc6a3bbf4c8697685d8a73932e01da00bad5df19b1cc0f746",
+    "width": 64,
+    "height": 48,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 4,
+    "encoder": "x265; independent gain map container writer",
+    "gainMap": {
+      "kind": "Apple",
+      "width": 32,
+      "height": 24,
+      "channels": 1,
+      "mapPng": "gainmap-apple.map.png",
+      "appleXmp": "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:HDRGainMap=\"http://ns.apple.com/HDRGainMap/1.0/\" HDRGainMap:HDRGainMapVersion=\"131072\" HDRGainMap:HDRGainMapHeadroom=\"3.5\"/></rdf:RDF></x:xmpmeta>",
+      "appleExif": "4d4d002a00000008000187690004000000010000001a000000000001927c00070000003c0000002c000000004170706c6520694f530000014d4d00020021000a000000010000002c0030000a0000000100000034000000000000000c0000000a0000000100000002"
+    },
+    "rgbaSha256": "dc2a43548661a1852ce6ae4e6499272f5259d1d0c4830073d4e4e7766c6c4a78"
+  },
+  {
+    "file": "gainmap-iso.heic",
+    "sha256": "f484032f10f281cdeecf469df8d3524a51c4059b9e9b06ae307747897726ed87",
+    "width": 64,
+    "height": 48,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 3,
+    "encoder": "x265; independent gain map container writer",
+    "gainMap": {
+      "kind": "Iso21496",
+      "width": 32,
+      "height": 24,
+      "channels": 1,
+      "mapPng": "gainmap-iso.map.png",
+      "isoPayload": "00000000400000000000000001001e8480000f42400000000000000001001e8480000f4240000f4240000f424000003d09000f424000003d09000f4240"
+    },
+    "rgbaSha256": "dc2a43548661a1852ce6ae4e6499272f5259d1d0c4830073d4e4e7766c6c4a78"
+  },
+  {
+    "file": "gainmap-iso-rgb.heic",
+    "sha256": "adafb770e8fefb2481d63cee9003a93ac5639238d58165ed5be34fabe1479385",
+    "width": 64,
+    "height": 48,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 3,
+    "encoder": "x265; independent gain map container writer",
+    "gainMap": {
+      "kind": "Iso21496",
+      "width": 32,
+      "height": 24,
+      "channels": 3,
+      "mapPng": "gainmap-iso-rgb.map.png",
+      "isoPayload": "00000000c00000000000000001002625a0000f424000000000000000010016e360000f4240000c3500000f424000003d09000f424000003d09000f42400000000000000001001e8480000f4240000c3500000f424000003d09000f424000003d09000f42400000000000000001002625a0000f4240000c3500000f424000003d09000f424000003d09000f4240"
+    },
+    "rgbaSha256": "dc2a43548661a1852ce6ae4e6499272f5259d1d0c4830073d4e4e7766c6c4a78"
+  },
+  {
+    "file": "gainmap-both-rotated.heic",
+    "sha256": "23b2d34cbbe8ef397e3283d31a2be1c958499e73c8cb4249c1f6c3fd314293a0",
+    "width": 48,
+    "height": 64,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 5,
+    "encoder": "x265; independent gain map container writer",
+    "gainMap": {
+      "kind": "Iso21496",
+      "width": 24,
+      "height": 32,
+      "channels": 1,
+      "mapPng": "gainmap-both-rotated.map.png",
+      "isoPayload": "00000000400000000000000001001e8480000f42400000000000000001001e8480000f4240000f4240000f424000003d09000f424000003d09000f4240"
+    },
+    "rgbaSha256": "72f3d1ee518cdd29922e75a80b45b04c1082d51e9291cfb0f3ae1a192122a13a"
+  },
+  {
+    "file": "gainmap-iso-version1.heic",
+    "sha256": "8e1055880afe25b7800d4b2a8bc2f7e74aa18642f2409c90dcbcfc2a5ee5db7b",
+    "width": 64,
+    "height": 48,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 3,
+    "encoder": "x265; independent gain map container writer",
+    "gainMap": {
+      "kind": "Iso21496",
+      "width": 32,
+      "height": 24,
+      "channels": 1
+    },
+    "rgbaSha256": "dc2a43548661a1852ce6ae4e6499272f5259d1d0c4830073d4e4e7766c6c4a78"
+  },
+  {
+    "file": "gainmap-iso-truncated.heic",
+    "sha256": "3bba90c109c1681360b19edbc7b5d6d5a46ab2a7609ecd5343492a8260783d4c",
+    "width": 64,
+    "height": 48,
+    "bitsPerChannel": 8,
+    "hasAlpha": false,
+    "itemCount": 3,
+    "encoder": "x265; independent gain map container writer",
+    "gainMap": {
+      "kind": "Iso21496",
+      "width": 32,
+      "height": 24,
+      "channels": 1
+    },
+    "rgbaSha256": "dc2a43548661a1852ce6ae4e6499272f5259d1d0c4830073d4e4e7766c6c4a78"
   }
 ]

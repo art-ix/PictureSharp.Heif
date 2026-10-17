@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: brak wydania; 0.1.0–0.3.0 zamknięte lokalnie (PictureSharp 0.6.9 z NuGet): `Identify`, `Decode` (YCbCr bit-exact z HM, RGB = heif-dec) i `SaveAsHeic` (BD-rate PSNR −4,6%/SSIM +0,9% względem x265 medium na Kodaku po poprawach enkodera), 2026-10-16. Następna 0.4.0 (wymaga rdzenia 0.7.0).** PictureSharp.Heif to wtyczka formatu dla
+**Bieżąca wersja: brak wydania; 0.1.0–0.4.0 zamknięte lokalnie (PictureSharp 0.7.0 z NuGet): `Identify`, `Decode` (YCbCr bit-exact z HM, RGB = heif-dec), `SaveAsHeic` (BD-rate PSNR −4,6%/SSIM +0,9% względem x265 medium na Kodaku po poprawach enkodera), gain mapy Apple/ISO → `ToHdr` i `ReadMetadata` bez dekodu, 2026-10-17. Następna 0.5.0 (SIMD, równoległość, pomiary, ARM64).** PictureSharp.Heif to wtyczka formatu dla
 PictureSharp: moduł `IImageFormatModule` (rejestracja przez `ImageConfigurationBuilder.AddFormat`), który odczytuje i
 zapisuje HEIC (HEVC w kontenerze HEIF) bez kodu natywnego. Zdjęcia HEIC zawierają tylko obrazy intra, więc port
 obejmuje HEVC intra, bez kompensacji ruchu.
@@ -20,7 +20,7 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | 0.1.0 | Szkielet repo, CI, kontener HEIF (ISOBMFF), detekcja, `Identify`, limity, fuzzing parsera | 0.6.9 | Zamknięta lokalnie (DoD spełnione; CI na GitHub odłożone decyzją użytkownika) |
 | 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | Zamknięta lokalnie (DoD spełnione, w tym strumienie konformacyjne JCT-VC) |
 | 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Zamknięta lokalnie (DoD spełnione) |
-| 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.0 | Planowana |
+| 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.0 | Zamknięta lokalnie (DoD spełnione, 2026-10-17) |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.0 | Planowana |
 | dalej | Zapis gain map w HEIC, ewentualnie szybka miniatura `thmb` i opcje dekodera | 0.8.0 | Do decyzji |
 
@@ -90,6 +90,28 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
   przypięte w `scripts/jctvc-conformance-v1.sha256`, pliki w ignorowanym `tests/assets/external/jctvc`). Pierwszy obraz
   każdego strumienia: referencje HM dla 145 (RPS_C i VPSSPSPPS_A bez rozstrzygnięcia przez libde265/hash) w
   `tests/assets/jctvc-reference.json`; wszystkie 145 bit-exact (`Category=Conformance`).
+
+## Stan implementacji 0.4.0 (2026-10-17)
+
+- Zależność od PictureSharp 0.7.0 z nuget.org; testy zapisu przez `EncoderOptions.Configuration` (bez podmiany
+  `ImageConfiguration.Default`, poza jednym testem domyślnej konfiguracji).
+- Renderowanie wydzielone z dekodera: `HeifImageNode` (opis elementu: NAL, siatka, `iden`, transformacje, nclx; wersja
+  odłączona kopiuje bajty) i `HeifRenderer` bez kontekstu dekodu; wyniki dekodu bez zmian.
+- Gain mapy (`HeifGainMap`, `HeifGainMapImage`): ISO 21496-1 z elementu `tmap` (`dimg` = [primary, mapa], bajt wersji 0,
+  ICC alternatywne z `colr`), Apple z obrazu pomocniczego `urn:com:apple:photo:2020:aux:hdrgainmap` (MakerNote z EXIF
+  bazy, XMP mapy). ISO wygrywa, błędne ISO nie spada do Apple; błędy przez `DeclareGainMap`. Mapa renderowana z własnymi
+  transformacjami, dekodowana leniwie z kopii danych; kolor bazy zachowany przy `IgnoreMetadata`. `Identify` z
+  `LoadGainMap` zgłasza `ImageInfo.Hdr`.
+- `HeifFormat.MetadataCodec` (`HeifMetadataCodec`): `ReadMetadata` bez dekodu HEVC, te same bloki co `Load`
+  (wspólny `HeifMetadataReader`, kolor z nclx/VUI przez odczyt SPS); `EditMetadata` → `NotSupportedException`.
+- Korpus: 6 plików z gain mapą (Apple z MakerNote, ISO szara i RGB, oba opisy z `irot`, wersja 1, obcięte metadane) z
+  mapą referencyjną z heif-dec (`*.map.png`) i metadanymi w manifeście. `ToHdr` bitowo równe wtyczce referencyjnej
+  (baza z dekodu, mapa z heif-dec, metadane generatora). Local: 5 zdjęć iPhone (3 ISO, 2 Apple) bitowo równe referencji
+  z mapą `heif-dec --with-aux`. Fuzzing obejmuje `Identify`/`ReadMetadata`/`ToHdr` z `LoadGainMap`.
+- Wyniki: 383 testy (382 zaliczone, 1 pominięty: przegląd AQ wymagający `PICTURESHARP_HEIF_SWEEP=1`), Oracle 4/4,
+  build 0 ostrzeżeń, `dotnet pack` z zależnością PictureSharp 0.7.0.
+- Luka SPI zgłoszona do rdzenia 0.7.1: `AttachGainMap` zapisuje w `HdrInfo.Detected` tylko wybrany model (HEIC z iOS 18:
+  `Iso21496`, JPEG z tego zdjęcia: `Iso21496, Apple`). Wtyczka przejdzie na nowe przeciążenie po wydaniu 0.7.1.
 
 ## Poprawy enkodera po 0.3.0 (2026-10-16, niewydane)
 
@@ -208,6 +230,7 @@ zamykane w rdzeniu:
 - 0.7.0: dołączanie gain map przez wtyczkę (`GainMapMetadata`, `GainMapImage`, `ImageDecodeContext.AttachGainMap`),
   kolor bazy HDR z metadanych (ICC lub `Chromaticities`/`Gamma`), `IImageFormatMetadataCodec` dla `ReadMetadata`,
   opisany kontrakt orientacji.
+- 0.7.1: `AttachGainMap` z pełnym `HdrInfo.Detected` (zgłoszone 2026-10-17).
 - 0.8.0: gain map w enkoderach wtyczek i serializacja ISO, ewentualnie `ReportStoredSize` dla miniatur `thmb` i opcje
   dekodera per wtyczka — tylko jeśli wtyczka wykaże potrzebę.
 - Poza planem: CICP PQ/HLG (HDR10 HEIC z Androida).

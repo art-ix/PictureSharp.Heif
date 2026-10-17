@@ -115,7 +115,15 @@ public sealed class HeifDecodeTests
 
             try
             {
-                using Image image = Image.Load(bytes.AsSpan(), new DecoderOptions { Configuration = Configuration, MaxPixels = 1 << 20 });
+                var options = new DecoderOptions { Configuration = Configuration, MaxPixels = 1 << 20, LoadGainMap = iteration % 2 == 0 };
+                _ = Image.Identify(bytes.AsMemory(), options);
+                _ = Image.ReadMetadata(bytes.AsMemory(), options);
+                using Image image = Image.Load(bytes.AsSpan(), options);
+                if (image.Hdr is { CanDecode: true })
+                {
+                    using HdrImage hdr = image.ToHdr();
+                }
+
                 decoded++;
             }
             catch (Exception error) when (error is ImageFormatException or NotSupportedException)

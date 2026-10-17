@@ -24,7 +24,66 @@ internal sealed partial class HeifContainer
 
     public static bool IsIdentity(HeifItem item) => item.Type == Iden;
 
+    public IEnumerable<HeifItem> Items => items.Values;
+
     public HeifItem Source(HeifItem item, int index) => items[item.References[0x64696d67][index]];
+
+    // Displayed size after the item's transforms; throws NotSupportedException for items that are not images.
+    public (int Width, int Height) DisplaySize(HeifItem item)
+    {
+        HeifImageDescription description = Describe(item, 0);
+        return (description.Width, description.Height);
+    }
+
+    // The rendering description of an image item; detach copies the bytes it refers to.
+    public HeifImageNode Node(HeifItem item, bool detach, int depth = 0)
+    {
+        Require(depth <= MaxReferenceDepth, "Derived image nesting exceeds the limit.");
+        context?.ThrowIfCancellationRequested();
+        var transforms = new List<HeifBox>();
+        foreach (HeifBox transform in Transforms(item))
+        {
+            transforms.Add(detach ? transform with { Data = transform.Data.ToArray() } : transform);
+        }
+
+        if (IsCoded(item))
+        {
+            List<ReadOnlyMemory<byte>> nals = HevcNalUnits(item);
+            if (detach)
+            {
+                for (int i = 0; i < nals.Count; i++)
+                {
+                    nals[i] = nals[i].ToArray();
+                }
+            }
+
+            return new HeifImageNode
+            {
+                Kind = HeifImageNodeKind.Coded, NalUnits = nals, StoredSize = StoredSize(item), Transforms = transforms, Nclx = Nclx(item),
+            };
+        }
+
+        if (!IsGrid(item) && !IsIdentity(item))
+        {
+            throw new NotSupportedException("Unsupported HEIF image item type.");
+        }
+
+        var sources = new List<HeifImageNode>();
+        int count = IsGrid(item) ? SourceCount(item) : 1;
+        for (int i = 0; i < count; i++)
+        {
+            sources.Add(Node(Source(item, i), detach, depth + 1));
+        }
+
+        return new HeifImageNode
+        {
+            Kind = IsGrid(item) ? HeifImageNodeKind.Grid : HeifImageNodeKind.Identity,
+            Grid = IsGrid(item) ? GridLayout(item) : default,
+            Sources = sources,
+            Transforms = transforms,
+            Nclx = Nclx(item),
+        };
+    }
 
     public int SourceCount(HeifItem item) =>
         item.References.TryGetValue(0x64696d67, out List<uint>? sources) ? sources.Count : 0;

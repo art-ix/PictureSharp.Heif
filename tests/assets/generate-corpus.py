@@ -218,6 +218,108 @@ def wrap(source, colr=b'keep', transforms=(), exif=None, xmp=None):
     return box(b'ftyp', b'heic' + u32(0) + b'mif1heic') + full(b'meta', container)
 
 
+APPLE_MAP_XMP = (b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+                 b'<rdf:Description xmlns:HDRGainMap="http://ns.apple.com/HDRGainMap/1.0/" HDRGainMap:HDRGainMapVersion="131072"'
+                 b' HDRGainMap:HDRGainMapHeadroom="3.5"/></rdf:RDF></x:xmpmeta>')
+
+
+def apple_exif():
+    """HEIF Exif item with an Apple MakerNote (tags 33 = 1.2 and 48 = 0.5, headroom 2^(2.303 - 0.303 * 0.5)), which
+    takes precedence over the map's XMP headroom. Big-endian TIFF: IFD0 -> Exif IFD -> MakerNote."""
+    note = b'Apple iOS\0' + struct.pack('>H', 1) + b'MM'
+    note += struct.pack('>H', 2) + struct.pack('>HHII', 33, 10, 1, 44) + struct.pack('>HHII', 48, 10, 1, 52) + struct.pack('>I', 0)
+    note += struct.pack('>iI', 12, 10) + struct.pack('>iI', 1, 2)
+    ifd0 = struct.pack('>H', 1) + struct.pack('>HHII', 0x8769, 4, 1, 26) + struct.pack('>I', 0)      # at 8, Exif IFD at 26
+    exif_ifd = struct.pack('>H', 1) + struct.pack('>HHII', 0x927C, 7, len(note), 44) + struct.pack('>I', 0)  # at 26
+    return struct.pack('>I', 0) + b'MM\0*' + struct.pack('>I', 8) + ifd0 + exif_ifd + note
+
+
+def rational(value):
+    return round(value * 1000000), 1000000
+
+
+def iso_payload(channels, alternate_headroom, maxima, gamma=1.0, offset=1 / 64):
+    """ISO 21496-1 metadata (minimum and writer version 0, base colour space, SDR base) with per-fraction denominators."""
+    flags = (0x80 if channels == 3 else 0) | 0x40
+    data = struct.pack('>HHB', 0, 0, flags) + struct.pack('>II', 0, 1) + struct.pack('>II', *rational(alternate_headroom))
+    for channel in range(channels):
+        data += struct.pack('>iI', 0, 1) + struct.pack('>iI', *rational(maxima[channel])) + struct.pack('>II', *rational(gamma))
+        data += struct.pack('>iI', *rational(offset)) + struct.pack('>iI', *rational(offset))
+    return data
+
+
+def gain_map_file(base, gain, kind, rotated=False, iso=None, exif=None, tmap_version=0):
+    """Independent container with a base image and an HDR gain map from heif-enc payloads. kind 'apple': an auxiliary
+    image urn:com:apple:photo:2020:aux:hdrgainmap with its XMP; 'iso': a hidden map and a tmap item (version byte and
+    ISO 21496-1 metadata) deriving from the base and the map, grouped with the base in altr; 'both': one map with both
+    descriptions, as iPhones write since iOS 18. rotated adds irot 1 to the base, the map and the tmap item."""
+    def parts(source):
+        top = dict(boxes(source))
+        ipco = list(boxes(dict(boxes(dict(boxes(top[b'meta'][4:]))[b'iprp']))[b'ipco']))
+        get = lambda name: next((value for key, value in ipco if key == name), None)
+        return get(b'ispe'), get(b'hvcC'), get(b'colr'), top[b'mdat'], get(b'clap')
+    u16 = lambda value: struct.pack('>H', value)
+    u32 = lambda value: struct.pack('>I', value)
+    properties = []
+
+    def prop(name, payload):
+        properties.append(box(name, payload))
+        return len(properties)
+    rotation = prop(b'irot', b'\x01') if rotated else None
+    apple = kind in ('apple', 'both')
+    with_iso = kind in ('iso', 'both')
+    associations = {}
+    for ident, source in [(1, base), (2, gain)]:
+        spatial, config, colour, _, aperture = parts(source)
+        indexes = [prop(b'ispe', spatial), 0x80 | prop(b'hvcC', config)]
+        if colour is not None:
+            indexes.append(prop(b'colr', colour))
+        if aperture is not None:
+            # heif-enc codes whole CTUs and crops to the source size.
+            indexes.append(0x80 | prop(b'clap', aperture))
+        if ident == 2 and apple:
+            indexes.append(prop(b'auxC', bytes(4) + b'urn:com:apple:photo:2020:aux:hdrgainmap\0'))
+        if rotation:
+            indexes.append(rotation)
+        associations[ident] = indexes
+    entries = [(1, b'hvc1', parts(base)[3], b'', False), (2, b'hvc1', parts(gain)[3], b'', not apple)]
+    references = []
+    if with_iso:
+        associations[3] = [prop(b'ispe', struct.pack('>4xII', 64, 48))] + ([rotation] if rotation else [])
+        entries.append((3, b'tmap', bytes([tmap_version]) + iso, b'', False))
+        references.append(box(b'dimg', u16(3) + u16(2) + u16(1) + u16(2)))
+    if apple:
+        references.append(box(b'auxl', u16(2) + u16(1) + u16(1)))
+    if exif is not None:
+        entries.append((4, b'Exif', exif, b'', False))
+        references.append(box(b'cdsc', u16(4) + u16(1) + u16(1)))
+    if apple:
+        entries.append((5, b'mime', APPLE_MAP_XMP, b'application/rdf+xml\0', False))
+        references.append(box(b'cdsc', u16(5) + u16(1) + u16(2)))
+    infos = b''.join(box(b'infe', (b'\x02\0\0\x01' if hidden else b'\x02\0\0\0') + u16(i) + u16(0) + name + b'\0' + extra)
+                     for i, name, _, extra, hidden in entries)
+    locations = b'\x44\0' + u16(len(entries))
+    offset = 0
+    for i, _, data, _, _ in entries:
+        locations += u16(i) + u16(1) + u16(0) + u16(1) + u32(offset) + u32(len(data))
+        offset += len(data)
+    ipma = u32(len(associations)) + b''.join(u16(i) + bytes([len(v)]) + bytes(v) for i, v in sorted(associations.items()))
+    container = full(b'hdlr', u32(0) + b'pict' + bytes(12) + b'\0') + full(b'pitm', u16(1))
+    container += full(b'iinf', u16(len(entries)) + infos)
+    container += box(b'iloc', b'\x01\0\0\0' + locations)
+    container += box(b'iprp', box(b'ipco', b''.join(properties)) + full(b'ipma', ipma))
+    container += full(b'iref', b''.join(references))
+    if with_iso:
+        container += box(b'grpl', full(b'altr', u32(100) + u32(2) + u32(3) + u32(1)))
+    container += box(b'idat', b''.join(data for _, _, data, _, _ in entries))
+    brands = b'mif1heic' + (b'tmap' if with_iso else b'')
+    return box(b'ftyp', b'heic' + u32(0) + brands) + full(b'meta', container)
+
+
+def heif_dec_png(path, output):
+    subprocess.run([str(TOOLS / 'bin/heif-dec'), '--quiet', str(path), str(output)], check=True, stdout=subprocess.PIPE)
+
+
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
     manifest = []
@@ -290,6 +392,7 @@ def main():
         manifest.append(dict(file=destination.name, sha256=hashlib.sha256(destination.read_bytes()).hexdigest(),
                              width=width, height=height, bitsPerChannel=8, hasAlpha=False, itemCount=item_count(destination),
                              encoder='x265; independent single-image container writer'))
+    manifest += gain_map_fixtures()
     for entry in manifest:
         path = OUTPUT / entry['file']
         width, height, digest = rgba_reference(path, 'premultiplied' in entry['file'], entry['bitsPerChannel'])
@@ -297,6 +400,62 @@ def main():
             raise SystemExit(f'heif-dec output size differs for {path.name}')
         entry['rgbaSha256'] = digest
     (OUTPUT / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+
+
+def gain_map_fixtures():
+    """Base 64x48 and half-size maps (gray 4:0:0 or RGB 4:2:0) from heif-enc, in independent gain map containers. The
+    expected map is heif-dec's output for the map alone with the same transforms, stored as <name>.map.png."""
+    entries = []
+    with tempfile.TemporaryDirectory(prefix='heif-gainmap-') as temporary:
+        directory = Path(temporary)
+
+        def encode(name, width, height, gray):
+            source = directory / (name + '.png')
+            png(source, width, height, gray=gray)
+            destination = directory / (name + '.heic')
+            subprocess.run([str(TOOLS / 'bin/heif-enc'), '-e', 'x265', '-q', '90', '-p', 'chroma=420', '-p', 'x265:pools=none',
+                            '-p', 'x265:frame-threads=1', '-o', str(destination), str(source)], check=True, stdout=subprocess.PIPE)
+            return destination.read_bytes()
+        base = encode('base', 64, 48, False)
+        gray = encode('map-gray', 32, 24, True)
+        rgb = encode('map-rgb', 32, 24, False)
+        gray_iso = iso_payload(1, 2.0, [2.0])
+        rgb_iso = iso_payload(3, 2.5, [1.5, 2.0, 2.5], gamma=0.8)
+        cases = [
+            ('gainmap-apple', gray, dict(kind='apple', exif=apple_exif()), None),
+            ('gainmap-iso', gray, dict(kind='iso', iso=gray_iso), gray_iso),
+            ('gainmap-iso-rgb', rgb, dict(kind='iso', iso=rgb_iso), rgb_iso),
+            ('gainmap-both-rotated', gray, dict(kind='both', iso=gray_iso, exif=apple_exif(), rotated=True), gray_iso),
+            ('gainmap-iso-version1', gray, dict(kind='iso', iso=gray_iso, tmap_version=1), None),
+            ('gainmap-iso-truncated', gray, dict(kind='iso', iso=gray_iso[:20]), None),
+        ]
+        for name, gain, arguments, iso in cases:
+            destination = OUTPUT / (name + '.heic')
+            destination.write_bytes(gain_map_file(base, gain, **arguments))
+            report = subprocess.run([str(TOOLS / 'bin/heif-info'), str(destination)], check=True, capture_output=True, text=True)
+            (OUTPUT / (name + '.info.txt')).write_text(report.stdout.replace(str(destination), destination.name))
+            rotated = arguments.get('rotated', False)
+            kind = arguments['kind']
+            gain_map = dict(kind='Apple' if kind == 'apple' else 'Iso21496', width=24 if rotated else 32, height=32 if rotated else 24,
+                            channels=3 if gain is rgb else 1)
+            entries.append(dict(file=destination.name, sha256=hashlib.sha256(destination.read_bytes()).hexdigest(),
+                                width=48 if rotated else 64, height=64 if rotated else 48, bitsPerChannel=8, hasAlpha=False,
+                                itemCount=item_count(destination), encoder='x265; independent gain map container writer',
+                                gainMap=gain_map))
+            if iso is None and kind != 'apple':
+                continue   # invalid metadata: no usable map
+            alone = directory / (name + '-map.heic')
+            aperture = next(value for key, value in boxes(dict(boxes(dict(boxes(dict(boxes(gain))[b'meta'][4:]))[b'iprp']))[b'ipco'])
+                            if key == b'clap')
+            alone.write_bytes(wrap(gain, transforms=[(b'clap', aperture)] + ([(b'irot', b'\x01')] if rotated else [])))
+            heif_dec_png(alone, OUTPUT / (name + '.map.png'))
+            gain_map['mapPng'] = name + '.map.png'
+            if iso is not None:
+                gain_map['isoPayload'] = iso.hex()
+            if kind == 'apple':
+                gain_map['appleXmp'] = APPLE_MAP_XMP.decode()
+                gain_map['appleExif'] = apple_exif()[4:].hex()
+    return entries
 
 
 if __name__ == '__main__':

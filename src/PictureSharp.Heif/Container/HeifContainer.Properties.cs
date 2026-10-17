@@ -162,20 +162,8 @@ internal sealed partial class HeifContainer
 
     private bool IsAlpha(HeifItem item)
     {
-        foreach (HeifAssociation association in item.Properties)
-        {
-            HeifBox property = Property(association);
-            if (property.Type == 0x61757843)
-            {
-                var reader = new HeifReader(property.Data);
-                reader.FullBox();
-                ReadOnlySpan<byte> name = reader.String().Span;
-                return name.SequenceEqual("urn:mpeg:hevc:2015:auxid:1"u8)
-                    || name.SequenceEqual("urn:mpeg:mpegB:cicp:systems:auxiliary:alpha"u8);
-            }
-        }
-
-        return false;
+        ReadOnlySpan<byte> name = AuxiliaryType(item);
+        return name.SequenceEqual("urn:mpeg:hevc:2015:auxid:1"u8) || name.SequenceEqual("urn:mpeg:mpegB:cicp:systems:auxiliary:alpha"u8);
     }
 
     private void ChargeMetadata(long bytes)

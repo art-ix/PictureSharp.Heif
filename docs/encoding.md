@@ -9,8 +9,14 @@ using Image image = Image.Load("photo.jpg");
 image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60 });
 ```
 
-`SaveAsHeic`, `SaveAsHeicAsync` and `ToHeic` use `ImageConfiguration.Default`, so `HeifFormat` must be registered there;
-`Image.Save("photo.heic")` picks the encoder from the extension.
+Without a configuration in the options, `SaveAsHeic`, `SaveAsHeicAsync` and `ToHeic` use `ImageConfiguration.Default`,
+so `HeifFormat` must be registered there; `Image.Save("photo.heic")` picks the encoder from the extension. To leave the
+default configuration unchanged, pass one in the options (PictureSharp 0.7.0):
+
+```csharp
+var configuration = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
+image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60, Configuration = configuration });
+```
 
 ## Options
 

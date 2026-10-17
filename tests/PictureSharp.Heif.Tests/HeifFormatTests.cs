@@ -81,7 +81,7 @@ public sealed class HeifFormatTests
     [NotInParallel]
     public async Task SaveAsHeic_UsesTheDefaultConfiguration()
     {
-        // PictureSharp saves through ImageConfiguration.Default, so the plugin must be registered there.
+        // Without a configuration in the options, PictureSharp saves through ImageConfiguration.Default.
         ImageConfiguration previous = ImageConfiguration.Default;
         ImageConfiguration.Default = previous.ToBuilder().AddFormat(new HeifFormat()).Build();
         try
@@ -96,6 +96,19 @@ public sealed class HeifFormatTests
         {
             ImageConfiguration.Default = previous;
         }
+    }
+
+    [Test]
+    public async Task SaveAsHeic_UsesTheConfigurationInTheOptions()
+    {
+        ImageConfiguration configuration = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
+        using var image = new Image(32, 16, new Rgba32(30, 200, 30, 255));
+        byte[] heic = image.ToHeic(new HeifEncoderOptions { Quality = 80, Configuration = configuration });
+        using var stream = new MemoryStream();
+        await image.SaveAsHeicAsync(stream, new HeifEncoderOptions { Configuration = configuration });
+        using Image decoded = Image.Load(heic.AsSpan(), new DecoderOptions { Configuration = configuration });
+        await Assert.That((decoded.Width, decoded.Height)).IsEqualTo((32, 16));
+        await Assert.That(new HeifFormat().IsSupported(stream.ToArray())).IsTrue();
     }
 
     [Test]

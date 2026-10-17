@@ -33,6 +33,8 @@ PictureSharp.Formats.Heif.HeifFormat
   PictureSharp.Formats.IImageFormatDecoder get_Decoder()
   PictureSharp.Formats.IImageFormatEncoder Encoder
   PictureSharp.Formats.IImageFormatEncoder get_Encoder()
+  PictureSharp.Formats.IImageFormatMetadataCodec MetadataCodec
+  PictureSharp.Formats.IImageFormatMetadataCodec get_MetadataCodec()
   PictureSharp.ImageFormat Format
   PictureSharp.ImageFormat get_Format()
   Void .ctor()

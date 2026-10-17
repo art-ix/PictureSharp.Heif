@@ -54,12 +54,9 @@ public sealed class HeifEncodeTests
     private static Image Decode(byte[] heic, DecoderOptions? options = null) =>
         Image.Load(heic.AsSpan(), (options ?? new DecoderOptions()) with { Configuration = Configuration });
 
-    private static byte[] Encode(Image image, HeifEncoderOptions? options = null)
-    {
-        using var stream = new MemoryStream();
-        new HeifFormat().Encoder.Encode(image, stream, options ?? new HeifEncoderOptions(), CancellationToken.None);
-        return stream.ToArray();
-    }
+    // Saves through the configuration in the options (PictureSharp 0.7.0), without touching ImageConfiguration.Default.
+    private static byte[] Encode(Image image, HeifEncoderOptions? options = null) =>
+        image.ToHeic((options ?? new HeifEncoderOptions()) with { Configuration = Configuration });
 
     [Test]
     [Arguments(50, 34.0)]

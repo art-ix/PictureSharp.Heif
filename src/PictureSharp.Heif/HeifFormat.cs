@@ -31,4 +31,10 @@ public sealed class HeifFormat : IImageFormatModule
 
     /// <inheritdoc/>
     public IImageFormatEncoder Encoder => HeifEncoder.Instance;
+
+    /// <summary>
+    /// Reads ICC, EXIF and XMP for <c>Image.ReadMetadata</c> without decoding HEVC. Rewriting metadata
+    /// (<c>Image.EditMetadata</c>) is not supported yet and throws <see cref="NotSupportedException"/>.
+    /// </summary>
+    public IImageFormatMetadataCodec MetadataCodec => HeifMetadataCodec.Instance;
 }

@@ -16,9 +16,6 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
     private int entryCount;
     private long metadataBytes;
 
-    public static ImageInfo Identify(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context = null) =>
-        Open(data, options, context).Info;
-
     // Parses and validates the container; the result keeps the item graph for decoding.
     public static HeifContainer Open(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context = null)
     {

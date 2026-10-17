@@ -6,16 +6,17 @@ PictureSharp.Heif adds reading and writing of HEIC images (HEVC in the HEIF cont
 iPhones, to PictureSharp on **.NET 10 and later**. Like PictureSharp itself, it has no native libraries and no
 P/Invoke; it depends only on the `PictureSharp` package.
 
-> **Status: 0.3.0 in development, not yet published.** Identification, decoding (scalar HEVC intra decoder, bit-exact
-> with HM) and encoding are implemented.
+> **Status: 0.4.0 in development, not yet published.** Identification, decoding (scalar HEVC intra decoder, bit-exact
+> with HM), encoding, HDR gain maps and metadata-only reads are implemented.
 
-## Planned scope
+## Scope
 
 | Area | Read | Write |
 | --- | --- | --- |
 | Container | HEIF still images: `grid` tiles, `irot`/`imir`/`clap`, alpha, thumbnails, ICC/nclx, EXIF, XMP | Single image, tile grid, alpha, ICC/nclx, EXIF, XMP |
 | HEVC | Intra pictures, Main / Main Still Picture / Main 10, 4:2:0 and monochrome | Intra, Main 8-bit 4:2:0 |
-| HDR | iPhone gain maps (Apple and ISO 21496-1) through PictureSharp's `ToHdr`/`ToneMap` | Planned later |
+| HDR | iPhone gain maps (Apple and ISO 21496-1 `tmap`) through PictureSharp's `ToHdr`/`ToneMap` | Planned later |
+| Metadata | ICC, EXIF and XMP with `Image.ReadMetadata`, without decoding HEVC | Not yet (`EditMetadata` throws `NotSupportedException`) |
 
 Not planned: image sequences, Live Photos, depth maps, 4:2:2/4:4:4 (RExt), PQ/HLG and AVIF.
 
@@ -50,6 +51,17 @@ image.Save("photo.webp");
 
 The decoder applies the container's rotation, mirroring and cropping, attaches alpha, and copies ICC, EXIF and XMP;
 see [decoding](docs/decoding.md) for colour conversion and supported features.
+
+## HDR
+
+```csharp
+using var photo = Image.Load("IMG_0001.heic", new DecoderOptions { LoadGainMap = true });
+using HdrImage hdr = photo.ToHdr();          // linear Display P3, up to photo.Hdr!.Headroom × SDR white
+using Image sdr = hdr.ToneMap();
+```
+
+iPhone photos carry an HDR gain map: Apple's auxiliary image (iOS 14 and later) and, since iOS 18, ISO 21496-1 metadata
+for the same map. The ISO description is preferred; see [decoding](docs/decoding.md#hdr-gain-maps).
 
 ## Encode
 

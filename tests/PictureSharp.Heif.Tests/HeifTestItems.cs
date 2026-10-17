@@ -13,17 +13,7 @@ internal static class HeifTestItems
         ReadOnlyMemory<byte> iloc = Child(meta, "iloc");
         ReadOnlyMemory<byte> iprp = Child(meta, "iprp");
         ReadOnlyMemory<byte> idat = TryChild(meta, "idat");
-        var types = new Dictionary<uint, string>();
-        int countSize = iinf.Span[0] == 0 ? 2 : 4;
-        foreach ((string type, ReadOnlyMemory<byte> infe) in Boxes(iinf[(4 + countSize)..]))
-        {
-            ReadOnlySpan<byte> span = infe.Span;
-            bool wide = span[0] != 2;
-            uint id = wide ? BinaryPrimitives.ReadUInt32BigEndian(span[4..]) : BinaryPrimitives.ReadUInt16BigEndian(span[4..]);
-            int offset = 4 + (wide ? 4 : 2) + 2;
-            types[id] = System.Text.Encoding.ASCII.GetString(span.Slice(offset, 4));
-        }
-
+        Dictionary<uint, string> types = ItemTypes(iinf);
         Dictionary<uint, (int Method, List<(long Offset, long Length)> Extents)> locations = Locations(iloc.Span);
         List<(string Type, ReadOnlyMemory<byte> Data)> properties = [.. Boxes(Child(iprp, "ipco"))];
         Dictionary<uint, List<int>> associations = Associations(Child(iprp, "ipma").Span);
@@ -69,6 +59,36 @@ internal static class HeifTestItems
         }
 
         return result;
+    }
+
+    // Every item's type and payload, in identifier order (e.g. tmap, Exif and XMP items).
+    public static List<(uint Id, string Type, byte[] Data)> Payloads(byte[] file)
+    {
+        ReadOnlyMemory<byte> meta = Child(file, "meta")[4..];
+        ReadOnlyMemory<byte> idat = TryChild(meta, "idat");
+        Dictionary<uint, (int Method, List<(long Offset, long Length)> Extents)> locations = Locations(Child(meta, "iloc").Span);
+        return [.. ItemTypes(Child(meta, "iinf")).OrderBy(pair => pair.Key).Where(pair => locations.ContainsKey(pair.Key)).Select(pair =>
+        {
+            (int method, List<(long Offset, long Length)> extents) = locations[pair.Key];
+            byte[] data = [.. extents.SelectMany(e => (method == 1 ? idat : file).Slice((int)e.Offset, (int)e.Length).ToArray())];
+            return (pair.Key, pair.Value, data);
+        })];
+    }
+
+    private static Dictionary<uint, string> ItemTypes(ReadOnlyMemory<byte> iinf)
+    {
+        var types = new Dictionary<uint, string>();
+        int countSize = iinf.Span[0] == 0 ? 2 : 4;
+        foreach ((string type, ReadOnlyMemory<byte> infe) in Boxes(iinf[(4 + countSize)..]))
+        {
+            ReadOnlySpan<byte> span = infe.Span;
+            bool wide = span[0] != 2;
+            uint id = wide ? BinaryPrimitives.ReadUInt32BigEndian(span[4..]) : BinaryPrimitives.ReadUInt16BigEndian(span[4..]);
+            int offset = 4 + (wide ? 4 : 2) + 2;
+            types[id] = System.Text.Encoding.ASCII.GetString(span.Slice(offset, 4));
+        }
+
+        return types;
     }
 
     public static byte[] ToAnnexB(IEnumerable<ReadOnlyMemory<byte>> nals) =>

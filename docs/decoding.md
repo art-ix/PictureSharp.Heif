@@ -1,4 +1,4 @@
-# Decoding HEIC (0.2.0)
+# Decoding HEIC
 
 After registering `HeifFormat`, `Image.Load` decodes the primary image of a HEIF file into straight-alpha `Rgba32`:
 
@@ -29,6 +29,32 @@ Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccPro
 - **Library options:** `TargetSize`, `ApplyExifOrientation`, `ColorConversion`, `MaxPixels`, `MaxInputBytes`,
   `MaxMetadataBytes`, `IgnoreMetadata` and cancellation behave as for the built-in formats.
 
+## HDR gain maps
+
+With `DecoderOptions.LoadGainMap`, the decoder attaches the primary image's HDR gain map (PictureSharp 0.7.0 SPI), so
+`Image.Hdr`, `HasHdr`, `ToHdr` and `ToneMap` work as for JPEG files; `Identify` reports the same `ImageInfo.Hdr`.
+
+- **ISO 21496-1:** a `tmap` item whose `dimg` references are the primary image and the map. Its payload is a version
+  byte (0) and the ISO metadata; its `colr prof` is the alternate rendition's ICC profile. Other versions raise
+  `NotSupportedException` through `Image.Hdr`.
+- **Apple:** an auxiliary image of type `urn:com:apple:photo:2020:aux:hdrgainmap` (`auxl` to the primary image). The
+  headroom comes from the Apple MakerNote in the primary image's EXIF, or from the map's XMP without it.
+- iPhones since iOS 18 describe one map both ways; the ISO description wins, as in PictureSharp's JPEG reader, and
+  invalid ISO metadata never falls back to the Apple model. `HdrInfo.Detected` reports only the selected model until
+  PictureSharp 0.7.1 lets plugins report both.
+- The map is rendered like any image item, with its own transforms (iPhone maps carry the primary image's `irot`), at
+  its stored size; a monochrome map becomes gray RGB. Its compressed data is copied at load time and decoded on
+  demand, so the input buffer may be reused. The base image keeps its ICC profile or nclx colour also with
+  `IgnoreMetadata`, because HDR reconstruction needs it.
+- Invalid or unsupported gain map metadata never fails the load: `Image.Hdr.CanDecode` is false and `ToHdr` throws
+  `ImageFormatException` (corrupt) or `NotSupportedException`.
+
+## Metadata without decoding
+
+`Image.ReadMetadata` reads the ICC profile (or the nclx/VUI colour as `Chromaticities`/`Gamma`), EXIF and XMP from the
+container without decoding HEVC, and reports exactly what `Load` sets, including the `TopLeft` orientation.
+`Image.EditMetadata` is not supported yet and throws `NotSupportedException`.
+
 ## Colour conversion
 
 Colour signalling comes from the item's `colr nclx`, otherwise from the HEVC VUI, otherwise from the HEVC defaults
@@ -57,5 +83,9 @@ same rounding PictureSharp uses for 16-bit PNG.
   ITU-T server, downloaded with `scripts/fetch-jctvc-conformance.py --approved` into the ignored
   `tests/assets/external/jctvc`, SHA-256 pinned in `scripts/jctvc-conformance-v1.sha256`). `tests/assets/make-jctvc-reference.py`
   records HM references for 145 of them (two streams have no hash and fail in libde265); all 145 match bit for bit.
+- Gain map files in the corpus (Apple with a MakerNote, ISO with gray and RGB maps, both descriptions with rotation,
+  invalid versions and truncated metadata) store `heif-dec`'s output for the map alone; `ToHdr` must equal, bit for
+  bit, PictureSharp's reconstruction from the decoded base, that map and the generator's metadata. `Category=Local`
+  tests do the same for private iPhone photos with the map `heif-dec --with-aux` writes.
 - `Category=Local` tests decode every HEVC item of private iPhone photos against HM and libde265, and whole photos against
   `heif-dec`; `Category=Slow` tests fuzz both the HEVC decoder and the HEIF decode path.

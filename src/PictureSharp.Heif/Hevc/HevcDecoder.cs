@@ -69,6 +69,30 @@ internal static class HevcDecoder
         }
     }
 
+    // The VUI colour description of the first sequence parameter set, without decoding a picture.
+    public static HevcColourDescription? ReadColour(IReadOnlyList<ReadOnlyMemory<byte>> nalUnits)
+    {
+        foreach (ReadOnlyMemory<byte> nalUnit in nalUnits)
+        {
+            ReadOnlySpan<byte> nal = nalUnit.Span;
+            HevcNalHeader header = HevcNalHeader.Parse(nal);
+            if (header.LayerId == 0 && header.Type == HevcNalHeader.SpsType)
+            {
+                byte[] rbsp = ArrayPool<byte>.Shared.Rent(Math.Max(nal.Length, 16));
+                try
+                {
+                    return HevcSequenceParameterSet.Parse(rbsp.AsSpan(0, HevcNalHeader.ExtractRbsp(nal, rbsp))).Colour;
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rbsp);
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static HevcPictureDecoder CreatePicture(ReadOnlySpan<byte> rbsp, HevcNalHeader nal, HevcSequenceParameterSet?[] spsById,
         HevcPictureParameterSet?[] ppsById, Action<int, int>? reservePixels, CancellationToken cancellationToken)
     {
