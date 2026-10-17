@@ -64,15 +64,9 @@ internal sealed class HevcRdoq
         int greater1Base = HevcContext.Greater1 + (luma ? 0 : 16);
         int greater2Base = HevcContext.Greater2 + (luma ? 0 : 4);
         int groupBase = HevcContext.CodedSubBlock + (luma ? 0 : 2);
-        Array.Clear(costCoefficient, 0, count);
-        Array.Clear(costSig, 0, count);
-        Array.Clear(rateIncUp, 0, count);
-        Array.Clear(rateIncDown, 0, count);
-        Array.Clear(sigRateDelta, 0, count);
-        Array.Clear(deltaU, 0, count);
-        Array.Clear(costGroupSig, 0, groupCount);
-        Array.Clear(groupFlags, 0, groupCount);
-        levels[..count].Clear();
+        // The per-position and per-group arrays start at zero, as HM clears them; the scan below visits every position
+        // and group exactly once, before anything reads it, so each entry is zeroed on its visit instead of clearing
+        // whole 32x32 arrays per call.
 
         double blockUncodedCost = 0;
         double baseCost = 0;
@@ -88,6 +82,8 @@ internal sealed class HevcRdoq
         {
             int xS = subBlockScan[g] & 15;
             int yS = subBlockScan[g] >> 4;
+            costGroupSig[g] = 0;
+            groupFlags[(yS * groupsWide) + xS] = 0;
             int pattern = (xS < groupsWide - 1 ? groupFlags[(yS * groupsWide) + xS + 1] : 0)
                 | ((yS < groupsWide - 1 ? groupFlags[((yS + 1) * groupsWide) + xS] : 0) << 1);
             double sigCostGroup = 0;
@@ -99,6 +95,12 @@ internal sealed class HevcRdoq
             {
                 int scanPos = (g * 16) + p;
                 int blockPos = scan[scanPos];
+                costCoefficient[scanPos] = 0;
+                costSig[scanPos] = 0;
+                rateIncUp[blockPos] = 0;
+                rateIncDown[blockPos] = 0;
+                sigRateDelta[blockPos] = 0;
+                deltaU[blockPos] = 0;
                 long scaled = Math.Min((long)Math.Abs(coefficients[blockPos]) * quantScale, int.MaxValue - (1L << (qBits - 1)));
                 int maxLevel = (int)Math.Min(32767, (scaled + (1L << (qBits - 1))) >> qBits);
                 double error = scaled;

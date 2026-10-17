@@ -72,5 +72,7 @@ image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60, Configurat
   RDOQ and sign hiding −4.0% / +0.6%; plus SAO −4.6% / +0.7%; plus the residual quadtree
   −4.7% / +0.6%; with the faster mode and split decisions −4.6% / +0.9% at 40% less encoding time. Adaptive
   quantization trades PSNR for SSIM by design.
-  Kodak images are fetched with `scripts/fetch-kodak.py --approved`. A 12 MP photo encodes in about 5.6 s on 16 threads
-  with this scalar encoder.
+  Kodak images are fetched with `scripts/fetch-kodak.py --approved`. A 12 MP photo encodes in 4.0 s on 16 threads (31 s on
+  one), a 48 MP image in 13.7 s; `heif-enc` with x265 takes 2.0 s and 5.3 s for files 8% and 6% larger
+  (`docs/measurements/speed-x64.tsv`). On an Orange Pi 5 (ARM64, 8 cores) the same photo takes 14.0 s and the 48 MP
+  image 41.3 s, with the same bytes (`speed-arm64.tsv`). Transforms, SATD and reconstruction use vector paths with the scalar results.

@@ -1,3 +1,5 @@
+using System.Runtime.Intrinsics;
+
 namespace PictureSharp.Formats.Heif.Hevc;
 
 internal sealed partial class HevcPictureEncoder
@@ -431,10 +433,8 @@ internal sealed partial class HevcPictureEncoder
         int[] prediction = intra.Prediction;
         for (int j = 0; j < size; j++)
         {
-            for (int i = 0; i < size; i++)
-            {
-                residual[(j * size) + i] = original[((y + j) * stride) + x + i] - prediction[(j * size) + i];
-            }
+            HevcSamples.Subtract(original.AsSpan(((y + j) * stride) + x, size), prediction.AsSpan(j * size, size),
+                residual.AsSpan(j * size, size));
         }
 
         bool dst = cIdx == 0 && log2Size == 2;
@@ -463,24 +463,25 @@ internal sealed partial class HevcPictureEncoder
             restored.Clear();
         }
 
-        double error = 0;
+        // Integer sums of squares are exact, as were the double sums they replace.
+        long error = 0;
         for (int j = 0; j < size; j++)
         {
-            for (int i = 0; i < size; i++)
-            {
-                int index = (j * size) + i;
-                int value = HevcTransform.Clip(prediction[index] + restored[index], 255);
-                plane[((y + j) * stride) + x + i] = (ushort)value;
-                int difference = original[((y + j) * stride) + x + i] - value;
-                error += difference * difference;
-            }
+            int offset = ((y + j) * stride) + x;
+            error += HevcSamples.StoreClippedError(plane.AsSpan(offset, size), prediction.AsSpan(j * size, size),
+                restored.Slice(j * size, size), 255, original.AsSpan(offset, size));
         }
 
         return error;
     }
 
     // Sum of absolute 4x4 Hadamard-transformed differences (port: HM TComRdCost::xCalcHADs4x4, normalized as HM).
-    private static double Satd(ushort[] original, int stride, int x0, int y0, int[] prediction, int size)
+    private static double Satd(ushort[] original, int stride, int x0, int y0, int[] prediction, int size) =>
+        Vector128.IsHardwareAccelerated
+            ? SatdVector(original, stride, x0, y0, prediction, size)
+            : SatdScalar(original, stride, x0, y0, prediction, size);
+
+    internal static double SatdScalar(ushort[] original, int stride, int x0, int y0, int[] prediction, int size)
     {
         Span<int> d = stackalloc int[16];
         Span<int> m = stackalloc int[16];

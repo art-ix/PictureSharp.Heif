@@ -33,11 +33,7 @@ internal sealed partial class HevcPictureDecoder
         {
             for (int y = 0; y < size; y++)
             {
-                Span<ushort> row = plane.AsSpan(((yTb + y) * stride) + xTb, size);
-                for (int x = 0; x < size; x++)
-                {
-                    row[x] = (ushort)prediction[(y * size) + x];
-                }
+                HevcSamples.Store(plane.AsSpan(((yTb + y) * stride) + xTb, size), prediction.AsSpan(y * size, size));
             }
 
             return;
@@ -69,12 +65,8 @@ internal sealed partial class HevcPictureDecoder
 
         for (int y = 0; y < size; y++)
         {
-            Span<ushort> row = plane.AsSpan(((yTb + y) * stride) + xTb, size);
-            for (int x = 0; x < size; x++)
-            {
-                int index = (y * size) + x;
-                row[x] = (ushort)HevcTransform.Clip(prediction[index] + residualBlock[index], maximum);
-            }
+            HevcSamples.StoreClipped(plane.AsSpan(((yTb + y) * stride) + xTb, size), prediction.AsSpan(y * size, size),
+                residualBlock.Slice(y * size, size), maximum);
         }
     }
 
@@ -93,7 +85,7 @@ internal sealed partial class HevcPictureDecoder
     {
         int size = 1 << log2Size;
         Span<int> block = coefficients.AsSpan(0, size * size);
-        block.Clear();
+        ClearWrittenCoefficients();
         bool luma = cIdx == 0;
         bool transformSkip = false;
         if (pps.TransformSkipEnabled && !cuTransquantBypass && log2Size == 2)
@@ -151,27 +143,11 @@ internal sealed partial class HevcPictureDecoder
         ReadOnlySpan<byte> subBlockScan = HevcScan.Get(log2Groups, scanIdx);
         ReadOnlySpan<byte> positionScan = HevcScan.Get(2, scanIdx);
 
-        // Scan position of the last significant coefficient.
-        int lastSubBlock = -1;
-        int lastPosition = -1;
-        for (int s = (1 << (log2Groups * 2)) - 1; s >= 0 && lastSubBlock < 0; s--)
-        {
-            int xS = subBlockScan[s] & 15;
-            int yS = subBlockScan[s] >> 4;
-            for (int p = 15; p >= 0; p--)
-            {
-                int x = (xS << 2) + (positionScan[p] & 15);
-                int y = (yS << 2) + (positionScan[p] >> 4);
-                if (x == lastX && y == lastY)
-                {
-                    lastSubBlock = s;
-                    lastPosition = p;
-                    break;
-                }
-            }
-        }
-
-        if (lastSubBlock < 0)
+        // Scan position of the last significant coefficient: its sub-block in the sub-block scan, then its position in
+        // the 4x4 scan (scan entries are x | y << 4).
+        int lastSubBlock = subBlockScan.IndexOf((byte)(((lastY >> 2) << 4) | (lastX >> 2)));
+        int lastPosition = positionScan.IndexOf((byte)(((lastY & 3) << 4) | (lastX & 3)));
+        if (lastSubBlock < 0 || lastPosition < 0)
         {
             throw HevcError.Invalid("last significant coefficient outside the transform block.");
         }
@@ -371,10 +347,22 @@ internal sealed partial class HevcPictureDecoder
                 }
 
                 block[positions[i]] = value;
+                writtenCoefficients[writtenCoefficientCount++] = positions[i];
             }
         }
 
         return transformSkip;
+    }
+
+    // Zeroes the previous block's coefficients (dequantization changes only those), cheaper than clearing 32x32.
+    private void ClearWrittenCoefficients()
+    {
+        for (int i = 0; i < writtenCoefficientCount; i++)
+        {
+            coefficients[writtenCoefficients[i]] = 0;
+        }
+
+        writtenCoefficientCount = 0;
     }
 
     // port: HM TComTrQuant::getSigCtxInc (without transform_skip_context)

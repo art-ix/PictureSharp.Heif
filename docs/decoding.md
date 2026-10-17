@@ -13,7 +13,8 @@ Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccPro
 
 ## What is decoded
 
-- **HEVC:** a scalar intra decoder ported from the HM 16.20 reference software: Main, Main 10 and Main Still Picture,
+- **HEVC:** an intra decoder ported from the HM 16.20 reference software, with vector paths (`Vector128`/`Vector256`)
+  that give the same results as its scalar code: Main, Main 10 and Main Still Picture,
   4:2:0 and monochrome (4:0:0 without range extension tools), tiles, wavefronts, slices, PCM, scaling lists, transform
   skip, deblocking and SAO. Inter slices, 4:2:2/4:4:4, bit depths above 10 and range extension or screen content tools
   raise `NotSupportedException`.
@@ -28,6 +29,8 @@ Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccPro
   `ColorConversion = ToSrgb` on PQ or HLG content raises `NotSupportedException`.
 - **Library options:** `TargetSize`, `ApplyExifOrientation`, `ColorConversion`, `MaxPixels`, `MaxInputBytes`,
   `MaxMetadataBytes`, `IgnoreMetadata` and cancellation behave as for the built-in formats.
+- **Threads:** grid tiles decode in parallel and colour conversion and transforms run in row bands, up to
+  `DecoderOptions.MaxDegreeOfParallelism`. The pixels, and the error a damaged file raises, do not depend on it.
 
 ## HDR gain maps
 
@@ -69,6 +72,31 @@ Colour signalling comes from the item's `colr nclx`, otherwise from the HEVC VUI
 
 Monochrome images copy luma to R, G and B. 10-bit results are reduced to 8 bits with `round(v × 255 / 1023)`, the
 same rounding PictureSharp uses for 16-bit PNG.
+
+## Speed
+
+On an Intel Core i5-12500H (16 threads), decoding to `Rgba32` compared with libheif 1.20.2 (libde265, decoding to
+RGBA), best of five runs:
+
+| Photo | PictureSharp.Heif, 1 thread | all threads | libheif, 1 thread | all threads |
+| --- | --- | --- | --- | --- |
+| 12 MP iPhone (grid of 48 tiles) | 646 ms | 109 ms | 613 ms | 237 ms |
+| 24 MP iPhone (grid of 45 tiles) | 1195 ms | 193 ms | 981 ms | 394 ms |
+| 48 MP (grid of 192 tiles) | 1009 ms | 165 ms | 973 ms | 416 ms |
+| 48 MP (one picture, x265) | 1096 ms | 1092 ms | 935 ms | 938 ms |
+
+On an Orange Pi 5 (ARM64, Rockchip RK3588, 4 + 4 cores), compared with the Ubuntu packages of libheif 1.17.6 and
+libde265 1.0.15:
+
+| Photo | PictureSharp.Heif, 1 thread | all threads | libheif, 1 thread | all threads |
+| --- | --- | --- | --- | --- |
+| 12 MP iPhone (grid of 48 tiles) | 1593 ms | 347 ms | 2222 ms | 820 ms |
+| 24 MP iPhone (grid of 45 tiles) | 2733 ms | 651 ms | 4471 ms | 2701 ms |
+| 48 MP (grid of 192 tiles) | 2618 ms | 718 ms | 4335 ms | 2392 ms |
+| 48 MP (one picture, x265) | 2885 ms | 2658 ms | 4123 ms | 4151 ms |
+
+A single HEVC picture decodes on one thread. The vector paths give the same pixels as the scalar code on both
+architectures. The full data is in `docs/measurements/speed-x64.tsv` and `speed-arm64.tsv`.
 
 ## Verification
 

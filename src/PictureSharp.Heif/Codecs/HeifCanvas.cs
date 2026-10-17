@@ -24,11 +24,11 @@ internal sealed class HeifCanvas(int width, int height)
         return image;
     }
 
-    public HeifCanvas Apply(HeifTransform transform) => transform switch
+    public HeifCanvas Apply(HeifTransform transform, ParallelOptions parallel) => transform switch
     {
         HeifCleanAperture clap => Crop(clap),
-        HeifRotation rotation => Rotate(rotation.QuarterTurns),
-        HeifMirror mirror => Mirror(mirror.TopBottom),
+        HeifRotation rotation => Rotate(rotation.QuarterTurns, parallel),
+        HeifMirror mirror => Mirror(mirror.TopBottom, parallel),
         _ => throw new ArgumentOutOfRangeException(nameof(transform)),
     };
 
@@ -79,8 +79,9 @@ internal sealed class HeifCanvas(int width, int height)
         return result;
     }
 
-    // irot: anti-clockwise rotation by quarterTurns * 90 degrees.
-    private HeifCanvas Rotate(int quarterTurns)
+    // irot: anti-clockwise rotation by quarterTurns * 90 degrees. A band of destination rows is a band of source columns;
+    // walking the source rows in order keeps the reads sequential.
+    private HeifCanvas Rotate(int quarterTurns, ParallelOptions parallel)
     {
         if (quarterTurns == 0)
         {
@@ -89,36 +90,68 @@ internal sealed class HeifCanvas(int width, int height)
 
         bool swap = (quarterTurns & 1) != 0;
         var result = new HeifCanvas(swap ? Height : Width, swap ? Width : Height);
-        for (int y = 0; y < Height; y++)
+        int width = result.Width;
+        HeifParallel.ForRows(result.Height, width, parallel, (start, end) =>
         {
-            for (int x = 0; x < Width; x++)
+            Span<Rgba32> destination = result.Pixels;
+            switch (quarterTurns)
             {
-                (int nx, int ny) = quarterTurns switch
-                {
-                    1 => (y, Width - 1 - x),
-                    2 => (Width - 1 - x, Height - 1 - y),
-                    _ => (Height - 1 - y, x),
-                };
-                result.Pixels[(ny * result.Width) + nx] = Pixels[(y * Width) + x];
+                case 1:
+                    // (x, y) moves to (y, Width - 1 - x).
+                    for (int y = 0; y < Height; y++)
+                    {
+                        ReadOnlySpan<Rgba32> source = Pixels.AsSpan((y * Width) + Width - end, end - start);
+                        for (int ny = start; ny < end; ny++)
+                        {
+                            destination[(ny * width) + y] = source[end - 1 - ny];
+                        }
+                    }
+
+                    break;
+                case 2:
+                    for (int ny = start; ny < end; ny++)
+                    {
+                        Span<Rgba32> row = destination.Slice(ny * width, width);
+                        Pixels.AsSpan((Height - 1 - ny) * Width, Width).CopyTo(row);
+                        row.Reverse();
+                    }
+
+                    break;
+                default:
+                    // (x, y) moves to (Height - 1 - y, x).
+                    for (int y = 0; y < Height; y++)
+                    {
+                        ReadOnlySpan<Rgba32> source = Pixels.AsSpan((y * Width) + start, end - start);
+                        int nx = Height - 1 - y;
+                        for (int ny = start; ny < end; ny++)
+                        {
+                            destination[(ny * width) + nx] = source[ny - start];
+                        }
+                    }
+
+                    break;
             }
-        }
+        });
 
         return result;
     }
 
     // imir (ISO/IEC 23008-12:2022 6.5.12): mode 0 exchanges top and bottom, mode 1 left and right, as libheif does.
-    private HeifCanvas Mirror(bool topBottom)
+    private HeifCanvas Mirror(bool topBottom, ParallelOptions parallel)
     {
         var result = new HeifCanvas(Width, Height);
-        for (int y = 0; y < Height; y++)
+        HeifParallel.ForRows(Height, Width, parallel, (start, end) =>
         {
-            for (int x = 0; x < Width; x++)
+            for (int y = start; y < end; y++)
             {
-                result.Pixels[(y * Width) + x] = topBottom
-                    ? Pixels[((Height - 1 - y) * Width) + x]
-                    : Pixels[(y * Width) + Width - 1 - x];
+                Span<Rgba32> row = result.Pixels.AsSpan(y * Width, Width);
+                Pixels.AsSpan((topBottom ? Height - 1 - y : y) * Width, Width).CopyTo(row);
+                if (!topBottom)
+                {
+                    row.Reverse();
+                }
             }
-        }
+        });
 
         return result;
     }

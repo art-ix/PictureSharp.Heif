@@ -129,6 +129,56 @@ public sealed class HeifEncodeTests
         await Assert.That(parallel).IsEquivalentTo(serial, CollectionOrdering.Matching);
     }
 
+    // Grid tiles decode in parallel and colour conversion runs in row bands; neither may change the pixels.
+    [Test]
+    public async Task Decode_OutputDoesNotDependOnParallelism()
+    {
+        using Image original = Sample(700, 500, alpha: true);
+        byte[] heic = Encode(original, new HeifEncoderOptions { TileSize = 64 });
+        string Hash(int threads)
+        {
+            using Image image = Decode(heic, new DecoderOptions { MaxDegreeOfParallelism = threads });
+            return HeifDecodeTests.RgbaHash(image);
+        }
+
+        string serial = Hash(1);
+        await Assert.That(Hash(2)).IsEqualTo(serial);
+        await Assert.That(Hash(-1)).IsEqualTo(serial);
+    }
+
+    // With damaged tiles, a parallel decode reports what a serial one does: the error of the first failing tile in
+    // tile order, or the same pixels.
+    [Test]
+    public async Task Decode_DamagedGridGivesTheSameOutcomeForAnyParallelism()
+    {
+        using Image original = Sample(512, 384);
+        byte[] heic = Encode(original, new HeifEncoderOptions { TileSize = 64 });
+        var random = new Random(7);
+        string Outcome(byte[] data, int threads)
+        {
+            try
+            {
+                using Image image = Decode(data, new DecoderOptions { MaxDegreeOfParallelism = threads });
+                return HeifDecodeTests.RgbaHash(image);
+            }
+            catch (Exception exception) when (exception is ImageFormatException or NotSupportedException)
+            {
+                return $"{exception.GetType().Name}: {exception.Message}";
+            }
+        }
+
+        for (int trial = 0; trial < 24; trial++)
+        {
+            byte[] damaged = (byte[])heic.Clone();
+            for (int i = 0; i < 6; i++)
+            {
+                damaged[random.Next(damaged.Length / 2, damaged.Length)] ^= (byte)random.Next(1, 256);
+            }
+
+            await Assert.That(Outcome(damaged, -1)).IsEqualTo(Outcome(damaged, 1));
+        }
+    }
+
     [Test]
     [Arguments(1, 1)]
     [Arguments(3, 5)]

@@ -1,3 +1,5 @@
+using System.Runtime.Intrinsics;
+
 namespace PictureSharp.Formats.Heif.Codecs;
 
 // YCbCr 4:2:0 / 4:0:0 to 8-bit RGB, matching libheif 1.20 (heif-dec) output, which the oracle tests verify:
@@ -10,7 +12,7 @@ namespace PictureSharp.Formats.Heif.Codecs;
 //   floor(x + 0.5);
 // - monochrome images copy luma to R, G and B; alpha planes are taken from luma as is.
 // Samples above 8 bits are reduced with round(v * 255 / (2^bitDepth - 1)), like PictureSharp's 16-bit PNG reduction.
-internal sealed class HeifColorConverter
+internal sealed partial class HeifColorConverter
 {
     private readonly bool fullRange;
     private readonly int crR8;
@@ -48,95 +50,109 @@ internal sealed class HeifColorConverter
         cbB = 2f * (1f - kbf);
     }
 
-    public void Convert(HeifPlanes planes, Span<Rgba32> destination, bool bilinear, CancellationToken cancellationToken)
+    public void Convert(HeifPlanes planes, Rgba32[] destination, bool bilinear, ParallelOptions parallel)
     {
         int width = planes.Width;
-        int height = planes.Height;
-        int bitDepth = planes.BitDepth;
-        int maximum = (1 << bitDepth) - 1;
         if (planes.ChromaFormatIdc == 0)
         {
-            ConvertGray(planes, destination);
+            ConvertGray(planes, destination, parallel);
             return;
         }
 
-        if (bilinear)
+        HeifParallel.ForRows(planes.Height, width, parallel, (start, end) =>
         {
-            ConvertBilinear(planes, destination, maximum, cancellationToken);
-            return;
-        }
-
-        for (int y = 0; y < height; y++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            Span<Rgba32> row = destination.Slice(y * width, width);
-            int cy = y >> 1;
-            if (bitDepth == 8 && fullRange)
+            for (int y = start; y < end; y++)
             {
-                for (int x = 0; x < width; x++)
+                parallel.CancellationToken.ThrowIfCancellationRequested();
+                Span<Rgba32> row = destination.AsSpan(y * width, width);
+                if (bilinear)
                 {
-                    int yValue = planes.Luma(x, y) << 8;
-                    int cb = planes.Chroma(1, x >> 1, cy) - 128;
-                    int cr = planes.Chroma(2, x >> 1, cy) - 128;
-                    row[x] = new Rgba32(
-                        Clip8((yValue + (crR8 * cr) + 128) >> 8),
-                        Clip8((yValue - (cbG8 * cb) - (crG8 * cr) + 128) >> 8),
-                        Clip8((yValue + (cbB8 * cb) + 128) >> 8),
-                        255);
+                    ConvertBilinearRow(planes, row, y);
                 }
-
-                continue;
+                else if (planes.BitDepth == 8 && fullRange)
+                {
+                    if (Vector128.IsHardwareAccelerated)
+                    {
+                        ConvertRow8Vector(planes, row, y);
+                    }
+                    else
+                    {
+                        ConvertRow8(planes, row, y, 0);
+                    }
+                }
+                else
+                {
+                    ConvertRow(planes, row, y);
+                }
             }
-
-            for (int x = 0; x < width; x++)
-            {
-                row[x] = ConvertFloat(planes.Luma(x, y), planes.Chroma(1, x >> 1, cy), planes.Chroma(2, x >> 1, cy), bitDepth, maximum);
-            }
-        }
+        });
     }
 
     // Alpha planes carry the alpha value in luma, without range conversion; the value goes to R.
-    public static void ConvertAlpha(HeifPlanes planes, Span<Rgba32> destination)
-    {
-        ConvertGray(planes, destination);
-    }
+    public static void ConvertAlpha(HeifPlanes planes, Rgba32[] destination, ParallelOptions parallel) =>
+        ConvertGray(planes, destination, parallel);
 
-    private static void ConvertGray(HeifPlanes planes, Span<Rgba32> destination)
+    private static void ConvertGray(HeifPlanes planes, Rgba32[] destination, ParallelOptions parallel)
     {
         int maximum = (1 << planes.BitDepth) - 1;
-        for (int y = 0; y < planes.Height; y++)
+        HeifParallel.ForRows(planes.Height, planes.Width, parallel, (start, end) =>
         {
-            Span<Rgba32> row = destination.Slice(y * planes.Width, planes.Width);
-            for (int x = 0; x < planes.Width; x++)
+            for (int y = start; y < end; y++)
             {
-                byte v = Reduce(planes.Luma(x, y), planes.BitDepth, maximum);
-                row[x] = new Rgba32(v, v, v, 255);
+                Span<Rgba32> row = destination.AsSpan(y * planes.Width, planes.Width);
+                for (int x = 0; x < planes.Width; x++)
+                {
+                    byte v = Reduce(planes.Luma(x, y), planes.BitDepth, maximum);
+                    row[x] = new Rgba32(v, v, v, 255);
+                }
             }
+        });
+    }
+
+    // 8-bit full range, nearest-neighbour chroma: fixed point. Converts row[start..].
+    internal void ConvertRow8(HeifPlanes planes, Span<Rgba32> row, int y, int start)
+    {
+        int cy = y >> 1;
+        for (int x = start; x < row.Length; x++)
+        {
+            int yValue = planes.Luma(x, y) << 8;
+            int cb = planes.Chroma(1, x >> 1, cy) - 128;
+            int cr = planes.Chroma(2, x >> 1, cy) - 128;
+            row[x] = new Rgba32(
+                Clip8((yValue + (crR8 * cr) + 128) >> 8),
+                Clip8((yValue - (cbG8 * cb) - (crG8 * cr) + 128) >> 8),
+                Clip8((yValue + (cbB8 * cb) + 128) >> 8),
+                255);
         }
     }
 
-    private void ConvertBilinear(HeifPlanes planes, Span<Rgba32> destination, int maximum, CancellationToken cancellationToken)
+    private void ConvertRow(HeifPlanes planes, Span<Rgba32> row, int y)
     {
-        int width = planes.Width;
-        int height = planes.Height;
-        int chromaWidth = (width + 1) >> 1;
-        int chromaHeight = (height + 1) >> 1;
-        for (int y = 0; y < height; y++)
+        int bitDepth = planes.BitDepth;
+        int maximum = (1 << bitDepth) - 1;
+        int cy = y >> 1;
+        for (int x = 0; x < row.Length; x++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            Span<Rgba32> row = destination.Slice(y * width, width);
-            int cy = y >> 1;
-            int ny = Math.Clamp((y & 1) == 0 ? cy - 1 : cy + 1, 0, chromaHeight - 1);
-            for (int x = 0; x < width; x++)
-            {
-                int cx = x >> 1;
-                int nx = Math.Clamp((x & 1) == 0 ? cx - 1 : cx + 1, 0, chromaWidth - 1);
-                int cb = ((9 * planes.Chroma(1, cx, cy)) + (3 * planes.Chroma(1, cx, ny)) + (3 * planes.Chroma(1, nx, cy))
-                    + planes.Chroma(1, nx, ny) + 8) >> 4;
-                int cr = ((9 * planes.Chroma(2, cx, cy)) + (3 * planes.Chroma(2, cx, ny)) + (3 * planes.Chroma(2, nx, cy))
-                    + planes.Chroma(2, nx, ny) + 8) >> 4;
-                row[x] = ConvertFloat(planes.Luma(x, y), cb, cr, planes.BitDepth, maximum);
-            }
+            row[x] = ConvertFloat(planes.Luma(x, y), planes.Chroma(1, x >> 1, cy), planes.Chroma(2, x >> 1, cy), bitDepth, maximum);
+        }
+    }
+
+    private void ConvertBilinearRow(HeifPlanes planes, Span<Rgba32> row, int y)
+    {
+        int maximum = (1 << planes.BitDepth) - 1;
+        int chromaWidth = (planes.Width + 1) >> 1;
+        int chromaHeight = (planes.Height + 1) >> 1;
+        int cy = y >> 1;
+        int ny = Math.Clamp((y & 1) == 0 ? cy - 1 : cy + 1, 0, chromaHeight - 1);
+        for (int x = 0; x < row.Length; x++)
+        {
+            int cx = x >> 1;
+            int nx = Math.Clamp((x & 1) == 0 ? cx - 1 : cx + 1, 0, chromaWidth - 1);
+            int cb = ((9 * planes.Chroma(1, cx, cy)) + (3 * planes.Chroma(1, cx, ny)) + (3 * planes.Chroma(1, nx, cy))
+                + planes.Chroma(1, nx, ny) + 8) >> 4;
+            int cr = ((9 * planes.Chroma(2, cx, cy)) + (3 * planes.Chroma(2, cx, ny)) + (3 * planes.Chroma(2, nx, cy))
+                + planes.Chroma(2, nx, ny) + 8) >> 4;
+            row[x] = ConvertFloat(planes.Luma(x, y), cb, cr, planes.BitDepth, maximum);
         }
     }
 

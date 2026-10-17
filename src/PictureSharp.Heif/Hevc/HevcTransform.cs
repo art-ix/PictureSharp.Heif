@@ -1,11 +1,12 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 
 namespace PictureSharp.Formats.Heif.Hevc;
 
 // H.265 8.6.2–8.6.4: scaling (dequantization), inverse DCT/DST and transform skip.
 // port: HM source/Lib/TLibCommon/TComTrQuant.cpp xDeQuant, xITrMxN, partialButterflyInverseN, fastInverseDst,
 //       xITransformSkip. The butterflies are evaluated as plain matrix products: integer sums are identical.
-internal static class HevcTransform
+internal static partial class HevcTransform
 {
     private const int MaxLog2TrDynamicRange = 15;
     private const int IQuantShift = 6;
@@ -14,7 +15,11 @@ internal static class HevcTransform
     private static ReadOnlySpan<int> LevelScale => [40, 45, 51, 57, 64, 72];
 
     // port: TComTrQuant::xDeQuant. coefficients holds TransCoeffLevel on input and d[x][y] on output.
-    public static void Dequantize(Span<int> coefficients, int log2Size, int qp, int bitDepth, ReadOnlySpan<int> factors)
+    public static void Dequantize(Span<int> coefficients, int log2Size, int qp, int bitDepth, ReadOnlySpan<int> factors) =>
+        Dequantize(coefficients, log2Size, qp, bitDepth, factors, Vector128.IsHardwareAccelerated);
+
+    internal static void Dequantize(Span<int> coefficients, int log2Size, int qp, int bitDepth, ReadOnlySpan<int> factors,
+        bool vector)
     {
         int count = 1 << (log2Size * 2);
         int transformShift = MaxLog2TrDynamicRange - bitDepth - log2Size;
@@ -29,6 +34,12 @@ internal static class HevcTransform
         int inputMinimum = -(1 << (inputBits - 1));
         int inputMaximum = (1 << (inputBits - 1)) - 1;
         int scale = LevelScale[rem];
+        if (vector)
+        {
+            DequantizeVector(coefficients[..count], scale, scaling ? factors[..count] : default, rightShift, inputMinimum, inputMaximum);
+            return;
+        }
+
         if (rightShift > 0)
         {
             int add = 1 << (rightShift - 1);
@@ -63,13 +74,26 @@ internal static class HevcTransform
     public static void Inverse(ReadOnlySpan<int> coefficients, Span<int> residual, Span<int> temporary, int log2Size,
         bool dst, int bitDepth)
     {
-        int size = 1 << log2Size;
         int shift2 = 20 - bitDepth;
         if (dst)
         {
             InverseDst(coefficients, residual, temporary, shift2);
-            return;
         }
+        else if (Vector128.IsHardwareAccelerated)
+        {
+            InverseDctVector(coefficients, residual, temporary, log2Size, shift2, Vector256.IsHardwareAccelerated);
+        }
+        else
+        {
+            InverseDctScalar(coefficients, residual, temporary, log2Size, shift2);
+        }
+    }
+
+    // The HM butterflies, also the reference for InverseDctVector.
+    internal static void InverseDctScalar(ReadOnlySpan<int> coefficients, Span<int> residual, Span<int> temporary, int log2Size,
+        int shift2)
+    {
+        int size = 1 << log2Size;
 
         // Vertical (first stage, shift 7, clipped to the transform dynamic range): find the last nonzero row once.
         int rows = size;

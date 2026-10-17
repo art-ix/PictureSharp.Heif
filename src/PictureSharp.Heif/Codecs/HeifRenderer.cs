@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using PictureSharp.Formats.Heif.Container;
 using PictureSharp.Formats.Heif.Hevc;
 
@@ -5,9 +6,16 @@ namespace PictureSharp.Formats.Heif.Codecs;
 
 // Renders image nodes to straight-alpha RGBA: HEVC pictures, grids assembled in YCbCr, identity items, and the container
 // transforms in association order. Uses no decode context, so detached nodes (gain maps) render after the load.
-internal sealed class HeifRenderer(CancellationToken cancellationToken)
+// Grid tiles decode in parallel; the result does not depend on the thread count.
+internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken cancellationToken)
 {
     private const int MaxDepth = 32;
+
+    private readonly ParallelOptions parallel = new()
+    {
+        MaxDegreeOfParallelism = maxDegreeOfParallelism,
+        CancellationToken = cancellationToken,
+    };
 
     // alpha renders an auxiliary alpha image: its luma becomes the red channel, without colour conversion.
     public HeifCanvas Render(HeifImageNode node, bool alpha) => Render(node, null, alpha, 0);
@@ -57,20 +65,20 @@ internal sealed class HeifRenderer(CancellationToken cancellationToken)
             canvas = new HeifCanvas(planes.Width, planes.Height);
             if (alpha)
             {
-                HeifColorConverter.ConvertAlpha(planes, canvas.Pixels);
+                HeifColorConverter.ConvertAlpha(planes, canvas.Pixels, parallel);
             }
             else
             {
                 HeifNclx colour = nclx ?? FromVui(planes.Colour);
                 bool bilinear = planes.ChromaFormatIdc == 1 && HasOddCrop(node, planes.Width, planes.Height);
                 var converter = new HeifColorConverter(planes.ChromaFormatIdc == 0 ? 6 : colour.Matrix, colour.FullRange);
-                converter.Convert(planes, canvas.Pixels, bilinear, cancellationToken);
+                converter.Convert(planes, canvas.Pixels, bilinear, parallel);
             }
         }
 
         foreach (HeifTransform transform in node.Transforms)
         {
-            canvas = canvas.Apply(transform);
+            canvas = canvas.Apply(transform, parallel);
         }
 
         return canvas;
@@ -99,37 +107,55 @@ internal sealed class HeifRenderer(CancellationToken cancellationToken)
             throw new NotSupportedException("HEIF grids must consist of HEVC or grid image items.");
         }
 
-        HeifPlanes? planes = null;
-        int index = 0;
-        int y = 0;
-        for (int row = 0; row < grid.Layout.Rows; row++)
+        // The first tile fixes the format; the others decode in parallel and paste into disjoint regions.
+        int count = grid.Layout.Rows * grid.Layout.Columns;
+        HeifPlanes first = Tile(grid, 0, depth);
+        HeifPlanes planes = HeifPlanes.Create(grid.Layout.Width, grid.Layout.Height, first);
+        Place(planes, first, first, 0, grid.Layout.Columns);
+        var errors = new ExceptionDispatchInfo?[count];
+        Parallel.For(1, count, parallel, (index, state) =>
         {
-            int x = 0;
-            int tileHeight = 0;
-            for (int column = 0; column < grid.Layout.Columns; column++)
+            try
             {
-                HeifImageNode tileNode = grid.Tiles[index++];
-                if (tileNode.Transforms.Count > 0)
-                {
-                    throw new NotSupportedException("Transformed HEIF grid tiles are not supported.");
-                }
-
-                HeifPlanes tile = Assemble(tileNode, depth + 1);
-                planes ??= HeifPlanes.Create(grid.Layout.Width, grid.Layout.Height, tile);
-                if (!planes.HasSameFormat(tile) || (planes.ChromaFormatIdc == 1 && ((tile.Width | tile.Height) & 1) != 0))
-                {
-                    throw HeifReader.Error("Grid tiles have inconsistent formats.");
-                }
-
-                planes.Paste(tile, x, y);
-                x += tile.Width;
-                tileHeight = tile.Height;
+                Place(planes, first, Tile(grid, index, depth), index, grid.Layout.Columns);
             }
+            catch (Exception exception)
+            {
+                // Break still runs every lower tile, so the error reported is the first in tile order, as sequentially.
+                errors[index] = ExceptionDispatchInfo.Capture(exception);
+                state.Break();
+            }
+        });
 
-            y += tileHeight;
+        foreach (ExceptionDispatchInfo? error in errors)
+        {
+            error?.Throw();
         }
 
-        return planes!;
+        return planes;
+    }
+
+    private HeifPlanes Tile(HeifGridNode grid, int index, int depth)
+    {
+        HeifImageNode tileNode = grid.Tiles[index];
+        if (tileNode.Transforms.Count > 0)
+        {
+            throw new NotSupportedException("Transformed HEIF grid tiles are not supported.");
+        }
+
+        return Assemble(tileNode, depth + 1);
+    }
+
+    // Tiles share one size (the container checked their descriptions), so tile index determines the position.
+    private static void Place(HeifPlanes planes, HeifPlanes first, HeifPlanes tile, int index, int columns)
+    {
+        if (!planes.HasSameFormat(tile) || (planes.ChromaFormatIdc == 1 && ((tile.Width | tile.Height) & 1) != 0)
+            || tile.Width != first.Width || tile.Height != first.Height)
+        {
+            throw HeifReader.Error("Grid tiles have inconsistent formats.");
+        }
+
+        planes.Paste(tile, (index % columns) * tile.Width, (index / columns) * tile.Height);
     }
 
     // libheif crops 4:2:0 images at an odd column or row by upsampling chroma to 4:4:4 (bilinear) first.

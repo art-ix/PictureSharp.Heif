@@ -39,6 +39,10 @@ internal sealed partial class HevcPictureDecoder : IHevcAvailability
     private bool dependentContextsStored;
 
     private readonly int[] coefficients = new int[32 * 32];
+
+    // Positions ParseResidualCoding wrote into coefficients; only these can be nonzero when the next block starts.
+    private readonly int[] writtenCoefficients = new int[32 * 32];
+    private int writtenCoefficientCount;
     private readonly int[] residual = new int[32 * 32];
     private readonly int[] temporary = new int[32 * 32];
     private readonly HevcIntraPredictor intra;

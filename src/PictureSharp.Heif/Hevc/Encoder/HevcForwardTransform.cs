@@ -1,12 +1,28 @@
+using System.Runtime.Intrinsics;
+
 namespace PictureSharp.Formats.Heif.Hevc;
 
 // Forward DCT/DST and scalar quantization (the decoder side is HevcTransform).
 // port: HM source/Lib/TLibCommon/TComTrQuant.cpp xTrMxN (partialButterfly*, fastForwardDst as a matrix product), xQuant
-internal static class HevcForwardTransform
+internal static partial class HevcForwardTransform
 {
     private static ReadOnlySpan<int> QuantScales => [26214, 23302, 20560, 18396, 16384, 14564];
 
     public static void Forward(ReadOnlySpan<int> residual, Span<int> coefficients, Span<int> temporary, int log2Size,
+        bool dst, int bitDepth)
+    {
+        if (Vector128.IsHardwareAccelerated)
+        {
+            ForwardVector(residual, coefficients, temporary, log2Size, dst, bitDepth, Vector256.IsHardwareAccelerated);
+        }
+        else
+        {
+            ForwardScalar(residual, coefficients, temporary, log2Size, dst, bitDepth);
+        }
+    }
+
+    // The HM butterflies, also the reference for ForwardVector.
+    internal static void ForwardScalar(ReadOnlySpan<int> residual, Span<int> coefficients, Span<int> temporary, int log2Size,
         bool dst, int bitDepth)
     {
         int size = 1 << log2Size;

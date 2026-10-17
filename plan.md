@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: brak wydania; 0.1.0–0.4.0 zamknięte lokalnie (PictureSharp 0.7.1 z NuGet): `Identify`, `Decode` (YCbCr bit-exact z HM, RGB = heif-dec), `SaveAsHeic` (BD-rate PSNR −4,6%/SSIM +0,9% względem x265 medium na Kodaku po poprawach enkodera), gain mapy Apple/ISO → `ToHdr` i `ReadMetadata` bez dekodu, 2026-10-17. Następna 0.5.0 (SIMD, równoległość, pomiary, ARM64).** PictureSharp.Heif to wtyczka formatu dla
+**Bieżąca wersja: brak wydania; 0.1.0–0.5.0 zamknięte lokalnie (PictureSharp 0.7.1 z NuGet): `Identify`, `Decode` (YCbCr bit-exact z HM, RGB = heif-dec), `SaveAsHeic` (BD-rate PSNR −4,6%/SSIM +0,9% względem x265 medium na Kodaku po poprawach enkodera), gain mapy Apple/ISO → `ToHdr` i `ReadMetadata` bez dekodu, 2026-10-17. 0.5.0: SIMD i równoległość, bitowo identyczne na x64 i ARM64.** PictureSharp.Heif to wtyczka formatu dla
 PictureSharp: moduł `IImageFormatModule` (rejestracja przez `ImageConfigurationBuilder.AddFormat`), który odczytuje i
 zapisuje HEIC (HEVC w kontenerze HEIF) bez kodu natywnego. Zdjęcia HEIC zawierają tylko obrazy intra, więc port
 obejmuje HEVC intra, bez kompensacji ruchu.
@@ -21,7 +21,7 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | 0.2.0 | Dekoder HEVC intra (skalar), siatka, kolor, alfa, `irot`/`imir`/`clap`, ICC/EXIF/XMP | 0.6.9 | Zamknięta lokalnie (DoD spełnione, w tym strumienie konformacyjne JCT-VC) |
 | 0.3.0 | Enkoder HEVC intra Main 8-bit 4:2:0, alfa, siatka, metadane | 0.6.9 | Zamknięta lokalnie (DoD spełnione) |
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.1 | Zamknięta lokalnie (DoD spełnione, 2026-10-17) |
-| 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Planowana |
+| 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Zamknięta lokalnie 2026-10-17 (x64 i ARM64) |
 | dalej | Zapis gain map w HEIC, ewentualnie szybka miniatura `thmb` i opcje dekodera | 0.8.0 | Do decyzji |
 
 Numery określają kolejność, nie terminy. Każda wersja wymaga własnego DoD (niżej) oraz wspólnej bramki jakości.
@@ -113,6 +113,34 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
 - Luka SPI zamknięta w rdzeniu 0.7.1: wtyczka przekazuje wszystkie wykryte modele przez
   `AttachGainMap(metadata, map, detected)` i `DeclareGainMap`, więc HEIC z iOS 18 zgłasza `Iso21496, Apple` jak JPEG z
   tego zdjęcia. Manifest korpusu ma pole `detected`; test Local sprawdza zbiór modeli zdjęć iPhone.
+
+## Stan implementacji 0.5.0 (2026-10-17, zamknięta lokalnie)
+
+- Równoległość: kafle siatki dekodowane równolegle (pierwszy kafel ustala format, reszta wkleja się w rozłączne
+  obszary; przy błędzie `Break` i wyjątek pierwszego wadliwego kafla w kolejności, jak sekwencyjnie), konwersja kolorów,
+  obrót i odbicie pasami wierszy (`HeifParallel.ForRows`); `DecoderOptions.MaxDegreeOfParallelism` przekazywany do
+  renderera i dekodu gain mapy.
+- SIMD (`Vector128`, `Vector256` od 8x8, w plikach `*.Simd.cs`): odwrotna DCT i transformata w przód jako iloczyny
+  macierzy (te same sumy całkowite co motylki HM, z pominięciem zerowych wierszy/kolumn), dekwantyzacja, rekonstrukcja
+  próbek (`HevcSamples`), różnica i błąd kwadratowy w enkoderze, SATD 4x4, YCbCr→RGB 8-bit full range.
+- Bez SIMD: zerowanie tylko zapisanych współczynników, bezpośrednie wyszukanie ostatniej pozycji skanu, RDOQ bez
+  czyszczenia tablic (zerowanie pozycji przy odwiedzeniu), obrót czytający wiersze źródła.
+- Weryfikacja x64: dekod korpusu i 5 zdjęć (z `ToHdr`) oraz 11 kodowań bajtowo identyczne z 0.4.0, także z
+  `DOTNET_EnableHWIntrinsic=0`; pełne testy 389/390 (1 pominięty sweep AQ) na ścieżkach SIMD i skalarnych;
+  `HevcSimdTests` (5 porównań wektor/skalar) i 2 testy niezależności dekodu od liczby wątków (także uszkodzone kafle).
+- Pomiary x64 (`docs/measurements/speed-x64.tsv`): dekod 12 MP 646 ms / 109 ms (1 / 16 wątków; libheif 613 / 237),
+  24 MP 1195 / 193 (981 / 394), 48 MP siatka 1009 / 165 (973 / 416); zapis 12 MP 31 s / 4,0 s (było 36,6 / 4,7;
+  heif-enc x265 2,0 s, plik +8%), 48 MP 13,7 s (heif-enc 5,3 s, +6%).
+- ARM64 (Orange Pi 5, RK3588, za zgodą użytkownika; kopia `~/heif-0.5.0` ze zdjęciami): build 0 ostrzeżeń, testy
+  379/390 na NEON i z `DOTNET_EnableHWIntrinsic=0` (11 pominiętych: wyrocznie bez narzędzi na płytce i sweep AQ);
+  77 skrótów dekodu i kodowania identycznych z x64 w obu trybach. `Vector256` nie jest tam przyspieszany, więc działają
+  ścieżki 128-bitowe.
+- Pomiary ARM64 (`docs/measurements/speed-arm64.tsv`, libheif 1.17.6 z pakietów Ubuntu): dekod 12 MP 1593 / 347 ms
+  (1 / 8 wątków; libheif 2222 / 820, skalarnie 1710 / 407), 24 MP 2733 / 651 (4471 / 2701), 48 MP siatka 2618 / 718
+  (4335 / 2392); zapis 12 MP 62,6 s / 14,0 s, 48 MP 41,3 s, bajty jak na x64. Brak heif-enc z x265 na płytce.
+- DoD spełnione: SIMD = skalar bitowo na x64 i ARM64, równoległe kafle, pomiary 12/48 MP względem libheif.
+- Dalsze kandydaty (poza DoD): parsowanie CABAC reszt (~40% dekodu), RDOQ i liczenie bitów (~40% zapisu), WPP w obrębie
+  jednego obrazu, scalenie obrotu z konwersją kolorów.
 
 ## Porządki modelu kontenera (2026-10-17, niewydane)
 

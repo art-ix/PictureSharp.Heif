@@ -1,0 +1,33 @@
+# PictureSharp.Heif 0.5.0 (in development) on x64: Intel Core i5-12500H (16 threads), .NET 10.0, 2026-10-17.
+# Decode: best of 5, Image.Load to Rgba32. libheif 1.20.2 with libde265: heif_decode_image to interleaved RGBA,
+# best of 5; threads=1 is heif_context_set_max_decoding_threads(0), "all" the library default.
+# Encode: quality 50, best of 2 (single thread: 1 run). heif-enc 1.20.2 with x265 3.4 at -q 50 from PNG (wall time,
+# CPU time in parentheses). 48 MP: the 12 MP photo upscaled 2x (bicubic), 6048x8064.
+operation	image	layout	tool	threads	ms	bytes
+decode	IMG_3928 12 MP	grid 6x8 512x512	picturesharp-0.4.0	1	785
+decode	IMG_3928 12 MP	grid 6x8 512x512	picturesharp-0.4.0	all	785
+decode	IMG_3928 12 MP	grid 6x8 512x512	picturesharp	1	646
+decode	IMG_3928 12 MP	grid 6x8 512x512	picturesharp	all	109
+decode	IMG_3928 12 MP	grid 6x8 512x512	libheif	1	613
+decode	IMG_3928 12 MP	grid 6x8 512x512	libheif	all	237
+decode	IMG_8112 24 MP	grid 5x9 896x640	picturesharp-0.4.0	1	1605
+decode	IMG_8112 24 MP	grid 5x9 896x640	picturesharp-0.4.0	all	1617
+decode	IMG_8112 24 MP	grid 5x9 896x640	picturesharp	1	1195
+decode	IMG_8112 24 MP	grid 5x9 896x640	picturesharp	all	193
+decode	IMG_8112 24 MP	grid 5x9 896x640	libheif	1	981
+decode	IMG_8112 24 MP	grid 5x9 896x640	libheif	all	394
+decode	48 MP upscaled	grid 12x16 512x512 (PictureSharp.Heif)	picturesharp	1	1009
+decode	48 MP upscaled	grid 12x16 512x512 (PictureSharp.Heif)	picturesharp	all	165
+decode	48 MP upscaled	grid 12x16 512x512 (PictureSharp.Heif)	libheif	1	973
+decode	48 MP upscaled	grid 12x16 512x512 (PictureSharp.Heif)	libheif	all	416
+decode	48 MP upscaled	single picture (x265)	picturesharp	1	1096
+decode	48 MP upscaled	single picture (x265)	picturesharp	all	1092
+decode	48 MP upscaled	single picture (x265)	libheif	1	935
+decode	48 MP upscaled	single picture (x265)	libheif	all	938
+encode	IMG_3928 12 MP	grid 512x512	picturesharp-0.4.0	1	36556	1777157
+encode	IMG_3928 12 MP	grid 512x512	picturesharp-0.4.0	all	4715	1777157
+encode	IMG_3928 12 MP	grid 512x512	picturesharp	1	30879	1777157
+encode	IMG_3928 12 MP	grid 512x512	picturesharp	all	4014	1777157
+encode	IMG_3928 12 MP	single picture	heif-enc x265	all	2010 (20960 CPU)	1912699
+encode	48 MP upscaled	grid 512x512	picturesharp	all	13694	3306343
+encode	48 MP upscaled	single picture	heif-enc x265	all	5320 (58580 CPU)	3493759

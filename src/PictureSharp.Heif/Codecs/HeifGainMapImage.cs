@@ -8,5 +8,5 @@ namespace PictureSharp.Formats.Heif.Codecs;
 internal sealed class HeifGainMapImage(HeifImageNode node, Size size) : GainMapImage(size)
 {
     public override Image Decode(int maxDegreeOfParallelism, CancellationToken cancellationToken) =>
-        new HeifRenderer(cancellationToken).Render(node, alpha: false).ToImage(alpha: false);
+        new HeifRenderer(maxDegreeOfParallelism, cancellationToken).Render(node, alpha: false).ToImage(alpha: false);
 }
