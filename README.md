@@ -1,49 +1,43 @@
 # PictureSharp.Heif
 
-**HEIC/HEIF plugin for [PictureSharp](https://github.com/art-ix/PictureSharp), written entirely in C#.**
+**HEIC/HEIF plugin for [PictureSharp](https://github.com/art-ix/PictureSharp), entirely in C#.**
 
-Reads and writes HEIC, the default photo format of iPhones, on **.NET 10 and later**. No native libraries and no
-P/Invoke: the only dependency is the `PictureSharp` package (0.7.6 or later).
+Reads and writes HEIC on **.NET 10+**. Requires PictureSharp 0.7.6+; no native libraries or P/Invoke.
 
 ```bash
 dotnet add package PictureSharp.Heif
 ```
 
-## 1. Register the plugin
+## Register
 
-Register the format once at startup. After that, `Image.Load`, `Image.Identify` and `Save` handle `.heic` files like
-any built-in format.
+Register once to use `.heic` files with `Image.Load`, `Identify` and `Save`:
 
 ```csharp
 using PictureSharp;
 using PictureSharp.Formats.Heif;
 
 ImageConfiguration.Default = ImageConfiguration.Default.ToBuilder()
-    .AddFormat(new HeifFormat())
-    .Build();
+    .AddFormat(new HeifFormat()).Build();
 ```
 
-## 2. Decode
+## Decode
 
 ```csharp
-using var image = Image.Load("IMG_0001.heic");
-Console.WriteLine($"{image.Width} × {image.Height}");
-
+using var image = Image.Load("photo.heic");
 image.Mutate(x => x.Resize(1600, 0));
 image.Save("photo.jpg");
 ```
 
-Rotation, mirroring and cropping from the file are already applied, and the image keeps its alpha, ICC profile, EXIF and
-XMP. To read only the size or metadata without decoding pixels, use `Image.Identify("IMG_0001.heic")` or
-`Image.ReadMetadata("IMG_0001.heic")`.
+Container rotation, mirroring and cropping are applied; alpha, ICC, EXIF and XMP are preserved.
+`Image.Identify` and `Image.ReadMetadata` read dimensions or metadata without decoding pixels.
 
-### Photos and embedded previews (0.6.2)
+### Photos and previews
 
-A file may contain several photos, thumbnails and auxiliary images. Open its catalogue to select a photo or preview:
+List photos separately from tiles and auxiliary images, then load a photo or embedded preview:
 
 ```csharp
 var document = await HeifDocument.OpenAsync("burst.heic",
-    new HeifDocumentOptions { MaxInputBytes = 64L << 20 });
+    new HeifDocumentOptions { MaxInputBytes = 64 * 1024 * 1024 }); // 64 MiB
 foreach (var photo in document.TopLevelImages)
     Console.WriteLine($"{photo.Id}: {photo.Name}, {photo.DisplaySize}");
 
@@ -51,66 +45,57 @@ using Image full = document.LoadImage(document.PrimaryImage.Id);
 using Image preview = document.LoadPreview(new System.Drawing.Size(320, 240));
 ```
 
-Opening copies the input without decoding pixels. Each read accepts its own `DecoderOptions`. `LoadPreview` chooses
-a matching embedded thumbnail or resizes the photo. An embedded preview can differ in framing, compression and colour;
-use `LoadImage` with `TargetSize` when the photo itself is required.
-[Catalogue and relationships](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md#catalogue-and-image-selection-062)
-explain item roles, ownership and limits.
+Opening copies the input without decoding pixels. Reads accept independent `DecoderOptions`.
+`LoadPreview` selects a matching thumbnail or resizes the photo. Embedded previews may differ in framing and colour;
+use `LoadImage` with `TargetSize` for the photo itself.
 
-For an ID already known, `Image.Load`, `Identify` and `ReadMetadata` also accept
-`new DecoderOptions { FormatOptions = [new HeifDecoderOptions { ItemId = 2 }] }`; null `ItemId` selects the primary photo.
+`Open` accepts paths, streams or memory; `OpenAsync` accepts paths or streams. Caller streams remain open.
+The document owns its buffer and needs no disposal; dispose returned images. `Items` includes unsupported entries,
+while `PrimaryImage` identifies the default photo independently of catalogue filtering.
 
-## 3. Encode
+## Encode
 
 ```csharp
-using var image = Image.Load("photo.png");
-image.SaveAsHeic("photo.heic");                                          // quality 50
-image.SaveAsHeic("small.heic", new HeifEncoderOptions { Quality = 35 }); // smaller file
-image.SaveAsHeic("preview.heic", new HeifEncoderOptions { ThumbnailMaxDimension = 320 });
+image.SaveAsHeic("photo.heic", new HeifEncoderOptions
+{
+    Quality = 60,
+    ThumbnailMaxDimension = 320
+});
 ```
 
-Alpha, ICC, EXIF and XMP are written too. Every option is described in [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md).
+Preserves alpha, ICC, EXIF and XMP. Thumbnails keep proportions without enlarging and exclude EXIF/XMP.
+Defaults: quality 50, thumbnails disabled.
 
-## HDR photos
+## HDR
 
-iPhone photos carry an HDR gain map. Ask for it while loading, then reconstruct or tone-map the HDR image:
+Load Apple/ISO gain maps to reconstruct and tone-map HDR:
 
 ```csharp
-using var photo = Image.Load("IMG_0001.heic", new DecoderOptions { LoadGainMap = true });
+using var photo = Image.Load("photo.heic", new DecoderOptions { LoadGainMap = true });
 using HdrImage hdr = photo.ToHdr();
 using Image sdr = hdr.ToneMap();
 ```
 
-## Supported
+## Support and limits
 
-- **Reading:** HEVC Main, Main Still Picture and Main 10 (4:2:0 and monochrome), tile grids, alpha, rotation, mirroring
-  and cropping, ICC/nclx colour, EXIF, XMP, HDR gain maps (Apple and ISO 21496-1).
-- **Writing:** HEVC Main 8-bit 4:2:0, a single image or a tile grid, alpha, ICC, EXIF, XMP, optional embedded thumbnail.
-- **Not supported:** image sequences, Live Photos, depth maps as depth data (an auxiliary depth image decodes as a
-  plain image through `HeifDecoderOptions.ItemId`), 4:2:2/4:4:4, PQ/HLG, AVIF, writing gain maps and
-  editing metadata in place (`Image.EditMetadata`).
+- **Read:** HEVC Main, Main Still Picture and Main 10; 4:2:0/monochrome, grids, alpha, transforms, ICC/nclx, EXIF/XMP.
+- **Write:** HEVC Main 8-bit 4:2:0, grids, alpha, metadata and thumbnails.
+- **Unsupported:** sequences, Live Photos, depth interpretation, 4:2:2/4:4:4, PQ/HLG, AVIF, gain-map writing and metadata editing.
 
-PictureSharp's limits (`MaxPixels`, `MaxInputBytes`), cancellation and thumbnails while loading (`TargetSize`) work for
-HEIC as for the built-in formats.
+Pixel/input/metadata limits, cancellation and `TargetSize` apply. `HeifDecoderOptions.ItemId` selects individual items
+through `DecoderOptions.FormatOptions`. Decoded pixels are checked against HM and libheif.
 
-## More
-
-- [Decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/decoding.md): colour conversion, HDR gain maps, metadata-only reads.
-- [Encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md): options, file layout, quality and speed measurements.
-- [Container](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md): identification, limits and the test oracles.
-
-Decoded pixels match the HM reference decoder and libheif's `heif-dec` exactly; encoded files decode identically in
-both.
+[Decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/decoding.md) ·
+[Encoding and performance](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md) ·
+[Catalogue, relationships and limits](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md)
 
 ## License and patents
 
-MIT. Ported code comes only from MIT-compatible sources (the ITU-T H.265 specification, HM and kvazaar, both BSD-3); see
-`THIRD-PARTY-NOTICES.txt`. libheif, libde265 and x265 are used only as test oracles.
+MIT; ports follow H.265, HM and kvazaar (BSD-3). See `THIRD-PARTY-NOTICES.txt`.
+libheif, libde265 and x265 are test oracles only. HEVC patent licensing may be required separately;
+this package includes no patent license.
 
-HEVC is covered by patents licensed through patent pools. This package does not include a patent license; check
-whether your use requires one before shipping it.
-
-## Building from source
+## Build
 
 ```bash
 dotnet build -c Release
