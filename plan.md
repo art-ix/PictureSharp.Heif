@@ -2,8 +2,7 @@
 
 ## Status and goal
 
-**Current version: 0.6.4, prepared for release 2026-10-18 and not published (0.6.3 is the latest published);
-minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.4, released 2026-10-18; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
@@ -39,7 +38,7 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.1 | Compressed XMP: zlib/deflate and limits | 0.7.6 | Released 2026-10-18 |
 | 0.6.2 | `HeifDocument` catalog, references, auxiliary images, reading and generating thumbnails | 0.7.6 | Released 2026-10-18 |
 | 0.6.3 | `HeifDocument` API correction (incompatible with 0.6.2) | 0.7.6 | Released 2026-10-18 |
-| 0.6.4 | Raw depth samples, Live Photo pair detection | 0.7.6 | Release prepared 2026-10-18, not published |
+| 0.6.4 | Raw depth samples, Live Photo pair detection | 0.7.6 | Released 2026-10-18 |
 | 0.6.5 | Apple portrait effect: disparity description, depth-of-field rendering | 0.7.6 (assumed) | Planned |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.7.6 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
