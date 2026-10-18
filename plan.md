@@ -2,12 +2,12 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: 0.6.0, wydana 2026-10-18; minimalny PictureSharp 0.7.6.** Wtyczka formatu w C#, bez bibliotek
+**Bieżąca wersja: 0.6.1, przygotowana 2026-10-18; minimalny PictureSharp 0.7.6.** Wtyczka formatu w C#, bez bibliotek
 natywnych, z własnym dekoderem i enkoderem HEVC intra.
 
 - Odczyt: kontener HEIF (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 i 4:0:0, siatki, `iden`,
   `irot`/`imir`/`clap`, alfa (`auxl`, `prem`), nclx/ICC, Exif/XMP, gain mapy Apple/ISO (`ToHdr`), `ReadMetadata` bez
-  dekodu HEVC, wybór elementu przez `HeifDecoderOptions.ItemId`. Slice'y P/B, RExt, SCC, PQ/HLG, sekwencje →
+  dekodu HEVC, wybór elementu przez `HeifDecoderOptions.ItemId`, skompresowane XMP (`deflate`). Slice'y P/B, RExt, SCC, PQ/HLG, sekwencje →
   `NotSupportedException`.
 - Zapis: HEVC Main 8-bit 4:2:0, alfa 4:0:0, siatka kafli, nclx/ICC, Exif/XMP (`SaveAsHeic`, `HeifEncoderOptions`).
 - SIMD x64/ARM64 bitowo zgodne ze skalarem, równoległe kafle, wynik niezależny od liczby wątków.
@@ -34,7 +34,7 @@ wersji 0.1.0–0.6.0 (DoD, wyniki, pomiary, kryteria enkodera): [docs/history.md
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.1 | Zamknięta lokalnie |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Wydana 2026-10-17 (pierwsze publiczne wydanie) |
 | 0.6.0 | `HeifDecoderOptions.ItemId` przez `DecoderOptions.FormatOptions` | 0.7.6 | Wydana 2026-10-18 |
-| 0.6.1 | Skompresowane XMP: zlib/deflate i limity | 0.7.6 | Zrealizowana lokalnie 2026-10-18 (bez wydania) |
+| 0.6.1 | Skompresowane XMP: zlib/deflate i limity | 0.7.6 | Przygotowana do wydania 2026-10-18 |
 | 0.6.2 | Katalog `HeifDocument`, powiązania, auxiliary, odczyt i generowanie miniatur | 0.7.6 (założenie) | Planowana |
 | 0.6.3 | Surowe próbki depth, rozpoznawanie par Live Photo | 0.7.6 (założenie) | Planowana |
 | 0.7.0 | Integracja, regresje, dokumentacja i paczka całego zakresu | 0.7.6 (założenie) | Planowana |
@@ -162,6 +162,7 @@ potrzeby. Nowe potrzeby SPI zgłaszamy do planu rdzenia; nie obchodzimy ich kopi
 
 ## Changelog
 
+- [0.6.1](docs/releases/release-0.6.1.md): skompresowane XMP (`deflate`) w limicie `MaxMetadataBytes`.
 - [0.6.0](docs/releases/release-0.6.0.md): wybór elementu przez `HeifDecoderOptions.ItemId`, minimum PictureSharp 0.7.6.
 - [0.5.0](docs/releases/release-0.5.0.md): pierwsze publiczne wydanie, SIMD i równoległość.
 - 0.5.1 nie została zrealizowana; plan skompresowanego XMP przeniesiono do 0.6.1.

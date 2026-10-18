@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.6.0: choose the image item to decode with HeifDecoderOptions.ItemId in DecoderOptions.FormatOptions; requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.0/docs/releases/release-0.6.0.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.1: reads deflate-compressed XMP within MaxMetadataBytes; an unknown encoding or a corrupt stream skips the XMP block instead of failing the file. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.1/docs/releases/release-0.6.1.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
