@@ -1,7 +1,7 @@
 # Plan implementacji PictureSharp.Heif 0.6.2
 
 Stan: implementacja ukończona lokalnie 2026-10-18, z uwzględnieniem uzgodnionej korekty kontraktu API.
-Poniższy kontrakt wdrożono w kodzie, testach, migawce API i przykładach. Wydanie 0.6.2 przygotowano 2026-10-18.
+Poniższy kontrakt wdrożono w kodzie, testach, migawce API i przykładach. Wersja 0.6.2 wydana 2026-10-18.
 Zakres i nadrzędne DoD: [plan.md](../plan.md#062--katalog-powiązania-i-miniatury).
 
 ## Ustalenia
@@ -216,4 +216,4 @@ okaże się niewystarczające, opisać konkretną lukę w planie rdzenia zamiast
 - Paczka testowa 0.6.2-dev.3 zawiera LICENSE/notices/README/XML i zależy wyłącznie od PictureSharp 0.7.6.
   Przykłady przechodzą w zewnętrznym konsumencie oraz Native AOT x64. Linki dokumentacji i migawka API sprawdzone.
 - Cztery syntetyczne porównania z kodem 0.6.1: zapis bez miniatury identyczny bajtowo.
-  `VERSION` 0.6.2; notatki wydania i skrócone przewodniki przygotowane do publikacji.
+  `VERSION` 0.6.2; GitHub Release i publikacja NuGet zakończone (workflow Release 39149646458).
