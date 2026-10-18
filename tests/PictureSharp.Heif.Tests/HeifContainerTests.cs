@@ -10,6 +10,32 @@ public sealed class HeifContainerTests
         Image.Identify(bytes.AsMemory(), (options ?? new DecoderOptions()) with { Configuration = Configuration });
 
     [Test]
+    public async Task Identify_ItemIdSelectsAnotherImageItem()
+    {
+        // Item 1 (80x60) with an alpha item 2 (40x30 would not match, so both are 80x60) and an Exif item 3.
+        byte[] props = Box("ipco", Ispe(80, 60), Hvcc(), Full("auxC", 0, 0, Text("urn:mpeg:hevc:2015:auxid:1")), Ispe(40, 30));
+        byte[] bytes = File(properties: props,
+            association: Ipma(Association(1, 1, 0x82), Association(2, 1, 0x82, 3), Association(4, 4, 0x82)),
+            info: Iinf(Infe(1), Infe(2), Infe(3, "Exif"), Infe(4)), locations: Iloc(4),
+            references: Full("iref", 0, 0, Reference("auxl", 2, 1), Reference("thmb", 4, 1)));
+        await Assert.That(Identify(bytes).HasAlpha).IsTrue();
+
+        ImageInfo alpha = Identify(bytes, Select(2));
+        await Assert.That((alpha.Width, alpha.Height, alpha.HasAlpha)).IsEqualTo((80, 60, false));
+        ImageInfo thumbnail = Identify(bytes, Select(4));
+        await Assert.That((thumbnail.Width, thumbnail.Height)).IsEqualTo((40, 30));
+        // The item count still covers every item; selecting the primary item explicitly changes nothing.
+        await Assert.That(thumbnail.ContainerItemCount).IsEqualTo(4);
+        await Assert.That(Identify(bytes, Select(1))).IsEqualTo(Identify(bytes));
+
+        await Assert.That(() => Identify(bytes, Select(3))).Throws<ImageFormatException>();
+        await Assert.That(() => Identify(bytes, Select(9))).Throws<ImageFormatException>();
+        await Assert.That(() => new HeifDecoderOptions { ItemId = 0 }).Throws<ArgumentOutOfRangeException>();
+    }
+
+    private static DecoderOptions Select(uint id) => new() { FormatOptions = [new HeifDecoderOptions { ItemId = id }] };
+
+    [Test]
     [Arguments(8)]
     [Arguments(10)]
     public async Task Identify_ReportsStoredProperties(int bits)

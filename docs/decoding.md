@@ -27,6 +27,11 @@ Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccPro
   by `irot`/`imir`, the EXIF orientation is set to `TopLeft`; `ApplyExifOrientation` therefore never rotates twice.
   Without ICC, CICP primaries other than BT.709 become `Chromaticities`, with a power-law `Gamma` approximation;
   `ColorConversion = ToSrgb` on PQ or HLG content raises `NotSupportedException`.
+- **Item selection:** the primary item (`pitm`), or the image item `HeifDecoderOptions.ItemId` names (passed in
+  `DecoderOptions.FormatOptions`, PictureSharp 0.7.6): another top-level image, a thumbnail, a grid tile or an
+  auxiliary image. Alpha, metadata and the gain map are those that refer to the selected item, and `Identify`,
+  `Decode` and `ReadMetadata` all use it. `ContainerItemCount` still counts every item. A missing ID or an EXIF/XMP
+  item raises `ImageFormatException`.
 - **Library options:** `TargetSize`, `ApplyExifOrientation`, `ColorConversion`, `MaxPixels`, `MaxInputBytes`,
   `MaxMetadataBytes`, `IgnoreMetadata` and cancellation behave as for the built-in formats.
 - **Threads:** grid tiles decode in parallel and colour conversion and transforms run in row bands, up to

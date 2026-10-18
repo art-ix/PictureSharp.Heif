@@ -31,7 +31,7 @@ internal sealed class HeifGainMap
 
     public static HeifGainMap? Find(HeifContainer container)
     {
-        HeifItem primary = container.PrimaryItem;
+        HeifItem primary = container.ImageItem;
         HeifItem? iso = container.Items.Where(item => item.Type == HeifFourCc.Tmap).OrderBy(item => item.Id)
             .FirstOrDefault(item => container.Sources(item) is [var image, ..] && image == primary);
         HeifItem? apple = container.Referencing(HeifFourCc.Auxl, primary).FirstOrDefault(
@@ -104,7 +104,7 @@ internal sealed class HeifGainMap
 
         ReadOnlySpan<byte> exif = default;
         ReadOnlySpan<byte> xmp = default;
-        foreach ((bool isExif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(container.PrimaryItem))
+        foreach ((bool isExif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(container.ImageItem))
         {
             if (isExif && exif.IsEmpty && HeifMetadataReader.TryGetTiff(data.Span, out ReadOnlySpan<byte> tiff))
             {

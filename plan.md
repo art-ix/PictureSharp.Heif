@@ -23,7 +23,8 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.1 | Zamknięta lokalnie (DoD spełnione, 2026-10-17) |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Zamknięta 2026-10-17 (x64 i ARM64), pierwsze publiczne wydanie (GitHub Release, NuGet przez Trusted Publishing) |
 | 0.5.1 | Skompresowane XMP (`content_encoding` w `infe`) przez `System.IO.Compression` | 0.7.1 | Planowana (decyzja użytkownika 2026-10-17) |
-| dalej | Zapis gain map w HEIC, ewentualnie szybka miniatura `thmb` i opcje dekodera | 0.8.0 | Do decyzji |
+| 0.6.0 | Opcje dekodera: `HeifDecoderOptions.ItemId` przez `DecoderOptions.FormatOptions` | 0.7.6 | Gotowa lokalnie (bez commita, 2026-10-18) |
+| dalej | Zapis gain map w HEIC, ewentualnie szybka miniatura `thmb` | 0.8.0 | Do decyzji |
 
 Numery określają kolejność, nie terminy. Każda wersja wymaga własnego DoD (niżej) oraz wspólnej bramki jakości.
 Publikacja każdej wersji wyłącznie na decyzję użytkownika.
@@ -49,6 +50,13 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
   (dziś cały plik kończy się `NotSupportedException`). Zapis bez zmian (XMP nieskompresowane). Testy: pliki z
   `heif-enc` z kompresją metadanych (jeśli dostępna) i syntetyczne `infe`; zawartość = XMP źródłowe; fuzzing
   skompresowanego bloku; snapshot API bez zmian.
+
+- **0.6.0:** `HeifDecoderOptions : FormatDecoderOptions` z `ItemId` (`uint?`, null = `pitm`, 0 →
+  `ArgumentOutOfRangeException`); wybrany element obrazu (top-level, miniatura, kafel, obraz pomocniczy) dekodowany
+  jak element główny: transformacje, kolor, alfa `auxl`, Exif/XMP `cdsc`, gain mapa — w `Identify`, `Decode` i
+  `ReadMetadata`. Brak elementu lub element Exif/XMP → `ImageFormatException`; `ContainerItemCount` bez zmian.
+  Minimalny PictureSharp 0.7.6. Testy: `Identify` syntetyczny (alfa, miniatura, Exif, brak ID), dekod kafla
+  `grid-2x1` = lewe 64 kolumny siatki bit w bit; snapshot API; README („Choosing an image item”) i `docs/decoding.md`.
 
 ## Stan implementacji 0.1.0 (2026-10-16)
 
@@ -281,8 +289,9 @@ zamykane w rdzeniu:
   kolor bazy HDR z metadanych (ICC lub `Chromaticities`/`Gamma`), `IImageFormatMetadataCodec` dla `ReadMetadata`,
   opisany kontrakt orientacji.
 - 0.7.1: `AttachGainMap` z pełnym `HdrInfo.Detected` (wydane 2026-10-17, używane od 0.4.0).
-- 0.8.0: gain map w enkoderach wtyczek i serializacja ISO, ewentualnie `ReportStoredSize` dla miniatur `thmb` i opcje
-  dekodera per wtyczka — tylko jeśli wtyczka wykaże potrzebę.
+- 0.7.6: opcje dekodera per wtyczka (`FormatDecoderOptions`, `DecoderOptions.FormatOptions`), używane od 0.6.0.
+- 0.8.0: gain map w enkoderach wtyczek i serializacja ISO, ewentualnie `ReportStoredSize` dla miniatur `thmb` — tylko
+  jeśli wtyczka wykaże potrzebę.
 - Poza planem: CICP PQ/HLG (HDR10 HEIC z Androida).
 
 Nowe potrzeby SPI zgłaszamy do planu rdzenia; nie obchodzimy ich kopiowaniem kodu wewnętrznego.

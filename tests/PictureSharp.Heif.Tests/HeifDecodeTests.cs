@@ -27,6 +27,23 @@ public sealed class HeifDecodeTests
     }
 
     [Test]
+    public async Task Decode_ItemIdSelectsGridTile()
+    {
+        // grid-2x1: item 1 is the 120x64 grid of two 64x64 tiles; the first tile covers its left 64 columns.
+        using Image grid = Load("grid-2x1.heic");
+        using Image tile = Load("grid-2x1.heic", new DecoderOptions { FormatOptions = [new HeifDecoderOptions { ItemId = 2 }] });
+        await Assert.That((tile.Width, tile.Height)).IsEqualTo((64, 64));
+        var gridPixels = new Rgba32[grid.Width * grid.Height];
+        var tilePixels = new Rgba32[64 * 64];
+        grid.CopyPixelDataTo(gridPixels);
+        tile.CopyPixelDataTo(tilePixels);
+        for (int y = 0; y < 64; y++)
+        {
+            await Assert.That(tilePixels.AsSpan(y * 64, 64).SequenceEqual(gridPixels.AsSpan(y * grid.Width, 64))).IsTrue();
+        }
+    }
+
+    [Test]
     [MethodDataSource(nameof(Files))]
     public async Task Decode_MatchesHeifDec(string file)
     {

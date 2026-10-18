@@ -55,20 +55,20 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
 
         Require(meta, "Missing meta box.");
         Require(items.TryGetValue(primaryId, out HeifItem? found) && found.Defined, "Missing primary image item.");
-        HeifItem primary = found!;
         ValidateItems();
-        HeifImageDescription description = Describe(primary, 0);
-        PrimaryItem = primary;
+        HeifItem image = SelectedItem(found!);
+        HeifImageDescription description = Describe(image, 0);
+        ImageItem = image;
         var charged = new HashSet<uint>();
         long pixels = 0;
-        ChargePixels(primary, charged, ref pixels);
-        foreach (HeifItem item in items.Values.Where(item => item.RefersTo(HeifFourCc.Auxl, primary) && IsAlpha(item)))
+        ChargePixels(image, charged, ref pixels);
+        foreach (HeifItem item in items.Values.Where(item => item.RefersTo(HeifFourCc.Auxl, image) && IsAlpha(item)))
         {
-            Require(AlphaItem is null, "Multiple alpha images for the primary image.");
+            Require(AlphaItem is null, "Multiple alpha images for the image item.");
             AlphaItem = item;
             HeifImageDescription alphaDescription = Describe(item, 0);
             Require(alphaDescription.Width == description.Width && alphaDescription.Height == description.Height,
-                "Alpha image dimensions do not match the primary image.");
+                "Alpha image dimensions do not match the image item.");
             ChargePixels(item, charged, ref pixels);
         }
 
@@ -85,6 +85,19 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
             // Container transforms are already reflected in the reported dimensions.
             Orientation = (ExifOrientation)1
         };
+    }
+
+    // The primary item, or the image item HeifDecoderOptions.ItemId names.
+    private HeifItem SelectedItem(HeifItem primary)
+    {
+        if (options.GetFormatOptions<HeifDecoderOptions>()?.ItemId is not { } id || id == primary.Id)
+        {
+            return primary;
+        }
+
+        Require(items.TryGetValue(id, out HeifItem? item) && item.Defined, $"HEIF item {id} is not in the file.");
+        Require(!item!.IsExif && item.Type is not (HeifFourCc.Mime or HeifFourCc.Uri), $"HEIF item {id} is not an image.");
+        return item;
     }
 
     private void ParseMeta(ReadOnlyMemory<byte> bytes)

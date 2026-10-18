@@ -5,12 +5,13 @@ namespace PictureSharp.Formats.Heif.Container;
 // Item data access for decoding, valid after Open(): all references, extents and properties were checked there.
 internal sealed partial class HeifContainer
 {
-    public HeifItem PrimaryItem { get; private set; } = null!;
+    // The decoded image: the primary item, or the item HeifDecoderOptions selects.
+    public HeifItem ImageItem { get; private set; } = null!;
 
     public HeifItem? AlphaItem { get; private set; }
 
     // ISO/IEC 23008-12 prem: the master image's colour samples are premultiplied by its alpha.
-    public bool PremultipliedAlpha => AlphaItem is not null && PrimaryItem.RefersTo(HeifFourCc.Prem, AlphaItem);
+    public bool PremultipliedAlpha => AlphaItem is not null && ImageItem.RefersTo(HeifFourCc.Prem, AlphaItem);
 
     public IEnumerable<HeifItem> Items => items.Values;
 

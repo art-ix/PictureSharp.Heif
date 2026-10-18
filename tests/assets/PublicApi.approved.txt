@@ -1,3 +1,16 @@
+PictureSharp.Formats.Heif.HeifDecoderOptions
+  Boolean Equals(PictureSharp.Formats.FormatDecoderOptions)
+  Boolean Equals(PictureSharp.Formats.Heif.HeifDecoderOptions)
+  Boolean Equals(System.Object)
+  Boolean op_Equality(PictureSharp.Formats.Heif.HeifDecoderOptions, PictureSharp.Formats.Heif.HeifDecoderOptions)
+  Boolean op_Inequality(PictureSharp.Formats.Heif.HeifDecoderOptions, PictureSharp.Formats.Heif.HeifDecoderOptions)
+  Int32 GetHashCode()
+  PictureSharp.Formats.Heif.HeifDecoderOptions <Clone>$()
+  System.Nullable`1[System.UInt32] ItemId
+  System.Nullable`1[System.UInt32] get_ItemId()
+  System.String ToString()
+  Void .ctor()
+  Void set_ItemId(System.Nullable`1[System.UInt32])
 PictureSharp.Formats.Heif.HeifEncoderOptions
   Boolean Equals(PictureSharp.EncoderOptions)
   Boolean Equals(PictureSharp.Formats.Heif.HeifEncoderOptions)

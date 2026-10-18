@@ -12,7 +12,7 @@ internal static class HeifMetadataReader
     public static void ApplyColour(HeifContainer container, ImageMetadata metadata, DecoderOptions options,
         HeifImageNode? primaryNode = null)
     {
-        HeifItem primary = container.PrimaryItem;
+        HeifItem primary = container.ImageItem;
         ReadOnlyMemory<byte>? icc = container.Icc(primary);
         if (icc is null && primary.Type != HeifFourCc.Hvc1 && container.Sources(primary) is [var source, ..])
         {
@@ -32,7 +32,7 @@ internal static class HeifMetadataReader
     // EXIF and XMP.
     public static void ApplyDescriptive(HeifContainer container, ImageMetadata metadata)
     {
-        foreach ((bool exif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(container.PrimaryItem))
+        foreach ((bool exif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(container.ImageItem))
         {
             if (!exif)
             {

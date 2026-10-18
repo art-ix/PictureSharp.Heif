@@ -2,7 +2,7 @@ using PictureSharp.Formats.Heif.Container;
 
 namespace PictureSharp.Formats.Heif.Codecs;
 
-// Decodes the primary image of a validated container: the rendered image, auxiliary alpha, descriptive metadata and,
+// Decodes the image item of a validated container (the primary item or the one HeifDecoderOptions selects): the rendered image, auxiliary alpha, descriptive metadata and,
 // with DecoderOptions.LoadGainMap, the HDR gain map.
 internal sealed class HeifImageDecoder(HeifContainer container, ImageDecodeContext context)
 {
@@ -11,7 +11,7 @@ internal sealed class HeifImageDecoder(HeifContainer container, ImageDecodeConte
         ImageInfo info = container.Info;
         context.ReservePixels(info.Width, info.Height, 1);
         var renderer = new HeifRenderer(context.Options.MaxDegreeOfParallelism, context.CancellationToken);
-        HeifImageNode primary = container.Node(container.PrimaryItem, detach: false);
+        HeifImageNode primary = container.Node(container.ImageItem, detach: false);
         HeifCanvas canvas = renderer.Render(primary, alpha: false);
         if (container.AlphaItem is { } alphaItem)
         {
