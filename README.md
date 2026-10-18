@@ -56,6 +56,19 @@ The document owns its buffer and needs no disposal; dispose returned images. `It
 while `PrimaryImage` identifies the default photo independently of catalogue filtering. Relationships such as
 `Thumbnails`, `AuxiliaryImages`, `MetadataItems` and `SourceImages` return the related items directly.
 
+### Depth and Live Photos
+
+```csharp
+HeifItemInfo? item = document.PrimaryImage.AuxiliaryImages
+    .FirstOrDefault(a => a.Auxiliary?.Kind == HeifAuxiliaryKind.Depth);
+HeifDepthImage? depth = item is null ? null : document.LoadDepth(item); // raw samples, coded bit depth
+
+LivePhotoPair pair = LivePhotoPair.Read("IMG_8113.HEIC", "IMG_8113.MOV");
+bool confirmed = pair.Status == LivePhotoPairStatus.Matched; // by ContentIdentifier, never by file name
+```
+
+Depth samples are not interpreted (no units or calibration). Live Photo checks read only the MOV headers.
+
 ## Encode
 
 ```csharp
@@ -81,9 +94,10 @@ using Image sdr = hdr.ToneMap();
 
 ## Support and limits
 
-- **Read:** HEVC Main, Main Still Picture and Main 10; 4:2:0/monochrome, grids, alpha, transforms, ICC/nclx, EXIF/XMP.
+- **Read:** HEVC Main, Main Still Picture and Main 10; 4:2:0/monochrome, grids, alpha, transforms, ICC/nclx, EXIF/XMP,
+  raw depth samples and Live Photo pairing.
 - **Write:** HEVC Main 8-bit 4:2:0, grids, alpha, metadata and thumbnails.
-- **Unsupported:** sequences, Live Photos, depth interpretation, 4:2:2/4:4:4, PQ/HLG, AVIF, gain-map writing and metadata editing.
+- **Unsupported:** sequences, Live Photo export, depth interpretation, 4:2:2/4:4:4, PQ/HLG, AVIF, gain-map writing and metadata editing.
 
 Pixel/input/metadata limits, cancellation and `TargetSize` apply. `HeifDecoderOptions.ItemId` selects individual items
 through `DecoderOptions.FormatOptions`. Decoded pixels are checked against HM and libheif.

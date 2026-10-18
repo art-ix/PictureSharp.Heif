@@ -24,8 +24,28 @@ PictureSharp.Formats.Heif.HeifDecoderOptions
   System.String ToString()
   Void .ctor()
   Void set_ItemId(System.Nullable`1[System.UInt32])
+PictureSharp.Formats.Heif.HeifDepthImage
+  Int32 BitDepth
+  Int32 Height
+  Int32 Width
+  Int32 get_BitDepth()
+  Int32 get_Height()
+  Int32 get_Width()
+  PictureSharp.Formats.Heif.HeifAuxiliaryInfo Auxiliary
+  PictureSharp.Formats.Heif.HeifAuxiliaryInfo get_Auxiliary()
+  System.Nullable`1[System.UInt32] PhotoItemId
+  System.Nullable`1[System.UInt32] get_PhotoItemId()
+  System.ReadOnlyMemory`1[System.Byte] Exif
+  System.ReadOnlyMemory`1[System.Byte] Xmp
+  System.ReadOnlyMemory`1[System.Byte] get_Exif()
+  System.ReadOnlyMemory`1[System.Byte] get_Xmp()
+  System.ReadOnlyMemory`1[System.UInt16] Samples
+  System.ReadOnlyMemory`1[System.UInt16] get_Samples()
+  UInt32 ItemId
+  UInt32 get_ItemId()
 PictureSharp.Formats.Heif.HeifDocument
   Boolean TryGetItem(UInt32, PictureSharp.Formats.Heif.HeifItemInfo ByRef)
+  PictureSharp.Formats.Heif.HeifDepthImage LoadDepth(PictureSharp.Formats.Heif.HeifItemInfo, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
   PictureSharp.Formats.Heif.HeifDocument Open(System.IO.Stream, PictureSharp.Formats.Heif.HeifDocumentOptions, System.Threading.CancellationToken)
   PictureSharp.Formats.Heif.HeifDocument Open(System.ReadOnlyMemory`1[System.Byte], PictureSharp.Formats.Heif.HeifDocumentOptions, System.Threading.CancellationToken)
   PictureSharp.Formats.Heif.HeifDocument Open(System.String, PictureSharp.Formats.Heif.HeifDocumentOptions, System.Threading.CancellationToken)
@@ -142,3 +162,20 @@ PictureSharp.Formats.Heif.HeifItemReference
   System.String get_Type()
 PictureSharp.Formats.Heif.HeifItemTypes
 PictureSharp.Formats.Heif.HeifReferenceTypes
+PictureSharp.Formats.Heif.LivePhotoPair
+  PictureSharp.Formats.Heif.LivePhotoPair Read(System.IO.Stream, System.IO.Stream, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
+  PictureSharp.Formats.Heif.LivePhotoPair Read(System.String, System.String, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
+  PictureSharp.Formats.Heif.LivePhotoPairStatus Status
+  PictureSharp.Formats.Heif.LivePhotoPairStatus get_Status()
+  System.Nullable`1[System.TimeSpan] StillImageTime
+  System.Nullable`1[System.TimeSpan] get_StillImageTime()
+  System.String PhotoContentIdentifier
+  System.String VideoContentIdentifier
+  System.String get_PhotoContentIdentifier()
+  System.String get_VideoContentIdentifier()
+  System.Threading.Tasks.Task`1[PictureSharp.Formats.Heif.LivePhotoPair] ReadAsync(System.IO.Stream, System.IO.Stream, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
+  System.Threading.Tasks.Task`1[PictureSharp.Formats.Heif.LivePhotoPair] ReadAsync(System.String, System.String, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
+PictureSharp.Formats.Heif.LivePhotoPairStatus
+  PictureSharp.Formats.Heif.LivePhotoPairStatus ConflictingIdentifiers = 2
+  PictureSharp.Formats.Heif.LivePhotoPairStatus Matched = 0
+  PictureSharp.Formats.Heif.LivePhotoPairStatus MissingIdentifier = 1

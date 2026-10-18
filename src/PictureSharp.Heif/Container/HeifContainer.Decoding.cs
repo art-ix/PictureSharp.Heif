@@ -26,7 +26,7 @@ internal sealed partial class HeifContainer
     public HeifImageNode Node(HeifItem item, bool detach, int depth = 0)
     {
         Require(depth <= MaxReferenceDepth, "Derived image nesting exceeds the limit.");
-        context?.ThrowIfCancellationRequested();
+        CheckCancellation();
         IReadOnlyList<HeifTransform> transforms = [.. Transforms(item)];
         HeifNclx? nclx = Nclx(item);
         switch (item.Type)
@@ -103,7 +103,7 @@ internal sealed partial class HeifContainer
         int position = 0;
         while (position < payload.Length)
         {
-            context?.ThrowIfCancellationRequested();
+            CheckCancellation();
             Require(payload.Length - position >= lengthSize, "Truncated NAL unit length.");
             ReadOnlySpan<byte> prefix = payload.Span.Slice(position, lengthSize);
             uint length = lengthSize switch

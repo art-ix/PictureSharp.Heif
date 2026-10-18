@@ -75,6 +75,15 @@ internal static class HeifTestItems
         })];
     }
 
+    // The item's associated properties as complete boxes, in association order (for copying an item into a fixture).
+    public static byte[][] ItemProperties(byte[] file, uint id)
+    {
+        ReadOnlyMemory<byte> iprp = Child(Child(file, "meta")[4..], "iprp");
+        List<(string Type, ReadOnlyMemory<byte> Data)> properties = [.. Boxes(Child(iprp, "ipco"))];
+        return [.. Associations(Child(iprp, "ipma").Span)[id].Select(index => HeifTestFile.Box(properties[index - 1].Type,
+            properties[index - 1].Data.ToArray()))];
+    }
+
     private static Dictionary<uint, string> ItemTypes(ReadOnlyMemory<byte> iinf)
     {
         var types = new Dictionary<uint, string>();

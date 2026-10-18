@@ -12,7 +12,7 @@ internal sealed class HeifImageDecoder(HeifContainer container, ImageDecodeConte
         context.ReservePixels(info.Width, info.Height, 1);
         var renderer = new HeifRenderer(context.Options.MaxDegreeOfParallelism, context.CancellationToken);
         HeifImageNode primary = container.Node(container.ImageItem, detach: false);
-        HeifCanvas canvas = renderer.Render(primary, alpha: false);
+        HeifCanvas<Rgba32> canvas = renderer.Render(primary, alpha: false);
         if (container.AlphaItem is { } alphaItem)
         {
             canvas.SetAlpha(renderer.Render(container.Node(alphaItem, detach: false), alpha: true), container.PremultipliedAlpha);

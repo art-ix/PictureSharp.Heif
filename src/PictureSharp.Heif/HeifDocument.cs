@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
+using PictureSharp.Formats.Heif.Codecs;
 using PictureSharp.Formats.Heif.Container;
 
 namespace PictureSharp.Formats.Heif;
@@ -195,6 +196,55 @@ public sealed class HeifDocument
         }
 
         return LoadImage(image, options, cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the raw samples of a depth or disparity auxiliary image (<see cref="HeifAuxiliaryKind.Depth"/> or
+    /// <see cref="HeifAuxiliaryKind.Disparity"/>), with its auxiliary type, subtype and metadata. Samples keep the coded
+    /// bit depth; grids and the item's own transforms are applied without changing values. Nothing is scaled or
+    /// interpreted.
+    /// </summary>
+    /// <remarks>
+    /// Before allocating, the item's stored size and its dependencies are checked against
+    /// <see cref="DecoderOptions.MaxPixels"/> and its metadata against <see cref="DecoderOptions.MaxMetadataBytes"/>;
+    /// <see cref="DecoderOptions.MaxDegreeOfParallelism"/>, <see cref="DecoderOptions.IgnoreMetadata"/> and cancellation
+    /// are observed. Other options, including TargetSize, have no effect.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The item is not a depth or disparity image, or belongs to another document.</exception>
+    /// <exception cref="ImageFormatException">The item is corrupt or exceeds a limit.</exception>
+    /// <exception cref="NotSupportedException">The item uses coding or features the decoder does not support.</exception>
+    public HeifDepthImage LoadDepth(HeifItemInfo depth, DecoderOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        DecoderOptions read = ReadOptions(depth, options);
+        if (depth.Auxiliary is not { Kind: HeifAuxiliaryKind.Depth or HeifAuxiliaryKind.Disparity } auxiliary)
+        {
+            throw new ArgumentException($"HEIF item {depth.Id} is not a depth or disparity image.", nameof(depth));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        HeifContainer container = HeifContainer.Open(data, read, null, cancellationToken);
+        var renderer = new HeifRenderer(read.MaxDegreeOfParallelism, cancellationToken);
+        (HeifCanvas<ushort> samples, int bitDepth) = renderer.RenderSamples(container.Node(container.ImageItem, detach: false));
+        ReadOnlyMemory<byte> exif = default, xmp = default;
+        if (!read.IgnoreMetadata)
+        {
+            // As Load does: a later block of the same kind replaces an earlier one; malformed EXIF is skipped.
+            foreach ((bool isExif, ReadOnlyMemory<byte> block) in container.DescriptiveMetadata(container.ImageItem))
+            {
+                if (!isExif)
+                {
+                    xmp = block.ToArray();
+                }
+                else if (HeifMetadataReader.TryGetTiff(block.Span, out ReadOnlySpan<byte> tiff))
+                {
+                    exif = tiff.ToArray();
+                }
+            }
+        }
+
+        uint? photo = depth.References.FirstOrDefault(reference => reference.Type == HeifReferenceTypes.Auxiliary)?.TargetItemIds
+            is [var target, ..] ? target : null;
+        return new HeifDepthImage(depth.Id, photo, auxiliary, samples.Width, samples.Height, bitDepth, samples.Pixels, exif, xmp);
     }
 
     private DecoderOptions ReadOptions(HeifItemInfo image, DecoderOptions? options)

@@ -9,9 +9,8 @@ using Image image = Image.Load("photo.jpg");
 image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60 });
 ```
 
-Without a configuration in the options, `SaveAsHeic`, `SaveAsHeicAsync` and `ToHeic` use `ImageConfiguration.Default`,
-so `HeifFormat` must be registered there; `Image.Save("photo.heic")` picks the encoder from the extension. To leave the
-default configuration unchanged, pass one in the options (PictureSharp 0.7.0):
+`SaveAsHeic`, `SaveAsHeicAsync`, `ToHeic` and `Image.Save("photo.heic")` use `ImageConfiguration.Default` unless the
+options carry a configuration:
 
 ```csharp
 var configuration = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
@@ -32,27 +31,21 @@ image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60, Configurat
 
 ## What is written
 
-- **Colour:** BT.601 full range 4:2:0 (`colr nclx` 1/13/6, or `colr prof` when the image has an ICC profile; the VUI
-  carries the same matrix and range), chroma averaged over 2×2 blocks. Odd sizes are coded one sample larger and
-  cropped with a clean aperture.
-- **HEVC:** Main profile, one IDR picture per tile, CTB 32, intra 2N×2N coding units of 32, 16 and 8 and N×N at 8,
-  a residual quadtree of up to two transform splits below each 2N×2N unit (chosen for the best luma mode by
-  rate-distortion cost, as HM's final RQT check), deblocking enabled. Decisions follow HM's intra search with faster
-  pre-selection: SATD of planar, DC and every fourth angular mode refined around the best angular modes, a
-  rate-distortion choice among the best four candidates (two for 16×16 and 32×32) and the most probable modes with
-  CABAC rate estimation, five chroma modes, and a rate-distortion split decision for each coding unit that stops early
-  when the unsplit unit needs no residual.
-- **Psychovisual and rate-distortion tools:** variance adaptive quantization (kvazaar's VAQ: a QP offset per CTB of
-  strength × (ln of the block variance − ln of the image variance), sent with `cu_qp_delta`; flat areas get finer
-  quantization), rate-distortion optimized quantization and sign data hiding (HM `xRateDistOptQuant`), and sample
-  adaptive offset chosen per CTB from the deblocked picture with merges to the left and upper CTB (HM-style
-  statistics and rate-distortion decisions; the slice is entropy-coded again once SAO is decided).
-- **Alpha:** a monochrome (4:0:0, RExt Monochrome profile) auxiliary image `urn:mpeg:hevc:2015:auxid:1`, tiled like
-  the colour image; transparency is detected from the pixels.
-- **Orientation:** the EXIF orientation becomes `irot`/`imir`, and the written EXIF says TopLeft; readers that apply
-  container transforms (libheif, PictureSharp.Heif, Apple Photos) show the image as the original was shown.
-- **Metadata:** EXIF (with `exif_tiff_header_offset` 0) and XMP items linked to the image with `cdsc`.
-- Animations are written from their first frame.
+- **Colour:** BT.601 full range 4:2:0 (`colr nclx` 1/13/6, or `colr prof` with an ICC profile; the VUI matches),
+  chroma averaged over 2×2 blocks. Odd sizes are coded one sample larger and cropped with `clap`.
+- **HEVC:** Main profile, one IDR picture per tile, CTB 32, intra coding units of 32, 16 and 8 (N×N at 8), a residual
+  quadtree up to two splits deep, deblocking. Mode decisions follow HM's intra search with a faster pre-selection: SATD
+  over planar, DC and every fourth angle, refined near the best, then rate-distortion choice among the best candidates
+  and most probable modes with CABAC rate estimates; splits are decided by rate-distortion cost and stop early when the
+  unsplit unit needs no residual.
+- **Rate-distortion tools:** kvazaar's variance adaptive quantization (per-CTB QP offset of strength × (ln block
+  variance − ln image variance), so flat areas get finer quantization), HM's RDOQ with sign data hiding, and SAO chosen
+  per CTB with left and upper merges.
+- **Alpha:** a monochrome auxiliary image `urn:mpeg:hevc:2015:auxid:1`, tiled like the colour image, written only when
+  the pixels have transparency.
+- **Orientation:** the EXIF orientation becomes `irot`/`imir` and the written EXIF says TopLeft, so libheif,
+  PictureSharp.Heif and Apple Photos show the image as the original was shown.
+- **Metadata:** EXIF (`exif_tiff_header_offset` 0) and XMP items linked with `cdsc`. Animations keep the first frame.
 
 ## Embedded thumbnail
 
@@ -65,31 +58,27 @@ image.SaveAsHeic("photo.heic", new HeifEncoderOptions
 });
 ```
 
-`ThumbnailMaxDimension` adds a thumbnail linked to the photo by `thmb`. It keeps proportions without enlarging,
-uses the encoder's quality settings, and stores upright pixels with its own colour and alpha. ICC follows `Metadata`;
-EXIF/XMP are excluded. Smaller photos receive a thumbnail at their existing size. The source image is unchanged.
-The default 0 disables thumbnails; negative values are rejected. Read the result with `HeifDocument.LoadPreview`.
+`ThumbnailMaxDimension` adds a `thmb` thumbnail that keeps proportions without enlarging (smaller photos get one at
+their own size). It uses the same quality settings and stores upright pixels with its own colour and alpha; ICC
+follows `Metadata`, EXIF and XMP are left out. 0 disables it. Read it with `HeifDocument.LoadPreview`.
 
 ## Verification
 
-- Bitstreams decode in the HM reference decoder exactly as in PictureSharp.Heif's decoder; with deblocking disabled the
-  decoder reproduces the encoder's reconstruction bit for bit.
-- Files decode in `heif-dec` (libheif 1.20.2) to the same pixels as in PictureSharp.Heif, including grids, alpha,
-  clean apertures and every orientation.
-- Compression is measured against x265 `medium` through `heif-enc` at qualities 30/45/60/75 as the Bjøntegaard delta
-  rate on RGB PSNR and luma SSIM (negative means smaller files than x265 at equal quality; the 0.3.0 criterion allows
-  +50%):
+- HM decodes the bitstreams exactly as PictureSharp.Heif does.
+- `heif-dec` (libheif 1.20.2) decodes the files to the same pixels, including grids, alpha, clean apertures and every
+  orientation.
+- Bjøntegaard delta rate against x265 `medium` through `heif-enc` at qualities 30/45/60/75 (negative means smaller files
+  at equal quality):
 
   | Data | RGB PSNR | luma SSIM | Results |
   | --- | --- | --- | --- |
   | Kodak, 24 images 768×512 (`Category=Measurement`) | −4.6% | +0.9% | `docs/measurements/encoder-bdrate-kodak-x265-medium.tsv` |
   | 5 crops 768×512 of private photos (`Category=Local`) | −2.8% | +0.8% | `docs/measurements/encoder-bdrate-x265-medium.tsv` |
 
-  Each tool on Kodak (PSNR / SSIM): the 0.3.0 encoder −3.8% / +9.3%; with adaptive quantization −0.7% / +4.4%; plus
-  RDOQ and sign hiding −4.0% / +0.6%; plus SAO −4.6% / +0.7%; plus the residual quadtree
-  −4.7% / +0.6%; with the faster mode and split decisions −4.6% / +0.9% at 40% less encoding time. Adaptive
-  quantization trades PSNR for SSIM by design.
-  Kodak images are fetched with `scripts/fetch-kodak.py --approved`. A 12 MP photo encodes in 4.0 s on 16 threads (31 s on
-  one), a 48 MP image in 13.7 s; `heif-enc` with x265 takes 2.0 s and 5.3 s for files 8% and 6% larger
-  (`docs/measurements/speed-x64.tsv`). On an Orange Pi 5 (ARM64, 8 cores) the same photo takes 14.0 s and the 48 MP
-  image 41.3 s, with the same bytes (`speed-arm64.tsv`). Transforms, SATD and reconstruction use vector paths with the scalar results.
+  On Kodak (PSNR / SSIM): 0.3.0 −3.8% / +9.3%; adaptive quantization −0.7% / +4.4% (it trades PSNR for SSIM);
+  RDOQ and sign hiding −4.0% / +0.6%; SAO −4.6% / +0.7%; residual quadtree −4.7% / +0.6%; faster decisions
+  −4.6% / +0.9% with 40% less time. Kodak: `scripts/fetch-kodak.py --approved`.
+- Speed: a 12 MP photo encodes in 4.0 s on 16 threads (31 s on one) and a 48 MP image in 13.7 s, against 2.0 s and
+  5.3 s for `heif-enc` with x265, whose files are 8% and 6% larger. On an Orange Pi 5 (ARM64, 8 cores): 14.0 s and
+  41.3 s, with identical bytes. Vector paths give the scalar results. Data: `docs/measurements/speed-x64.tsv`,
+  `speed-arm64.tsv`.

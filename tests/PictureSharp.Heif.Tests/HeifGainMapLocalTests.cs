@@ -30,6 +30,12 @@ public sealed class HeifGainMapLocalTests
         {
             foreach (string path in samples)
             {
+                // A file left by the previous photo must never stand in for this photo's output.
+                foreach (string file in Directory.GetFiles(work))
+                {
+                    File.Delete(file);
+                }
+
                 string name = Path.GetFileName(path);
                 byte[] bytes = File.ReadAllBytes(path);
                 List<(uint Id, string Type, byte[] Data)> items = HeifTestItems.Payloads(bytes);
@@ -45,6 +51,15 @@ public sealed class HeifGainMapLocalTests
                 {
                     await Assert.That(image.Hdr).IsNull().Because(name);
                     Console.WriteLine($"Local HDR: {name} has no gain map.");
+                    continue;
+                }
+
+                if (new FileInfo(mapPng).Length == 0)
+                {
+                    // heif-dec leaves an empty file when libpng rejects the map's ICC profile (a gray profile on RGB
+                    // output); there is no oracle for this photo, which is reported, not counted as a comparison.
+                    await Assert.That(image.Hdr).IsNotNull().Because(name);
+                    Console.WriteLine($"Local HDR: {name} not compared: heif-dec could not write the gain map.");
                     continue;
                 }
 
@@ -67,10 +82,6 @@ public sealed class HeifGainMapLocalTests
                 Console.WriteLine($"Local HDR: {name} {metadata.Kind}, map {map.Width}x{map.Height}, headroom {actual.Headroom:F3}, "
                     + $"ToHdr {stopwatch.ElapsedMilliseconds} ms, identical to the heif-dec map.");
                 compared++;
-                foreach (string file in Directory.GetFiles(work))
-                {
-                    File.Delete(file);
-                }
             }
         }
         finally

@@ -18,7 +18,45 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
     };
 
     // alpha renders an auxiliary alpha image: its luma becomes the red channel, without colour conversion.
-    public HeifCanvas Render(HeifImageNode node, bool alpha) => Render(node, null, alpha, 0);
+    public HeifCanvas<Rgba32> Render(HeifImageNode node, bool alpha) => Render(node, null, alpha, 0);
+
+    // Raw luma samples at the coded bit depth, without colour conversion or bit-depth reduction (depth and disparity
+    // images); chroma is ignored. Grids and transforms move samples without changing their values.
+    public (HeifCanvas<ushort> Samples, int BitDepth) RenderSamples(HeifImageNode node) => RenderSamples(node, 0);
+
+    private (HeifCanvas<ushort> Samples, int BitDepth) RenderSamples(HeifImageNode node, int depth)
+    {
+        if (depth > MaxDepth)
+        {
+            throw HeifReader.Error("Derived image nesting exceeds the limit.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        HeifCanvas<ushort> samples;
+        int bitDepth;
+        if (node is HeifIdentityNode identity)
+        {
+            (samples, bitDepth) = RenderSamples(identity.Source, depth + 1);
+        }
+        else
+        {
+            HeifPlanes planes = Assemble(node, depth);
+            samples = new HeifCanvas<ushort>(planes.Width, planes.Height);
+            bitDepth = planes.BitDepth;
+            for (int y = 0; y < planes.Height; y++)
+            {
+                planes.Planes[0].AsSpan(((planes.Top + y) * planes.Strides[0]) + planes.Left, planes.Width)
+                    .CopyTo(samples.Pixels.AsSpan(y * planes.Width));
+            }
+        }
+
+        foreach (HeifTransform transform in node.Transforms)
+        {
+            samples = samples.Apply(transform, parallel);
+        }
+
+        return (samples, bitDepth);
+    }
 
     // The colour a node is converted with, as Render finds it for its first coded picture: colr nclx (an item's own over
     // its parent's), else the HEVC VUI, else the HEVC defaults (unspecified matrix, limited range).
@@ -45,7 +83,7 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
         return leaf is HeifCodedNode coded ? FromVui(HevcDecoder.ReadColour(coded.NalUnits)) : HeifNclx.Unspecified;
     }
 
-    private HeifCanvas Render(HeifImageNode node, HeifNclx? inheritedNclx, bool alpha, int depth)
+    private HeifCanvas<Rgba32> Render(HeifImageNode node, HeifNclx? inheritedNclx, bool alpha, int depth)
     {
         if (depth > MaxDepth)
         {
@@ -54,7 +92,7 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
 
         cancellationToken.ThrowIfCancellationRequested();
         HeifNclx? nclx = node.Nclx ?? inheritedNclx;
-        HeifCanvas canvas;
+        HeifCanvas<Rgba32> canvas;
         if (node is HeifIdentityNode identity)
         {
             canvas = Render(identity.Source, nclx, alpha, depth + 1);
@@ -62,7 +100,7 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
         else
         {
             HeifPlanes planes = Assemble(node, depth);
-            canvas = new HeifCanvas(planes.Width, planes.Height);
+            canvas = new HeifCanvas<Rgba32>(planes.Width, planes.Height);
             if (alpha)
             {
                 HeifColorConverter.ConvertAlpha(planes, canvas.Pixels, parallel);

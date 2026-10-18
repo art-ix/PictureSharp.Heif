@@ -31,3 +31,7 @@ __pycache__/
 *.pyc
 # Camera filenames may use uppercase or mixed-case extensions, including nested sample directories.
 samples/**/*.[hH][eE][iI][cCfF]
+# Live Photo movies and JPEG photos (private, may contain GPS metadata).
+samples/**/*.[mM][oO][vV]
+samples/**/*.[jJ][pP][gG]
+samples/**/*.[jJ][pP][eE][gG]

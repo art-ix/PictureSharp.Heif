@@ -7,7 +7,11 @@ public enum HeifAuxiliaryKind
     Other,
     /// <summary>A straight or premultiplied alpha plane.</summary>
     Alpha,
-    /// <summary>Depth samples; units and calibration are not interpreted.</summary>
+    /// <summary>
+    /// Depth samples by aux_type; units and calibration are not interpreted. The role follows aux_type only: iPhone
+    /// Portrait photos store disparity under the generic depth type <c>urn:mpeg:hevc:2015:auxid:2</c> and say so in the
+    /// item's XMP (<c>apdi:AuxiliaryImageType</c>).
+    /// </summary>
     Depth,
     /// <summary>Disparity samples; units and calibration are not interpreted.</summary>
     Disparity,
@@ -31,6 +35,9 @@ public sealed class HeifAuxiliaryInfo
     /// <summary>The original aux_subtype bytes, without interpretation.</summary>
     public ReadOnlyMemory<byte> Subtype { get; }
 
-    /// <summary>The recognized role. Unknown manufacturer types have the role <see cref="HeifAuxiliaryKind.Other"/>.</summary>
+    /// <summary>
+    /// The role recognized from aux_type alone; metadata that may refine it (such as Apple XMP) is not read. Unknown
+    /// manufacturer types have the role <see cref="HeifAuxiliaryKind.Other"/>.
+    /// </summary>
     public HeifAuxiliaryKind Kind { get; }
 }

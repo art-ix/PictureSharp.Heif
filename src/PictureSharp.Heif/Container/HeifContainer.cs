@@ -22,9 +22,10 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
     private long metadataBytes;
 
     // Parses and validates the container; the result keeps the item graph for decoding.
-    public static HeifContainer Open(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context = null)
+    public static HeifContainer Open(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context = null,
+        CancellationToken cancellationToken = default)
     {
-        var container = new HeifContainer(data, options, context);
+        var container = new HeifContainer(data, options, context, cancellationToken);
         container.Parse();
         container.Info = container.PrepareImage();
         return container;
