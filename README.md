@@ -37,26 +37,28 @@ Rotation, mirroring and cropping from the file are already applied, and the imag
 XMP. To read only the size or metadata without decoding pixels, use `Image.Identify("IMG_0001.heic")` or
 `Image.ReadMetadata("IMG_0001.heic")`.
 
-### Choosing an image item
+### Photos and embedded previews (0.6.2)
 
-A HEIF file can hold more images than the primary one: other photos, thumbnails, grid tiles, auxiliary images. Select
-one by its item ID with a `HeifDecoderOptions` record in `DecoderOptions.FormatOptions` (PictureSharp 0.7.6); `heif-info`
-lists the IDs.
+A file may contain several photos, thumbnails and auxiliary images. Open its catalogue to select a photo or preview:
 
 ```csharp
-var second = new DecoderOptions { FormatOptions = [new HeifDecoderOptions { ItemId = 2 }] };
-using var image = Image.Load("burst.heic", second);
-ImageInfo info = Image.Identify("burst.heic", second);   // the size of item 2
+var document = await HeifDocument.OpenAsync("burst.heic",
+    new HeifDocumentOptions { MaxInputBytes = 64L << 20 });
+foreach (var photo in document.TopLevelImages)
+    Console.WriteLine($"{photo.Id}: {photo.Name}, {photo.DisplaySize}");
+
+using Image full = document.LoadImage(document.PrimaryImage.Id);
+using Image preview = document.LoadPreview(new System.Drawing.Size(320, 240));
 ```
 
-| Record | Property | Selects |
-| --- | --- | --- |
-| `HeifDecoderOptions` | `ItemId` | The image item to decode (`uint?`); null, the default, is the primary item |
+Opening copies the input without decoding pixels. Each read accepts its own `DecoderOptions`. `LoadPreview` chooses
+a matching embedded thumbnail or resizes the photo. An embedded preview can differ in framing, compression and colour;
+use `LoadImage` with `TargetSize` when the photo itself is required.
+[Catalogue and relationships](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md#catalogue-and-image-selection-062)
+explain item roles, ownership and limits.
 
-The selected item is decoded with its own transforms, colour, alpha, EXIF/XMP and gain map, exactly like a primary
-item; `Image.Identify` and `Image.ReadMetadata` describe it too. ID 0 throws `ArgumentOutOfRangeException`; an ID
-that is not in the file or names an EXIF or XMP item throws `ImageFormatException`. Other formats ignore the record,
-so one `DecoderOptions` can carry settings for several plugins.
+For an ID already known, `Image.Load`, `Identify` and `ReadMetadata` also accept
+`new DecoderOptions { FormatOptions = [new HeifDecoderOptions { ItemId = 2 }] }`; null `ItemId` selects the primary photo.
 
 ## 3. Encode
 
@@ -64,6 +66,7 @@ so one `DecoderOptions` can carry settings for several plugins.
 using var image = Image.Load("photo.png");
 image.SaveAsHeic("photo.heic");                                          // quality 50
 image.SaveAsHeic("small.heic", new HeifEncoderOptions { Quality = 35 }); // smaller file
+image.SaveAsHeic("preview.heic", new HeifEncoderOptions { ThumbnailMaxDimension = 320 });
 ```
 
 Alpha, ICC, EXIF and XMP are written too. Every option is described in [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md).
@@ -82,7 +85,7 @@ using Image sdr = hdr.ToneMap();
 
 - **Reading:** HEVC Main, Main Still Picture and Main 10 (4:2:0 and monochrome), tile grids, alpha, rotation, mirroring
   and cropping, ICC/nclx colour, EXIF, XMP, HDR gain maps (Apple and ISO 21496-1).
-- **Writing:** HEVC Main 8-bit 4:2:0, a single image or a tile grid, alpha, ICC, EXIF, XMP.
+- **Writing:** HEVC Main 8-bit 4:2:0, a single image or a tile grid, alpha, ICC, EXIF, XMP, optional embedded thumbnail.
 - **Not supported:** image sequences, Live Photos, depth maps as depth data (an auxiliary depth image decodes as a
   plain image through `HeifDecoderOptions.ItemId`), 4:2:2/4:4:4, PQ/HLG, AVIF, writing gain maps and
   editing metadata in place (`Image.EditMetadata`).

@@ -12,8 +12,9 @@ public sealed class PublicApiTests
             .Where(type => !type.Name.StartsWith('<'))
             .OrderBy(type => type.FullName, StringComparer.Ordinal)
             .SelectMany(type => new[] { type.FullName! }.Concat(type.GetMembers(flags)
-                .Where(member => member.MemberType is MemberTypes.Method or MemberTypes.Constructor or MemberTypes.Property)
-                .Select(member => "  " + member).Order(StringComparer.Ordinal)))) + "\n";
+                .Where(member => member.MemberType is MemberTypes.Method or MemberTypes.Constructor or MemberTypes.Property
+                    || type.IsEnum && member is FieldInfo { IsLiteral: true })
+                .Select(member => "  " + member + (member is FieldInfo { IsLiteral: true } literal ? " = " + literal.GetRawConstantValue() : "")).Order(StringComparer.Ordinal)))) + "\n";
         string expected = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "PublicApi.approved.txt")).Replace("\r\n", "\n");
         if (actual != expected)
         {

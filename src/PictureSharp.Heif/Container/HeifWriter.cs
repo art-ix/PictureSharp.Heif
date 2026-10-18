@@ -15,7 +15,10 @@ internal static class HeifWriter
 {
     // Transforms apply to the colour and alpha images alike, in this order.
     public sealed record Content(HeifCodedImage Color, HeifCodedImage? Alpha, byte[]? Icc, HeifNclx Nclx,
-        IReadOnlyList<HeifTransform> Transforms, byte[]? Exif, byte[]? Xmp);
+        IReadOnlyList<HeifTransform> Transforms, byte[]? Exif, byte[]? Xmp)
+    {
+        public Content? Thumbnail { get; init; }
+    }
 
     private sealed class Item(uint id, uint type, bool hidden)
     {
@@ -81,19 +84,26 @@ internal static class HeifWriter
             return grid;
         }
 
-        IEnumerable<(int, bool)> TransformProperties() =>
-            [.. content.Transforms.Select(transform => (Property(Box(transform.Type, transform.Payload())), true))];
+        IEnumerable<(int, bool)> TransformProperties(Content imageContent) =>
+            [.. imageContent.Transforms.Select(transform => (Property(Box(transform.Type, transform.Payload())), true))];
 
         int colorConfiguration = Property(Box(HeifFourCc.HvcC, content.Color.Configuration));
         int colour = Property(content.Icc is { } icc ? Box(HeifFourCc.Colr, [.. "prof"u8, .. icc]) : Nclx(content.Nclx));
-        Item primary = AddImage(content.Color, colorConfiguration, [(colour, false), .. TransformProperties()], alpha: false);
-        if (content.Alpha is { } alphaImage)
+        Item primary = AddImage(content.Color, colorConfiguration, [(colour, false), .. TransformProperties(content)], alpha: false);
+        void AddAlpha(Content imageContent, Item parent)
         {
+            if (imageContent.Alpha is not { } alphaImage)
+            {
+                return;
+            }
+
             int alphaConfiguration = Property(Box(HeifFourCc.HvcC, alphaImage.Configuration));
             int auxiliary = Property(FullBox(HeifFourCc.AuxC, 0, 0, [.. "urn:mpeg:hevc:2015:auxid:1"u8, 0]));
-            Item alpha = AddImage(alphaImage, alphaConfiguration, [(auxiliary, true), .. TransformProperties()], alpha: true);
-            references.Add((HeifFourCc.Auxl, alpha.Id, [primary.Id]));
+            Item alpha = AddImage(alphaImage, alphaConfiguration, [(auxiliary, true), .. TransformProperties(imageContent)], alpha: true);
+            references.Add((HeifFourCc.Auxl, alpha.Id, [parent.Id]));
         }
+
+        AddAlpha(content, primary);
 
         if (content.Exif is { } exif)
         {
@@ -107,6 +117,17 @@ internal static class HeifWriter
             var item = new Item(nextId++, HeifFourCc.Mime, hidden: false) { Data = xmp, ContentType = "application/rdf+xml" };
             items.Add(item);
             references.Add((HeifFourCc.Cdsc, item.Id, [primary.Id]));
+        }
+
+        if (content.Thumbnail is { } thumbnailContent)
+        {
+            int configuration = Property(Box(HeifFourCc.HvcC, thumbnailContent.Color.Configuration));
+            int thumbnailColour = Property(thumbnailContent.Icc is { } thumbnailIcc
+                ? Box(HeifFourCc.Colr, [.. "prof"u8, .. thumbnailIcc]) : Nclx(thumbnailContent.Nclx));
+            Item thumbnail = AddImage(thumbnailContent.Color, configuration,
+                [(thumbnailColour, false), .. TransformProperties(thumbnailContent)], alpha: false);
+            references.Add((HeifFourCc.Thmb, thumbnail.Id, [primary.Id]));
+            AddAlpha(thumbnailContent, thumbnail);
         }
 
         if (nextId > 0xffff)

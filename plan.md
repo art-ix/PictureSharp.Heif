@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: 0.6.1, wydana 2026-10-18; minimalny PictureSharp 0.7.6.** Wtyczka formatu w C#, bez bibliotek
+**Bieżąca wersja: 0.6.2, przygotowana do wydania 2026-10-18; minimalny PictureSharp 0.7.6.** Wtyczka formatu w C#, bez bibliotek
 natywnych, z własnym dekoderem i enkoderem HEVC intra.
 
 - Odczyt: kontener HEIF (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 i 4:0:0, siatki, `iden`,
@@ -35,7 +35,7 @@ wersji 0.1.0–0.6.0 (DoD, wyniki, pomiary, kryteria enkodera): [docs/history.md
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Wydana 2026-10-17 (pierwsze publiczne wydanie) |
 | 0.6.0 | `HeifDecoderOptions.ItemId` przez `DecoderOptions.FormatOptions` | 0.7.6 | Wydana 2026-10-18 |
 | 0.6.1 | Skompresowane XMP: zlib/deflate i limity | 0.7.6 | Wydana 2026-10-18 |
-| 0.6.2 | Katalog `HeifDocument`, powiązania, auxiliary, odczyt i generowanie miniatur | 0.7.6 (założenie) | Planowana |
+| 0.6.2 | Katalog `HeifDocument`, powiązania, auxiliary, odczyt i generowanie miniatur | 0.7.6 | Przygotowana do wydania 2026-10-18 |
 | 0.6.3 | Surowe próbki depth, rozpoznawanie par Live Photo | 0.7.6 (założenie) | Planowana |
 | 0.7.0 | Integracja, regresje, dokumentacja i paczka całego zakresu | 0.7.6 (założenie) | Planowana |
 | dalej | Patrz „Poza 0.7.0” | Do ustalenia | Poza 0.7.0 |
@@ -65,9 +65,13 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
 
 ### 0.6.2 — katalog, powiązania i miniatury
 
-- `HeifDocument` i niemutowalne opisy elementów w `PictureSharp.Formats.Heif`. Otwieranie ze ścieżki, `Stream`
-  i pamięci; bufor wejścia ograniczony przez `MaxInputBytes`, bez dekodowania pikseli.
-- `PrimaryItemId`, katalog elementów i `TopLevelImages`: ID, typ, nazwa i flaga `hidden` z `infe` (dziś pomijane),
+Szczegółowa kolejność prac, kontrakt API i bramki testów: [plan implementacji 0.6.2](docs/implementation-0.6.2.md)
+(wdrożone i zweryfikowane lokalnie 2026-10-18; uwzględniono korektę kontraktu API).
+
+- `HeifDocument` i niemutowalne opisy elementów w `PictureSharp.Formats.Heif`. `Open` ze ścieżki, `Stream`
+  i pamięci oraz `OpenAsync` ze ścieżki/strumienia; bufor ograniczony przez `HeifDocumentOptions.MaxInputBytes`,
+  bez dekodowania pikseli. `LoadImage` i oba warianty `LoadPreview` przyjmują niezależne `DecoderOptions`.
+- `PrimaryItemId`, `PrimaryImage`, katalog elementów i `TopLevelImages`: ID, typ, nazwa i flaga `hidden` z `infe`,
   dostępne wymiary i głębia bitowa. Klasyfikacja zdjęć uwzględnia relacje i ukrycie; nie każdy `hvc1` jest
   osobnym zdjęciem. `ContainerItemCount` i `Image.Frames` bez zmian.
 - Powiązania konkretnego zdjęcia: miniatury (`thmb`), auxiliary (`auxl`) z typem i surowym `aux_subtype`
@@ -75,8 +79,8 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
   i pozostałych auxiliary, zawsze z oryginalnym identyfikatorem typu. Dekod dowolnego elementu nadal przez `ItemId`.
 - Katalogowanie oddzielone od dekodu: nieobsługiwany dodatkowy element pozostaje w katalogu, dopiero próba jego
   dekodu zgłasza `NotSupportedException`.
-- Odczyt podglądu: ID zdjęcia i rozmiar docelowy → najmniejsza obsługiwana miniatura pokrywająca rozmiar, inaczej
-  dekod i skalowanie zdjęcia; własne transformacje, kolor i alfa miniatury. `Image.Load(TargetSize)` bez zmian
+- Odczyt podglądu: ID zdjęcia i rozmiar docelowy → najmniejsza obsługiwana miniatura o zgodnych proporcjach
+  (tolerancja do 1 piksela zaokrąglenia) pokrywająca rozmiar, inaczej dekod i skalowanie zdjęcia; własne transformacje, kolor i alfa miniatury. `Image.Load(TargetSize)` bez zmian
   (osadzona miniatura jest jawnym wyborem).
 - Generowanie miniatury w `SaveAsHeic` według maksymalnego wymiaru (opcja w `HeifEncoderOptions`, domyślnie
   wyłączona): zachowane proporcje, bez powiększania, `thmb`, kolor i alfa, bez kopiowania EXIF/XMP. Bez miniatur
@@ -85,6 +89,14 @@ Publikacja każdej wersji wyłącznie na decyzję użytkownika.
   uruchamiania dekodera HEVC; wiele zdjęć ze współdzielonymi zależnościami bez mieszania metadanych; podgląd przy
   wielu rozmiarach i braku miniatury, orientacje bez podwójnego obrotu; libheif rozpoznaje generowaną miniaturę,
   a API podglądu ją odczytuje.
+
+- **Stan (2026-10-18):** DoD spełnione lokalnie po korekcie kontraktu. Build Release bez ostrzeżeń;
+  pełne testy 456/457 (1 opcjonalny pomiar Kodak pominięty), Oracle 6/6 bez pominięć.
+  Testy katalogu/I/O 35/35, migawka API i przykłady z paczki aktualne. Konsument paczki i Native AOT x64
+  obejmują `OpenAsync`, `PrimaryImage`, `LoadImage`, oba podglądy, własność wejścia, kolor/alfa/orientację.
+  Libheif rozpoznaje miniaturę i odtwarza identyczne RGBA (także siatkę), HM potwierdza każdy kodowany element.
+  Cztery porównania z kodem 0.6.1 potwierdzają identyczny zapis przy wyłączonej miniaturze.
+  `VERSION` 0.6.2; notatki wydania i paczka przygotowane do publikacji.
 
 ### 0.6.3 — surowe próbki depth i pary Live Photo
 
@@ -161,6 +173,8 @@ potrzeby. Nowe potrzeby SPI zgłaszamy do planu rdzenia; nie obchodzimy ich kopi
 - Po znaczącym kroku wpis w `progres.md`. Plan aktualizujemy po rzeczywistym spełnieniu DoD.
 
 ## Changelog
+
+- [0.6.2](docs/releases/release-0.6.2.md): katalog zdjęć i relacji, wybór podglądu i generowanie miniatur.
 
 - [0.6.1](docs/releases/release-0.6.1.md): skompresowane XMP (`deflate`) w limicie `MaxMetadataBytes`.
 - [0.6.0](docs/releases/release-0.6.0.md): wybór elementu przez `HeifDecoderOptions.ItemId`, minimum PictureSharp 0.7.6.

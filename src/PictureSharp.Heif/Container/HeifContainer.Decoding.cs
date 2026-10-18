@@ -171,11 +171,13 @@ internal sealed partial class HeifContainer
     // colr prof or rICC (an ICC profile either way).
     public ReadOnlyMemory<byte>? Icc(HeifItem item)
     {
-        foreach (HeifBox property in item.Properties.Select(Property))
+        foreach (HeifAssociation association in item.Properties)
         {
+            HeifBox property = Property(association);
             if (property.Type == HeifFourCc.Colr
                 && BinaryPrimitives.ReadUInt32BigEndian(property.Data.Span) is HeifFourCc.Prof or HeifFourCc.RIcc)
             {
+                ChargeIcc(association, property);
                 return property.Data[4..];
             }
         }
@@ -183,11 +185,12 @@ internal sealed partial class HeifContainer
         return null;
     }
 
-    private HeifBox? PropertyOf(HeifItem item, uint type)
+    private HeifBox? PropertyOf(HeifItem item, uint type, bool supportedOnly = false)
     {
-        foreach (HeifBox property in item.Properties.Select(Property))
+        foreach (HeifAssociation association in item.Properties)
         {
-            if (property.Type == type)
+            HeifBox property = Property(association);
+            if (property.Type == type && (!supportedOnly || !unsupportedProperties.Contains(association.Index)))
             {
                 return property;
             }

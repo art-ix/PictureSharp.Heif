@@ -41,6 +41,31 @@ Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccPro
 - **Threads:** grid tiles decode in parallel and colour conversion and transforms run in row bands, up to
   `DecoderOptions.MaxDegreeOfParallelism`. The pixels, and the error a damaged file raises, do not depend on it.
 
+## Embedded previews
+
+`Image.Load(TargetSize)` decodes the selected full image before resizing. To use an embedded thumbnail explicitly:
+
+```csharp
+var document = await HeifDocument.OpenAsync("photo.heic");
+var options = new DecoderOptions { Configuration = configuration };
+using Image preview = document.LoadPreview(new System.Drawing.Size(320, 240), options);
+// For another photo: document.LoadPreview(itemId, targetSize, options).
+// For the photo itself: document.LoadImage(itemId, options with { TargetSize = targetSize }).
+```
+
+`LoadPreview` fits inside positive target dimensions without enlarging. It selects the smallest supported thumbnail
+covering the required size with matching displayed proportions (up to one pixel of rounding); equal areas use the
+lower ID. Unknown dimensions, unsuitable proportions or no supported thumbnail cause a full-photo resize.
+Corrupt data, limit violations and cancellation propagate.
+
+The result uses the selected item's own colour, alpha, transforms and metadata. Embedded previews can differ in
+framing, compression and colour; matching proportions do not guarantee the same crop. Use `LoadImage` with
+`TargetSize` for a resized photo.
+
+Each read takes independent `DecoderOptions`; null means core defaults. Explicit IDs override `ItemId`, and previews
+also override `TargetSize`. `LoadImage` respects `TargetSize` and otherwise returns the full size. Register `HeifFormat`
+in the read's configuration or the default configuration. The caller owns each returned image.
+
 ## HDR gain maps
 
 With `DecoderOptions.LoadGainMap`, the decoder attaches the primary image's HDR gain map (PictureSharp 0.7.1 SPI), so

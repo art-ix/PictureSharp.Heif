@@ -6,7 +6,7 @@ internal sealed partial class HeifContainer
     // The auxC aux_type of an item, or empty when it has none.
     public ReadOnlySpan<byte> AuxiliaryType(HeifItem item)
     {
-        if (PropertyOf(item, HeifFourCc.AuxC) is not { } property)
+        if (PropertyOf(item, HeifFourCc.AuxC, supportedOnly: true) is not { } property)
         {
             return default;
         }

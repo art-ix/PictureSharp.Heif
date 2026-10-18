@@ -256,7 +256,8 @@ public sealed class HeifContainerTests
     public async Task Identify_ExifAndXmpShareTheMetadataBudget()
     {
         byte[] xmp = Full("infe", 2, 0, U16(3), U16(0), "mime"u8.ToArray(), Text(""), Text("application/rdf+xml"), Text(""));
-        byte[] bytes = File(info: Iinf(Infe(1), Infe(2, "Exif"), xmp), locations: Iloc(3));
+        byte[] bytes = File(info: Iinf(Infe(1), Infe(2, "Exif"), xmp), locations: Iloc(3),
+            references: Full("iref", 0, 0, Reference("cdsc", 2, 1), Reference("cdsc", 3, 1)));
         await Assert.That(() => Identify(bytes, new DecoderOptions { MaxMetadataBytes = 7 })).Throws<ImageFormatException>();
         await Assert.That(Identify(bytes, new DecoderOptions { MaxMetadataBytes = 8 }).Width).IsEqualTo(80);
     }

@@ -2,7 +2,8 @@ using System.Text;
 
 namespace PictureSharp.Formats.Heif.Container;
 
-internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context)
+internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context,
+    CancellationToken cancellationToken = default)
 {
     private const int MaxItems = 65536;
     private const int MaxBoxes = 262144;
@@ -10,6 +11,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
     private const int MaxReferenceDepth = 32;
     private readonly Dictionary<uint, HeifItem> items = [];
     private readonly List<HeifBox> properties = [];
+    private readonly HashSet<int> unsupportedProperties = [];
     private readonly Dictionary<HeifItem, HeifImageDescription> descriptions = [];
     private ReadOnlyMemory<byte> itemData;
     private bool hasItemData;
@@ -23,15 +25,31 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
     public static HeifContainer Open(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context = null)
     {
         var container = new HeifContainer(data, options, context);
-        container.Info = container.Parse();
+        container.Parse();
+        container.Info = container.PrepareImage();
         return container;
     }
 
     public ImageInfo Info { get; private set; } = null!;
 
-    private ImageInfo Parse()
+    public static HeifContainer OpenCatalog(ReadOnlyMemory<byte> data, DecoderOptions options, CancellationToken cancellationToken)
     {
+        var container = new HeifContainer(data, options, null, cancellationToken);
+        container.Parse();
+        return container;
+    }
+
+    public uint PrimaryItemId => primaryId;
+
+    private void CheckCancellation()
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         context?.ThrowIfCancellationRequested();
+    }
+
+    private void Parse()
+    {
+        CheckCancellation();
         Require(data.Length <= options.MaxInputBytes, "Input exceeds MaxInputBytes.");
         Require(HeifSignature.IsHevcImage(data.Span), "Unrecognized HEIF signature.");
         var reader = new HeifReader(data);
@@ -58,9 +76,14 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
         Require(meta, "Missing meta box.");
         Require(items.TryGetValue(primaryId, out HeifItem? found) && found.Defined, "Missing primary image item.");
         ValidateItems();
-        HeifItem image = SelectedItem(found!);
+    }
+
+    private ImageInfo PrepareImage()
+    {
+        HeifItem image = SelectedItem(items[primaryId]);
         HeifImageDescription description = Describe(image, 0);
         ImageItem = image;
+        ChargeImageMetadata(image, []);
         var charged = new HashSet<uint>();
         long pixels = 0;
         ChargePixels(image, charged, ref pixels);
@@ -72,6 +95,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
             Require(alphaDescription.Width == description.Width && alphaDescription.Height == description.Height,
                 "Alpha image dimensions do not match the image item.");
             ChargePixels(item, charged, ref pixels);
+            ChargeImageMetadata(item, []);
         }
 
         return new ImageInfo
@@ -175,13 +199,11 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
             HeifItem item = Item(itemVersion == 2 ? info.UInt16() : info.UInt32());
             Require(!item.Defined, "Duplicate item definition.");
             item.Defined = true;
-            if (info.UInt16() != 0)
-            {
-                throw new NotSupportedException("Protected HEIF items are not supported.");
-            }
+            item.ProtectionIndex = info.UInt16();
+            item.IsHidden = (flags & 1) != 0;
 
             item.Type = info.UInt32();
-            info.String();
+            item.Name = Encoding.UTF8.GetString(info.String().Span);
             if (item.Type == HeifFourCc.Mime)
             {
                 item.IsXmp = info.String().Span.SequenceEqual("application/rdf+xml"u8);
@@ -220,10 +242,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
             item.Located = true;
             ushort method = version > 0 ? reader.UInt16() : (ushort)0;
             Require((method & 0xfff0) == 0, "Invalid construction method bits.");
-            if (method > 1 || reader.UInt16() != 0)
-            {
-                throw new NotSupportedException("External or item-relative HEIF data is not supported.");
-            }
+            item.DataReferenceIndex = reader.UInt16();
 
             item.ConstructionMethod = method;
             ulong baseOffset = reader.Unsigned(baseSize);
@@ -287,7 +306,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
 
     private HeifBox NextBox(ref HeifReader reader)
     {
-        context?.ThrowIfCancellationRequested();
+        CheckCancellation();
         Require(++boxCount <= MaxBoxes, "Too many container boxes.");
         return reader.Box();
     }

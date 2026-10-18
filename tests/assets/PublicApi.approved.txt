@@ -1,3 +1,16 @@
+PictureSharp.Formats.Heif.HeifAuxiliaryInfo
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind Kind
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind get_Kind()
+  System.Collections.Generic.IReadOnlyList`1[System.Byte] Subtype
+  System.Collections.Generic.IReadOnlyList`1[System.Byte] get_Subtype()
+  System.String Type
+  System.String get_Type()
+PictureSharp.Formats.Heif.HeifAuxiliaryKind
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind Alpha = 1
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind Depth = 2
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind Disparity = 3
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind GainMap = 4
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind Other = 0
 PictureSharp.Formats.Heif.HeifDecoderOptions
   Boolean Equals(PictureSharp.Formats.FormatDecoderOptions)
   Boolean Equals(PictureSharp.Formats.Heif.HeifDecoderOptions)
@@ -11,6 +24,36 @@ PictureSharp.Formats.Heif.HeifDecoderOptions
   System.String ToString()
   Void .ctor()
   Void set_ItemId(System.Nullable`1[System.UInt32])
+PictureSharp.Formats.Heif.HeifDocument
+  PictureSharp.Formats.Heif.HeifDocument Open(System.IO.Stream, PictureSharp.Formats.Heif.HeifDocumentOptions, System.Threading.CancellationToken)
+  PictureSharp.Formats.Heif.HeifDocument Open(System.ReadOnlyMemory`1[System.Byte], PictureSharp.Formats.Heif.HeifDocumentOptions, System.Threading.CancellationToken)
+  PictureSharp.Formats.Heif.HeifDocument Open(System.String, PictureSharp.Formats.Heif.HeifDocumentOptions, System.Threading.CancellationToken)
+  PictureSharp.Formats.Heif.HeifItemInfo GetItem(UInt32)
+  PictureSharp.Formats.Heif.HeifItemInfo PrimaryImage
+  PictureSharp.Formats.Heif.HeifItemInfo get_PrimaryImage()
+  PictureSharp.Image LoadImage(UInt32, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
+  PictureSharp.Image LoadPreview(System.Drawing.Size, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
+  PictureSharp.Image LoadPreview(UInt32, System.Drawing.Size, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
+  System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemInfo] Items
+  System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemInfo] TopLevelImages
+  System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemInfo] get_Items()
+  System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemInfo] get_TopLevelImages()
+  System.Threading.Tasks.Task`1[PictureSharp.Formats.Heif.HeifDocument] OpenAsync(System.IO.Stream, PictureSharp.Formats.Heif.HeifDocumentOptions, System.Threading.CancellationToken)
+  System.Threading.Tasks.Task`1[PictureSharp.Formats.Heif.HeifDocument] OpenAsync(System.String, PictureSharp.Formats.Heif.HeifDocumentOptions, System.Threading.CancellationToken)
+  UInt32 PrimaryItemId
+  UInt32 get_PrimaryItemId()
+PictureSharp.Formats.Heif.HeifDocumentOptions
+  Boolean Equals(PictureSharp.Formats.Heif.HeifDocumentOptions)
+  Boolean Equals(System.Object)
+  Boolean op_Equality(PictureSharp.Formats.Heif.HeifDocumentOptions, PictureSharp.Formats.Heif.HeifDocumentOptions)
+  Boolean op_Inequality(PictureSharp.Formats.Heif.HeifDocumentOptions, PictureSharp.Formats.Heif.HeifDocumentOptions)
+  Int32 GetHashCode()
+  Int64 MaxInputBytes
+  Int64 get_MaxInputBytes()
+  PictureSharp.Formats.Heif.HeifDocumentOptions <Clone>$()
+  System.String ToString()
+  Void .ctor()
+  Void set_MaxInputBytes(Int64)
 PictureSharp.Formats.Heif.HeifEncoderOptions
   Boolean Equals(PictureSharp.EncoderOptions)
   Boolean Equals(PictureSharp.Formats.Heif.HeifEncoderOptions)
@@ -20,9 +63,11 @@ PictureSharp.Formats.Heif.HeifEncoderOptions
   Int32 GetHashCode()
   Int32 MaxDegreeOfParallelism
   Int32 Quality
+  Int32 ThumbnailMaxDimension
   Int32 TileSize
   Int32 get_MaxDegreeOfParallelism()
   Int32 get_Quality()
+  Int32 get_ThumbnailMaxDimension()
   Int32 get_TileSize()
   PictureSharp.Formats.Heif.HeifEncoderOptions <Clone>$()
   PictureSharp.ImageFormat Format
@@ -37,6 +82,7 @@ PictureSharp.Formats.Heif.HeifEncoderOptions
   Void set_AlphaQuality(System.Nullable`1[System.Int32])
   Void set_MaxDegreeOfParallelism(Int32)
   Void set_Quality(Int32)
+  Void set_ThumbnailMaxDimension(Int32)
   Void set_TileSize(Int32)
 PictureSharp.Formats.Heif.HeifFormat
   Boolean IsSupported(System.ReadOnlySpan`1[System.Byte])
@@ -59,3 +105,35 @@ PictureSharp.Formats.Heif.HeifImageExtensions
   Void SaveAsHeic(PictureSharp.Image, System.String, PictureSharp.Formats.Heif.HeifEncoderOptions)
 PictureSharp.Formats.Heif.HeifImageFormatExtensions
   PictureSharp.ImageFormat get_Heif()
+PictureSharp.Formats.Heif.HeifItemInfo
+  Boolean IsHidden
+  Boolean IsImage
+  Boolean get_IsHidden()
+  Boolean get_IsImage()
+  PictureSharp.Formats.Heif.HeifAuxiliaryInfo Auxiliary
+  PictureSharp.Formats.Heif.HeifAuxiliaryInfo get_Auxiliary()
+  System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemReference] References
+  System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemReference] get_References()
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] AuxiliaryItemIds
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] MetadataItemIds
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] SourceItemIds
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] ThumbnailItemIds
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] get_AuxiliaryItemIds()
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] get_MetadataItemIds()
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] get_SourceItemIds()
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] get_ThumbnailItemIds()
+  System.Nullable`1[System.Drawing.Size] DisplaySize
+  System.Nullable`1[System.Drawing.Size] get_DisplaySize()
+  System.Nullable`1[System.Int32] BitsPerChannel
+  System.Nullable`1[System.Int32] get_BitsPerChannel()
+  System.String Name
+  System.String Type
+  System.String get_Name()
+  System.String get_Type()
+  UInt32 Id
+  UInt32 get_Id()
+PictureSharp.Formats.Heif.HeifItemReference
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] TargetItemIds
+  System.Collections.Generic.IReadOnlyList`1[System.UInt32] get_TargetItemIds()
+  System.String Type
+  System.String get_Type()

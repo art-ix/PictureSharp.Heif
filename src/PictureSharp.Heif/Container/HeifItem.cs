@@ -6,6 +6,10 @@ internal sealed class HeifItem(uint id)
 {
     public uint Id { get; } = id;
     public uint Type { get; set; }
+    public string Name { get; set; } = "";
+    public bool IsHidden { get; set; }
+    public ushort ProtectionIndex { get; set; }
+    public ushort DataReferenceIndex { get; set; }
     public bool Defined { get; set; }
     public bool Located { get; set; }
     public bool Associated { get; set; }

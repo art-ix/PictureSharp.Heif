@@ -27,6 +27,7 @@ image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60, Configurat
 | `AlphaQuality` | null (= `Quality`) | quality of the alpha plane |
 | `TileSize` | 512 | larger images become a grid of tiles of this size (a multiple of 32, 64–4096); 0 writes one image |
 | `MaxDegreeOfParallelism` | -1 | tiles encoded in parallel; the output is identical for every value |
+| `ThumbnailMaxDimension` | 0 | optional embedded thumbnail: positive maximum side, keeping aspect ratio without enlarging |
 | `Metadata` | all | ICC, EXIF and XMP blocks to write |
 
 ## What is written
@@ -52,6 +53,22 @@ image.SaveAsHeic("photo.heic", new HeifEncoderOptions { Quality = 60, Configurat
   container transforms (libheif, PictureSharp.Heif, Apple Photos) show the image as the original was shown.
 - **Metadata:** EXIF (with `exif_tiff_header_offset` 0) and XMP items linked to the image with `cdsc`.
 - Animations are written from their first frame.
+
+## Embedded thumbnail
+
+```csharp
+image.SaveAsHeic("photo.heic", new HeifEncoderOptions
+{
+    Configuration = configuration,
+    Quality = 60,
+    ThumbnailMaxDimension = 320
+});
+```
+
+`ThumbnailMaxDimension` adds a thumbnail linked to the photo by `thmb`. It keeps proportions without enlarging,
+uses the encoder's quality settings, and stores upright pixels with its own colour and alpha. ICC follows `Metadata`;
+EXIF/XMP are excluded. Smaller photos receive a thumbnail at their existing size. The source image is unchanged.
+The default 0 disables thumbnails; negative values are rejected. Read the result with `HeifDocument.LoadPreview`.
 
 ## Verification
 

@@ -19,7 +19,15 @@ internal sealed partial class HeifContainer
                 {
                     Require(properties.Count < 32767, "Too many item properties.");
                     HeifBox property = NextBox(ref propertyReader);
-                    ValidateProperty(property);
+                    try
+                    {
+                        ValidateProperty(property);
+                    }
+                    catch (NotSupportedException)
+                    {
+                        unsupportedProperties.Add(properties.Count + 1);
+                    }
+
                     properties.Add(property);
                 }
             }
@@ -117,7 +125,7 @@ internal sealed partial class HeifContainer
                 }
                 else if (colour is HeifFourCc.Prof or HeifFourCc.RIcc)
                 {
-                    ChargeMetadata(reader.Remaining);
+                    reader.Read(reader.Remaining);
                 }
 
                 break;

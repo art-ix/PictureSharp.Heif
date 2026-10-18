@@ -48,6 +48,16 @@ public sealed record HeifEncoderOptions : EncoderOptions
         init => field = value is -1 or >= 1 ? value : throw new ArgumentOutOfRangeException(nameof(MaxDegreeOfParallelism), value, "Use -1 or a positive value.");
     } = -1;
 
+    /// <summary>
+    /// Maximum displayed dimension of an embedded thumbnail; 0 disables it (the default). Keeps the aspect ratio,
+    /// never enlarges, preserves color and alpha, and excludes EXIF/XMP. Uses the image's quality settings.
+    /// </summary>
+    public int ThumbnailMaxDimension
+    {
+        get;
+        init => field = value >= 0 ? value : throw new ArgumentOutOfRangeException(nameof(ThumbnailMaxDimension), value, "Use 0 or a positive dimension.");
+    }
+
     private static int InRange(int value, int minimum, int maximum, string name) =>
         value >= minimum && value <= maximum ? value : throw new ArgumentOutOfRangeException(name, value, $"Use a value from {minimum} to {maximum}.");
 }

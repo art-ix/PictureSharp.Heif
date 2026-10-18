@@ -1,5 +1,6 @@
 using PictureSharp.Formats.Heif.Container;
 using PictureSharp.Formats.Heif.Hevc;
+using PictureSharp.Processing;
 
 namespace PictureSharp.Formats.Heif.Codecs;
 
@@ -13,6 +14,23 @@ internal static class HeifImageEncoder
 
     public static byte[] Encode(Image image, HeifEncoderOptions options, CancellationToken cancellationToken)
     {
+        HeifWriter.Content content = Prepare(image, options, cancellationToken);
+        if (options.ThumbnailMaxDimension > 0)
+        {
+            // An upright thumbnail has no orientation dependency on its parent, including odd-size chroma grids.
+            using Image thumbnail = image.Clone(processing => processing.AutoOrient().Thumbnail(options.ThumbnailMaxDimension, options.ThumbnailMaxDimension), cancellationToken);
+            content = content with
+            {
+                Thumbnail = Prepare(thumbnail, options with { Metadata = options.Metadata & ~(MetadataKinds.Exif | MetadataKinds.Xmp), ThumbnailMaxDimension = 0 }, cancellationToken)
+            };
+        }
+
+        return HeifWriter.Write(content);
+    }
+
+    private static HeifWriter.Content Prepare(Image image, HeifEncoderOptions options, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         int width = image.Width;
         int height = image.Height;
         Rgba32[] pixels = new Rgba32[width * height];
@@ -72,7 +90,7 @@ internal static class HeifImageEncoder
         }
 
         byte[]? xmp = (options.Metadata & MetadataKinds.Xmp) != 0 ? metadata.Xmp : null;
-        return HeifWriter.Write(new HeifWriter.Content(color, alphaImage, icc, SignalledColour, transforms, exif, xmp));
+        return new HeifWriter.Content(color, alphaImage, icc, SignalledColour, transforms, exif, xmp);
     }
 
     // ln of the summed Y, Cb and Cr variances of the whole image: the reference of variance adaptive quantization, so

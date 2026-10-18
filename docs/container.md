@@ -1,4 +1,4 @@
-# HEIF container identification (0.1.0)
+# HEIF container catalogue and identification
 
 Register the plugin and call the public PictureSharp API:
 
@@ -28,11 +28,54 @@ Structural parsing never recursively descends into arbitrary boxes. It permits u
 262,144 combined extent/reference/association/NAL entries, 32 reference levels and 32,767 properties. Input payloads
 remain borrowed memory slices. `MaxPixels` covers stored primary, tile and alpha dimensions, counting each required item
 once and including the grid canvas. Cropping cannot reduce this charge. ICC/EXIF/XMP byte counts obey `MaxMetadataBytes`
-unless `IgnoreMetadata` is true. `Decode` runs the same validation before decoding; see [decoding](decoding.md).
+for the selected image and its dependencies, unless `IgnoreMetadata` is true. `Decode` runs the same validation before decoding; see [decoding](decoding.md).
 
 Container design follows ISO/IEC 14496-12 and ISO/IEC 23008-12. The
 [Nokia HEIF technical overview](https://nokiatech.github.io/heif/technical.html) describes the item/property/reference model.
 No implementation was ported from an external codec library for this stage.
+
+## Catalogue and image selection (0.6.2)
+
+A HEIF file can contain photos, hidden tiles, thumbnails, metadata and auxiliary images. Treating every `hvc1` item
+as a photo mixes these roles. `HeifDocument` reads their descriptions and relationships without decoding pixels.
+
+```csharp
+var document = await HeifDocument.OpenAsync("photo.heic",
+    new HeifDocumentOptions { MaxInputBytes = 64L << 20 });
+foreach (HeifItemInfo photo in document.TopLevelImages)
+    Console.WriteLine($"{photo.Id}: {photo.Name}, {photo.DisplaySize}");
+
+var decodeOptions = new DecoderOptions { Configuration = configuration };
+using Image primary = document.LoadImage(document.PrimaryImage.Id, decodeOptions);
+using Image preview = document.LoadPreview(new System.Drawing.Size(320, 240), decodeOptions);
+```
+
+- `Items` contains all entries in ID order, including unsupported types. `TopLevelImages` excludes hidden items,
+  tiles, thumbnails, auxiliary images and `tmap` descriptors. `PrimaryImage` always returns the `pitm` item.
+- Each item preserves its ID, FourCC `Type`, UTF-8 `Name`, `IsHidden`, outgoing `References` and available
+  `DisplaySize`/`BitsPerChannel`. Size includes known transforms; unavailable values are null.
+- `Auxiliary` classifies alpha, depth, disparity, gain maps or other types while preserving `Type` and raw `Subtype`.
+  ISO-only gain maps have no auxiliary type string (`Type` is null); `tmap` relates them to their base photo.
+  Depth units and calibration are not interpreted.
+
+| Item property | Relationship |
+| --- | --- |
+| `SourceItemIds` | Ordered outgoing `dimg` targets |
+| `ThumbnailItemIds` | Items whose `thmb` points to this item |
+| `AuxiliaryItemIds` | Items whose `auxl` points to this item, plus ISO gain maps |
+| `MetadataItemIds` | Items whose `cdsc` points to this item |
+
+The last three lists are deduplicated and sorted by ID. Unsupported additional items remain in the catalogue;
+selecting one for decoding reports its limitation. Invalid bounds, undefined references and cycles fail on opening.
+
+`Open` accepts a path, stream or `ReadOnlyMemory<byte>`; `OpenAsync` accepts a path or stream and uses asynchronous
+I/O. Both own a copy of the input. Streams are read from their current position, may be nonseekable, and remain open
+on success, error or cancellation. The document retains no file handle and does not require disposal.
+
+`HeifDocumentOptions.MaxInputBytes` limits buffering. Each `LoadImage`/`LoadPreview` call takes independent
+`DecoderOptions`, including configuration and pixel/metadata budgets; the document stores none of them.
+A read's `MaxInputBytes` must also cover the owned buffer. Shared dependencies count once; other photos' metadata
+do not consume the selected photo's budget. Returned images belong to the caller. See [preview selection](decoding.md#embedded-previews).
 
 ## Reference tools and corpus
 
@@ -59,3 +102,7 @@ independently. HEVC and RGB references are described in [decoding](decoding.md).
 Private files in `samples/` are exercised only by `Category=Local` tests. Both lowercase and uppercase HEIC/HEIF
 extensions are ignored by Git. Reference libheif is pinned to 1.20.2 because 1.17.6 rejects recent iPhone files with
 multiple auxiliary references. No private metadata is written into the committed corpus.
+
+Thumbnail Oracle tests also compile the independent `tests/assets/heif-thumbnail-oracle.c` driver with `cc` against
+the reference libheif headers. It obtains the thumbnail by its relationship and compares decoded RGBA pixels;
+HM verifies every generated coded item, including alpha. These native tools are test-only.

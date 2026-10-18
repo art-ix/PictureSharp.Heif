@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../assets/heif-thumbnail-oracle.c" Link="heif-thumbnail-oracle.c" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../assets/PublicApi.approved.txt" Link="PublicApi.approved.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../assets/p3_v4_para0.icc" Link="p3_v4_para0.icc" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../assets/jctvc-reference.json" Link="jctvc-reference.json" CopyToOutputDirectory="PreserveNewest" />

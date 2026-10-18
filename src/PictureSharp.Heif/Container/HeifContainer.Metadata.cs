@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.IO.Compression;
 
 namespace PictureSharp.Formats.Heif.Container;
@@ -6,6 +7,60 @@ namespace PictureSharp.Formats.Heif.Container;
 // size; an unknown coding or a corrupt stream skips the block instead of failing the image.
 internal sealed partial class HeifContainer
 {
+    private ILookup<uint, HeifItem>? metadataItems;
+    private readonly HashSet<HeifItem> chargedMetadataItems = [];
+    private readonly HashSet<int> chargedMetadataProperties = [];
+
+    private IEnumerable<HeifItem> MetadataItems(HeifItem image) =>
+        (metadataItems ??= items.Values.Where(item => item.IsExif || item.IsXmp)
+            .SelectMany(item => item.Targets(HeifFourCc.Cdsc).Distinct().Select(id => (Id: id, Item: item)))
+            .ToLookup(pair => pair.Id, pair => pair.Item))[image.Id];
+
+    private void ChargeImageMetadata(HeifItem image, HashSet<uint> visited)
+    {
+        if (!visited.Add(image.Id))
+        {
+            return;
+        }
+
+        CheckCancellation();
+        foreach (HeifAssociation association in image.Properties)
+        {
+            HeifBox property = Property(association);
+            ChargeIcc(association, property);
+        }
+
+        foreach (HeifItem item in MetadataItems(image))
+        {
+            ChargeMetadataItem(item);
+        }
+
+        foreach (uint id in image.Targets(HeifFourCc.Dimg))
+        {
+            ChargeImageMetadata(items[id], visited);
+        }
+    }
+
+    private void ChargeIcc(HeifAssociation association, HeifBox property)
+    {
+        if (property.Type == HeifFourCc.Colr && property.Data.Length >= 4
+            && BinaryPrimitives.ReadUInt32BigEndian(property.Data.Span) is HeifFourCc.Prof or HeifFourCc.RIcc
+            && chargedMetadataProperties.Add(association.Index))
+        {
+            ChargeMetadata(property.Data.Length - 4);
+        }
+    }
+
+    private void ChargeMetadataItem(HeifItem item)
+    {
+        if (!options.IgnoreMetadata && (item.IsExif || item.IsXmp && item.ContentEncoding == HeifContentEncoding.None)
+            && chargedMetadataItems.Add(item))
+        {
+            EnsureReadable(item);
+            ChargeMetadata(item.Extents.Sum(extent => (long)extent.Length));
+        }
+    }
+
     private const int InflateChunk = 16384;
     private readonly Dictionary<HeifItem, ReadOnlyMemory<byte>?> inflatedXmp = [];
 
@@ -13,10 +68,10 @@ internal sealed partial class HeifContainer
     public IEnumerable<(bool Exif, ReadOnlyMemory<byte> Data)> DescriptiveMetadata(HeifItem image,
         MetadataKinds kinds = MetadataKinds.Exif | MetadataKinds.Xmp)
     {
-        foreach (HeifItem item in items.Values)
+        foreach (HeifItem item in MetadataItems(image))
         {
             bool wanted = item.IsExif ? (kinds & MetadataKinds.Exif) != 0 : item.IsXmp && (kinds & MetadataKinds.Xmp) != 0;
-            if (wanted && item.RefersTo(HeifFourCc.Cdsc, image) && MetadataPayload(item) is { } data)
+            if (wanted && MetadataPayload(item) is { } data)
             {
                 yield return (item.IsExif, data);
             }
@@ -25,6 +80,7 @@ internal sealed partial class HeifContainer
 
     private ReadOnlyMemory<byte>? MetadataPayload(HeifItem item)
     {
+        ChargeMetadataItem(item);
         switch (item.ContentEncoding)
         {
             case HeifContentEncoding.None:
@@ -58,7 +114,7 @@ internal sealed partial class HeifContainer
         {
             while (true)
             {
-                context?.ThrowIfCancellationRequested();
+                CheckCancellation();
                 if (length == output.Length)
                 {
                     // One byte more than the limit allows proves the stream exceeds it.

@@ -10,34 +10,24 @@ internal sealed partial class HeifContainer
         var path = new HashSet<HeifItem>();
         foreach (HeifItem item in items.Values)
         {
-            context?.ThrowIfCancellationRequested();
+            CheckCancellation();
             Require(item.Defined, "Reference to an undefined item.");
             foreach (HeifAssociation association in item.Properties)
             {
                 Property(association);
             }
 
-            if (item.Located)
+            if (item.Located && item.ConstructionMethod <= 1 && item.DataReferenceIndex == 0)
             {
-                ReadOnlyMemory<byte> source = ItemSource(item);
+                Require(item.ConstructionMethod != 1 || hasItemData, "Item refers to a missing idat box.");
+                ReadOnlyMemory<byte> source = item.ConstructionMethod == 1 ? itemData : data;
                 long total = 0;
                 foreach (HeifExtent extent in item.Extents)
                 {
                     Require(extent.Offset <= (ulong)source.Length && extent.Length <= (ulong)source.Length - extent.Offset,
                         "Item extent is outside its data source.");
-                    if (extent.Length == 0)
-                    {
-                        throw new NotSupportedException("Implicit HEIF item extent lengths are not supported.");
-                    }
-
                     total += (long)extent.Length;
                     Require(total <= data.Length, "Item extents exceed the input size.");
-                }
-
-                // Compressed XMP is charged by its decompressed size when it is read.
-                if (item.IsExif || item.IsXmp && item.ContentEncoding == HeifContentEncoding.None)
-                {
-                    ChargeMetadata(total);
                 }
             }
 
@@ -76,8 +66,22 @@ internal sealed partial class HeifContainer
         return longest;
     }
 
+    private static void EnsureReadable(HeifItem item)
+    {
+        if (item.ProtectionIndex != 0 || item.DataReferenceIndex != 0 || item.ConstructionMethod > 1)
+        {
+            throw new NotSupportedException("Protected, external or item-relative HEIF data is not supported.");
+        }
+
+        if (item.Extents.Any(extent => extent.Length == 0))
+        {
+            throw new NotSupportedException("Implicit HEIF item extent lengths are not supported.");
+        }
+    }
+
     private ReadOnlyMemory<byte> ItemSource(HeifItem item)
     {
+        EnsureReadable(item);
         Require(item.ConstructionMethod != 1 || hasItemData, "Item refers to a missing idat box.");
         return item.ConstructionMethod == 1 ? itemData : data;
     }
@@ -109,19 +113,20 @@ internal sealed partial class HeifContainer
             return cached;
         }
 
-        context?.ThrowIfCancellationRequested();
+        CheckCancellation();
         if (item.Type is not (HeifFourCc.Hvc1 or HeifFourCc.Grid or HeifFourCc.Iden))
         {
             throw new NotSupportedException("Unsupported HEIF image item type.");
         }
 
+        EnsureReadable(item);
         int width = 0, height = 0, bits = 0, configurationBits = 0;
         bool configuration = false;
         var unique = new HashSet<uint>();
         foreach (HeifAssociation association in item.Properties)
         {
             HeifBox property = Property(association);
-            if (association.Essential && !KnownProperty(property.Type))
+            if (unsupportedProperties.Contains(association.Index) || association.Essential && !KnownProperty(property.Type))
             {
                 throw new NotSupportedException("Unknown essential HEIF item property.");
             }
