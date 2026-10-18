@@ -27,6 +27,10 @@ Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccPro
   by `irot`/`imir`, the EXIF orientation is set to `TopLeft`; `ApplyExifOrientation` therefore never rotates twice.
   Without ICC, CICP primaries other than BT.709 become `Chromaticities`, with a power-law `Gamma` approximation;
   `ColorConversion = ToSrgb` on PQ or HLG content raises `NotSupportedException`.
+- **Compressed XMP:** an XMP item with `content_encoding` `deflate` is decompressed (a zlib stream, or raw deflate
+  without the zlib header). Its decompressed size counts against `MaxMetadataBytes`, and a stream that would exceed
+  the limit raises `ImageFormatException` before more is allocated. Another encoding, or a corrupt or truncated
+  stream, leaves the image readable without that XMP block. With `IgnoreMetadata` the XMP is not decompressed.
 - **Item selection:** the primary item (`pitm`), or the image item `HeifDecoderOptions.ItemId` names (passed in
   `DecoderOptions.FormatOptions`, PictureSharp 0.7.6): another top-level image, a thumbnail, a grid tile or an
   auxiliary image. Alpha, metadata and the gain map are those that refer to the selected item, and `Identify`,

@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace PictureSharp.Formats.Heif.Container;
 
 internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOptions options, ImageDecodeContext? context)
@@ -185,11 +187,7 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
                 item.IsXmp = info.String().Span.SequenceEqual("application/rdf+xml"u8);
                 if (info.Remaining > 0)
                 {
-                    ReadOnlyMemory<byte> encoding = info.String();
-                    if (item.IsXmp && encoding.Length > 0 && !options.IgnoreMetadata)
-                    {
-                        throw new NotSupportedException("Compressed XMP is not supported.");
-                    }
+                    item.ContentEncoding = ContentEncoding(info.String().Span);
                 }
             }
             else if (item.Type == HeifFourCc.Uri)
@@ -299,6 +297,12 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
         Require(count <= MaxEntries - entryCount, "Too many container entries.");
         entryCount += count;
     }
+
+    // HTTP content codings are case-insensitive tokens; only deflate is decoded, other XMP blocks are skipped.
+    private static HeifContentEncoding ContentEncoding(ReadOnlySpan<byte> name) =>
+        name.IsEmpty ? HeifContentEncoding.None
+        : Ascii.EqualsIgnoreCase(name, "deflate"u8) ? HeifContentEncoding.Deflate
+        : HeifContentEncoding.Unknown;
 
     private static bool IsFieldSize(int size) => size is 0 or 4 or 8;
 

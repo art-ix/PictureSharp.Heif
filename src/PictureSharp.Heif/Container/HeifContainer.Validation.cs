@@ -34,7 +34,8 @@ internal sealed partial class HeifContainer
                     Require(total <= data.Length, "Item extents exceed the input size.");
                 }
 
-                if (item.IsExif || item.IsXmp)
+                // Compressed XMP is charged by its decompressed size when it is read.
+                if (item.IsExif || item.IsXmp && item.ContentEncoding == HeifContentEncoding.None)
                 {
                     ChargeMetadata(total);
                 }

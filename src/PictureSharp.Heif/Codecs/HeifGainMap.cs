@@ -104,7 +104,7 @@ internal sealed class HeifGainMap
 
         ReadOnlySpan<byte> exif = default;
         ReadOnlySpan<byte> xmp = default;
-        foreach ((bool isExif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(container.ImageItem))
+        foreach ((bool isExif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(container.ImageItem, MetadataKinds.Exif))
         {
             if (isExif && exif.IsEmpty && HeifMetadataReader.TryGetTiff(data.Span, out ReadOnlySpan<byte> tiff))
             {
@@ -112,7 +112,7 @@ internal sealed class HeifGainMap
             }
         }
 
-        foreach ((bool isExif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(source))
+        foreach ((bool isExif, ReadOnlyMemory<byte> data) in container.DescriptiveMetadata(source, MetadataKinds.Xmp))
         {
             if (!isExif && xmp.IsEmpty)
             {

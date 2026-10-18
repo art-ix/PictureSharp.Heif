@@ -183,11 +183,6 @@ internal sealed partial class HeifContainer
         return null;
     }
 
-    // Exif and XMP items describing the given image (cdsc references).
-    public IEnumerable<(bool Exif, ReadOnlyMemory<byte> Data)> DescriptiveMetadata(HeifItem image) =>
-        items.Values.Where(item => (item.IsExif || item.IsXmp) && item.RefersTo(HeifFourCc.Cdsc, image))
-            .Select(item => (item.IsExif, ItemData(item)));
-
     private HeifBox? PropertyOf(HeifItem item, uint type)
     {
         foreach (HeifBox property in item.Properties.Select(Property))

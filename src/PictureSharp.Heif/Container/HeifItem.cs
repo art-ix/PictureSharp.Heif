@@ -10,6 +10,7 @@ internal sealed class HeifItem(uint id)
     public bool Located { get; set; }
     public bool Associated { get; set; }
     public bool IsXmp { get; set; }
+    public HeifContentEncoding ContentEncoding { get; set; }
     public ushort ConstructionMethod { get; set; }
     public List<HeifExtent> Extents { get; } = [];
     public List<HeifAssociation> Properties { get; } = [];
@@ -22,6 +23,14 @@ internal sealed class HeifItem(uint id)
         References.TryGetValue(referenceType, out List<uint>? targets) ? targets : [];
 
     public bool RefersTo(uint referenceType, HeifItem target) => Targets(referenceType).Contains(target.Id);
+}
+
+// content_encoding of a mime item (ISO/IEC 23008-12 A.2.2), HTTP content codings.
+internal enum HeifContentEncoding
+{
+    None,
+    Deflate,
+    Unknown
 }
 
 internal readonly record struct HeifExtent(ulong Offset, ulong Length);

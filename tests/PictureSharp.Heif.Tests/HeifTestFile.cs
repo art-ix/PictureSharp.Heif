@@ -74,4 +74,80 @@ internal static class HeifTestFile
             locations ?? Iloc(), Box("iprp", properties ?? Box("ipco", Ispe(80, 60), Hvcc(bits), Pixi(bits)),
                 association ?? Ipma(Association(1, 1, 0x82, 3))), references ?? [],
             Box("idat", payload ?? [0, 0, 0, 0]), extra ?? []));
+
+    // Rewrites a HeifWriter file so its XMP item stores payload under the given content_encoding (the writer never
+    // compresses): the mime infe gains the encoding, method-0 offsets move by the growth and the XMP extent, the last one
+    // in mdat, is replaced.
+    public static byte[] WithEncodedXmp(byte[] file, byte[] payload, string encoding)
+    {
+        List<(string Type, byte[] Content)> top = Children(file);
+        if (top is not [("ftyp", var ftyp), ("meta", var meta), ("mdat", var mdat)])
+        {
+            throw new InvalidOperationException("Expected ftyp, meta and mdat.");
+        }
+
+        byte[] suffix = Text(encoding);
+        var metaParts = new List<byte[]> { meta[..4] };
+        uint xmpId = 0, oldLength = 0;
+        foreach ((string type, byte[] content) in Children(meta.AsSpan(4)))
+        {
+            if (type == "iinf")
+            {
+                var infos = new List<byte[]> { content[..6] };
+                foreach ((string infeType, byte[] infe) in Children(content.AsSpan(6)))
+                {
+                    bool mime = Encoding.ASCII.GetString(infe, 8, 4) == "mime";
+                    xmpId = mime ? BinaryPrimitives.ReadUInt16BigEndian(infe.AsSpan(4)) : xmpId;
+                    infos.Add(Box(infeType, infe, mime ? suffix : []));
+                }
+
+                metaParts.Add(Box(type, Join([.. infos])));
+            }
+            else if (type == "iloc")
+            {
+                // Version 1, 4-byte offsets and lengths, one extent per item (16 bytes); HeifWriter writes iinf first.
+                byte[] iloc = content.ToArray();
+                for (int entry = 8; entry < iloc.Length; entry += 16)
+                {
+                    Span<byte> offset = iloc.AsSpan(entry + 8, 4), length = iloc.AsSpan(entry + 12, 4);
+                    if (BinaryPrimitives.ReadUInt16BigEndian(iloc.AsSpan(entry + 2)) == 0)
+                    {
+                        BinaryPrimitives.WriteUInt32BigEndian(offset, BinaryPrimitives.ReadUInt32BigEndian(offset) + (uint)suffix.Length);
+                    }
+
+                    if (BinaryPrimitives.ReadUInt16BigEndian(iloc.AsSpan(entry)) == xmpId)
+                    {
+                        oldLength = BinaryPrimitives.ReadUInt32BigEndian(length);
+                        BinaryPrimitives.WriteUInt32BigEndian(length, (uint)payload.Length);
+                    }
+                }
+
+                metaParts.Add(Box(type, iloc));
+            }
+            else
+            {
+                metaParts.Add(Box(type, content));
+            }
+        }
+
+        if (xmpId == 0 || oldLength == 0)
+        {
+            throw new InvalidOperationException("The file has no XMP item.");
+        }
+
+        return Join(Box("ftyp", ftyp), Box("meta", Join([.. metaParts])), Box("mdat", mdat[..^(int)oldLength], payload));
+    }
+
+    private static List<(string Type, byte[] Content)> Children(ReadOnlySpan<byte> data)
+    {
+        var boxes = new List<(string, byte[])>();
+        while (!data.IsEmpty)
+        {
+            int size = (int)BinaryPrimitives.ReadUInt32BigEndian(data);
+            boxes.Add((Encoding.ASCII.GetString(data.Slice(4, 4)), data[8..size].ToArray()));
+            data = data[size..];
+        }
+
+        return boxes;
+    }
 }
