@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: 0.6.1, przygotowana 2026-10-18; minimalny PictureSharp 0.7.6.** Wtyczka formatu w C#, bez bibliotek
+**Bieżąca wersja: 0.6.1, wydana 2026-10-18; minimalny PictureSharp 0.7.6.** Wtyczka formatu w C#, bez bibliotek
 natywnych, z własnym dekoderem i enkoderem HEVC intra.
 
 - Odczyt: kontener HEIF (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 i 4:0:0, siatki, `iden`,
@@ -34,7 +34,7 @@ wersji 0.1.0–0.6.0 (DoD, wyniki, pomiary, kryteria enkodera): [docs/history.md
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.1 | Zamknięta lokalnie |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Wydana 2026-10-17 (pierwsze publiczne wydanie) |
 | 0.6.0 | `HeifDecoderOptions.ItemId` przez `DecoderOptions.FormatOptions` | 0.7.6 | Wydana 2026-10-18 |
-| 0.6.1 | Skompresowane XMP: zlib/deflate i limity | 0.7.6 | Przygotowana do wydania 2026-10-18 |
+| 0.6.1 | Skompresowane XMP: zlib/deflate i limity | 0.7.6 | Wydana 2026-10-18 |
 | 0.6.2 | Katalog `HeifDocument`, powiązania, auxiliary, odczyt i generowanie miniatur | 0.7.6 (założenie) | Planowana |
 | 0.6.3 | Surowe próbki depth, rozpoznawanie par Live Photo | 0.7.6 (założenie) | Planowana |
 | 0.7.0 | Integracja, regresje, dokumentacja i paczka całego zakresu | 0.7.6 (założenie) | Planowana |
