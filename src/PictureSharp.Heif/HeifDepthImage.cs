@@ -20,6 +20,7 @@ public sealed class HeifDepthImage
         Samples = samples;
         Exif = exif;
         Xmp = xmp;
+        AppleDepth = HeifAppleDepthInfo.FromXmp(xmp.Span);
     }
 
     /// <summary>The identifier of the depth or disparity item.</summary>
@@ -54,4 +55,31 @@ public sealed class HeifDepthImage
     /// with <see cref="DecoderOptions.IgnoreMetadata"/>. Apple stores its depth description here.
     /// </summary>
     public ReadOnlyMemory<byte> Xmp { get; }
+
+    /// <summary>
+    /// Apple's description of the samples read from <see cref="Xmp"/> (declared kind, value range, simulated aperture),
+    /// or null when the XMP is absent, malformed or not Apple's. Required by <see cref="HeifPortrait.Render"/>.
+    /// </summary>
+    public HeifAppleDepthInfo? AppleDepth { get; }
+
+    /// <summary>
+    /// Creates an opaque greyscale image of the samples at their own size for viewing. Samples are stretched linearly
+    /// from the described integer range (<see cref="AppleDepth"/>), or from 0 to the largest code of
+    /// <see cref="BitDepth"/>, to 0–255 with rounding; values outside the range are clipped. Apple disparity is bright
+    /// for near objects. Resize the result to overlay it on the photograph.
+    /// </summary>
+    public Image ToImage()
+    {
+        int low = AppleDepth?.IntMinValue ?? 0, high = AppleDepth?.IntMaxValue ?? (1 << BitDepth) - 1;
+        var image = new Image(Width, Height);
+        Span<Rgba32> pixels = image.GetPixelSpan();
+        ReadOnlySpan<ushort> samples = Samples.Span;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            byte value = (byte)Math.Clamp(((samples[i] - low) * 510 + (high - low)) / (2 * (high - low)), 0, 255);
+            pixels[i] = new Rgba32(value, value, value);
+        }
+
+        return image;
+    }
 }

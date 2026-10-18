@@ -1,117 +1,106 @@
 # Decoding HEIC
 
-After registering `HeifFormat`, `Image.Load` decodes the primary image into straight-alpha `Rgba32`:
+Examples assume `HeifFormat` is registered in `ImageConfiguration.Default` (see the README).
 
 ```csharp
-using PictureSharp;
-using PictureSharp.Formats.Heif;
-
-var configuration = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
-using Image image = Image.Load(File.ReadAllBytes("photo.heic").AsSpan(), new DecoderOptions { Configuration = configuration });
-Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccProfile is not null}");
+using Image image = Image.Load("photo.heic");                              // primary image, straight-alpha Rgba32
+ImageInfo info = Image.Identify("photo.heic");                             // size and bit depth, no pixel decoding
+ImageMetadata metadata = Image.ReadMetadata("photo.heic");                 // ICC, EXIF, XMP, no pixel decoding
 ```
 
 ## What is decoded
 
-- **HEVC:** an intra decoder ported from HM 16.20, with vector paths (`Vector128`/`Vector256`) identical to its scalar
-  code: Main, Main 10 and Main Still Picture, 4:2:0 and monochrome, tiles, wavefronts, slices, PCM, scaling lists,
-  transform skip, deblocking and SAO. Inter slices, 4:2:2/4:4:4, more than 10 bits and range extension or screen
-  content tools raise `NotSupportedException`.
-- **Images:** `hvc1`, `grid` (tiles assembled before colour conversion) and `iden` items. `clap`, `irot` and `imir`
-  apply in association order; `irot` turns anti-clockwise and `imir` mode 0 swaps top and bottom, mode 1 left and
-  right, as in libheif.
-- **Alpha:** the auxiliary alpha image (`urn:mpeg:hevc:2015:auxid:1` or the MPEG-B alpha URN). Premultiplied colour
-  (`prem`) becomes straight alpha with PictureSharp's rounding.
-- **Metadata:** ICC (`colr prof`/`rICC`) and the EXIF and XMP items linked by `cdsc`. Pixels are already oriented, so
-  the EXIF orientation is set to `TopLeft` and `ApplyExifOrientation` never rotates twice. Without ICC, non-BT.709
-  primaries become `Chromaticities` with an approximate `Gamma`; `ColorConversion = ToSrgb` on PQ or HLG raises
-  `NotSupportedException`. `Image.ReadMetadata` returns the same metadata without decoding HEVC; `EditMetadata` is not
-  supported.
-- **Compressed XMP:** `content_encoding` `deflate` (zlib, or raw deflate) is decompressed within `MaxMetadataBytes`;
-  a stream that would exceed it raises `ImageFormatException` before allocating more. Another encoding or a corrupt
-  stream drops only that XMP block. `IgnoreMetadata` skips decompression.
-- **Item selection:** the primary item (`pitm`), or the image item `HeifDecoderOptions.ItemId` names in
-  `DecoderOptions.FormatOptions`: another photo, a thumbnail, a tile or an auxiliary image, with its own alpha,
-  metadata and gain map, for `Identify`, `Load` and `ReadMetadata`. A missing ID or a non-image item raises
-  `ImageFormatException`.
-- **Options and threads:** `TargetSize`, `ApplyExifOrientation`, `ColorConversion`, the pixel, input and metadata
-  limits, `IgnoreMetadata` and cancellation behave as for built-in formats. Tiles decode in parallel, and conversion
-  and transforms run in row bands, up to `MaxDegreeOfParallelism`; neither the pixels nor the error for a damaged file
-  depend on it.
+- **HEVC:** an intra decoder ported from HM 16.20: Main, Main 10 and Main Still Picture, 4:2:0 and monochrome, with
+  tiles, wavefronts, slices, PCM, scaling lists, transform skip, deblocking and SAO. Inter slices, 4:2:2/4:4:4, more
+  than 10 bits, range extensions and screen content tools throw `NotSupportedException`.
+- **Images:** `hvc1`, `grid` and `iden` items. `clap`, `irot` and `imir` are applied in container order, as in libheif.
+  The EXIF orientation is then set to `TopLeft`, so `ApplyExifOrientation` never rotates twice.
+- **Alpha:** the auxiliary alpha image; premultiplied alpha (`prem`) becomes straight alpha.
+- **Metadata:** ICC and the EXIF and XMP items of the image. XMP compressed with `deflate` is decompressed within
+  `MaxMetadataBytes`; a corrupt or unknown encoding drops only that block. Without ICC, the nclx colour becomes
+  `Chromaticities` and an approximate `Gamma`. `EditMetadata` is not supported.
+- **Other items:** `HeifDecoderOptions.ItemId` (in `DecoderOptions.FormatOptions`) selects another photo, a thumbnail,
+  a tile or an auxiliary image for `Identify`, `Load` and `ReadMetadata`. `HeifDocument` does the same by item; see
+  [catalogue](container.md#catalogue-and-image-selection-062).
+- **Options:** `TargetSize`, `ApplyExifOrientation`, `ColorConversion`, the limits, `IgnoreMetadata` and cancellation
+  behave as for built-in formats. Tiles decode in parallel up to `MaxDegreeOfParallelism`; the result never depends on
+  it.
 
 ## Embedded previews
 
-`Image.Load` with `TargetSize` decodes the full image before resizing. To use an embedded thumbnail:
+`Image.Load` with `TargetSize` decodes the whole photo first. `LoadPreview` uses an embedded thumbnail when one is
+large enough:
 
 ```csharp
 var document = await HeifDocument.OpenAsync("photo.heic");
-var options = new DecoderOptions { Configuration = configuration };
-var size = new System.Drawing.Size(320, 240);
-HeifItemInfo? thumbnail = document.FindThumbnail(document.PrimaryImage, size); // null: the photo is resized
-using Image preview = document.LoadPreview(document.PrimaryImage, size, options);
+using Image preview = document.LoadPreview(document.PrimaryImage, new(320, 240));
 ```
 
-`LoadPreview` fits inside the target without enlarging. It picks the smallest supported thumbnail that covers the
-needed size with the photo's proportions (one pixel of rounding allowed; ties take the lower ID). Without one, or
-when the chosen thumbnail's bitstream turns out unsupported, it resizes the photo; corrupt data, limits and
-cancellation are reported. `FindThumbnail` returns the choice without decoding.
-
-The preview keeps its own colour, alpha, transforms and metadata, and may differ from the photo in framing and
-compression; use `LoadImage` with `TargetSize` when the photo itself is required. Each read takes independent
-`DecoderOptions` (null means core defaults); the item overrides `ItemId`, and previews also override `TargetSize`.
-An item that is not an image, or belongs to another document, throws `ArgumentException`. Returned images belong to
-the caller.
+It picks the smallest thumbnail with the photo's proportions that covers the size, and otherwise resizes the photo;
+the result fits inside the size without enlarging. `FindThumbnail` returns the choice without decoding. A thumbnail
+may differ from the photo in framing and colour; use `LoadImage` with `TargetSize` when the photo itself is needed.
 
 ## HDR gain maps
 
-With `DecoderOptions.LoadGainMap`, the primary image's gain map is attached, so `Image.Hdr`, `ToHdr` and `ToneMap`
-work as for JPEG and `Identify` reports `ImageInfo.Hdr`.
+With `DecoderOptions.LoadGainMap`, the gain map is attached to the image, so `ToHdr` and `ToneMap` work as for JPEG:
 
-- **ISO 21496-1:** a `tmap` item deriving (`dimg`) from the primary image and the map. Its payload is version 0 and the
-  ISO metadata; its `colr prof` is the alternate rendition's profile. Other versions are `NotSupportedException`
-  through `Image.Hdr`.
-- **Apple:** an auxiliary image `urn:com:apple:photo:2020:aux:hdrgainmap`, with the headroom from the EXIF MakerNote
-  (or the map's XMP).
-- iOS 18 and later describe one map both ways; ISO wins, as in PictureSharp's JPEG reader, invalid ISO metadata never
-  falls back to Apple, and `HdrInfo.Detected` reports both.
-- The map is rendered with its own transforms at its stored size (monochrome becomes gray RGB). Its data is copied at
-  load time and decoded on demand. The base image keeps its colour description even with `IgnoreMetadata`.
-- Invalid or unsupported map metadata never fails the load: `Image.Hdr.CanDecode` is false and `ToHdr` throws.
+```csharp
+using var photo = Image.Load("photo.heic", new DecoderOptions { LoadGainMap = true });
+using HdrImage hdr = photo.ToHdr();
+using Image sdr = hdr.ToneMap();
+```
+
+Both kinds are read: ISO 21496-1 (a `tmap` item) and Apple's (auxiliary image `urn:com:apple:photo:2020:aux:hdrgainmap`
+with the headroom from the MakerNote). When iOS 18+ stores both, ISO wins, as in PictureSharp's JPEG reader. A damaged
+or unsupported map never fails the load: `Image.Hdr.CanDecode` is false and `ToHdr` throws.
 
 ## Depth samples
 
-Portrait photos store depth or disparity as an auxiliary image. `LoadDepth` returns its raw samples:
+Portrait photos carry a depth (on iPhone: disparity) map as an auxiliary image:
 
 ```csharp
-HeifItemInfo? item = document.PrimaryImage.AuxiliaryImages
-    .FirstOrDefault(a => a.Auxiliary?.Kind is HeifAuxiliaryKind.Depth or HeifAuxiliaryKind.Disparity);
-if (item is not null)
-{
-    HeifDepthImage depth = document.LoadDepth(item);
-    ushort centre = depth.Samples.Span[(depth.Height / 2 * depth.Width) + (depth.Width / 2)];
-    Console.WriteLine($"{depth.Auxiliary.Type}: {depth.Width}x{depth.Height}, {depth.BitDepth}-bit, centre {centre}");
-}
+HeifDepthImage depth = document.LoadDepth(document.PrimaryImage.FindDepthImage()!);
+using Image map = depth.ToImage();                                         // greyscale, near is bright
+float? centre = depth.AppleDepth?.ToFloat(depth.Samples.Span[depth.Samples.Length / 2]);   // disparity in 1/m
 ```
 
-- Samples are the decoded luma at the coded bit depth (8 or 10), before colour conversion; chroma is ignored. Grids,
-  `clap`, `irot` and `imir` move samples without changing them. Nothing is scaled or converted.
-- `Auxiliary` keeps the original type and subtype, `Exif` and `Xmp` are the depth item's own `cdsc` blocks (empty with
-  `IgnoreMetadata`), and `PhotoItemId` is the `auxl` target.
-- Limits are checked before allocating (`MaxPixels` for the item and its tiles, `MaxMetadataBytes`); cancellation and
-  `MaxDegreeOfParallelism` apply. Other items throw `ArgumentException`; corrupt or unsupported items throw as
-  `LoadImage` does.
+- `Samples` are the decoded luma values at the coded bit depth (8 or 10), with grids and transforms applied but nothing
+  scaled or converted. `Exif` and `Xmp` are the depth item's own metadata.
+- `AppleDepth` reads Apple's XMP: the declared kind (`Depth` or `Disparity`), the value range, `SimulatedAperture`, raw
+  camera calibration and the private `RenderingParameters` as bytes. It is null without Apple XMP. `ToFloat` maps a
+  sample linearly from `IntMinValue`–`IntMaxValue` to `FloatMinValue`–`FloatMaxValue`.
+- `Auxiliary.Kind` follows the container's aux type only. iPhones store disparity under the generic depth type, so the
+  kind is `Depth` while `AppleDepth.Kind` is `Disparity`.
+- Mattes are found by type with `FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte)` (also skin, hair,
+  teeth, glasses and sky) and load with `LoadImage` as greyscale images at half size.
+- Limits are checked before allocating; other items throw `ArgumentException`.
 
-**iPhone Portrait photos.** `Auxiliary.Kind` follows the aux type alone. iPhones store **disparity** under the generic
-depth type `urn:mpeg:hevc:2015:auxid:2`, so the kind is `Depth`, while the item's XMP says
-`apdi:AuxiliaryImageType="disparity"`. Samples are 8-bit quantizations of Float16 values: value = `FloatMinValue` +
-sample / 255 × (`FloatMaxValue` − `FloatMinValue`), with the range in the same XMP; the plugin does not apply it. The
-main image is sharp: Photos renders the background blur from the disparity, the portrait mattes
-(`urn:com:apple:photo:2018:aux:portraiteffectsmatte` and semantic mattes, kind `Other`) and
-`depthBlurEffect:SimulatedAperture`, so `Image.Load` and conversion to JPEG give the photo without the blur.
+## Portrait effect
+
+iPhone keeps a Portrait photo sharp and blurs the background only when Photos displays it, so `Image.Load` and
+conversion to JPEG give the photo without the blur. `RenderPortrait` approximates the effect and returns a new image:
+
+```csharp
+using Image portrait = document.RenderPortrait(document.PrimaryImage);                        // photo's own f-number
+using Image wide = document.RenderPortrait(document.PrimaryImage, new() { Aperture = 1.4f }); // stronger blur
+using Image refocused = document.RenderPortrait(document.PrimaryImage, new() { FocusPoint = new(400, 900) });
+```
+
+- The blur radius grows with the distance from the focus and as the aperture opens (f/1.4–f/16; default: the photo's
+  `SimulatedAperture`). The focus defaults to the subject under the portrait matte.
+- The matte keeps people near the focus sharp and their colour out of the background; people far behind the focus are
+  blurred like their surroundings. Pixels in focus are copied unchanged.
+- Metadata and alpha are kept; the HDR gain map is not attached to the result. `HeifPortrait.Render` does the same for
+  a photo, depth and matte loaded separately.
+- `MaxPixels` limits the working buffers (about twice the photo), and the result does not depend on the thread count.
+
+Apple's algorithm is private, so this is an approximation fitted to photos exported by Photos with the effect: their
+background PSNR rose from 21–28 dB without blur to 33–40 dB, with the subject unchanged. Bokeh shapes, highlights and
+Portrait Lighting are not reproduced. Rendering takes about 0.3 s for 12 MP and 0.5 s for 24 MP (i5-12500H).
 
 ## Live Photo pairs
 
-`LivePhotoPair` checks whether a given photo (HEIC or JPEG) and movie (MOV) form a Live Photo:
+`LivePhotoPair` checks whether a photo (HEIC or JPEG) and a MOV belong together:
 
 ```csharp
 LivePhotoPair pair = await LivePhotoPair.ReadAsync("IMG_8113.HEIC", "IMG_8113.MOV");
@@ -119,67 +108,46 @@ if (pair.Status == LivePhotoPairStatus.Matched)
     Console.WriteLine($"Still image at {pair.StillImageTime?.TotalSeconds:0.000} s");
 ```
 
-- The photo's ContentIdentifier is tag 0x0011 of the Apple MakerNote, read with `Image.ReadMetadata` (`HeifFormat` is
-  added to the configuration when missing); the movie's is `com.apple.quicktime.content.identifier` in `moov/meta` or
-  `moov/udta/meta`.
-- `Status` is `Matched` for equal identifiers (ordinal), `MissingIdentifier` when either is absent and
-  `ConflictingIdentifiers` when they differ. File names are never used.
-- `StillImageTime` is the presentation time of the `com.apple.quicktime.still-image-time` sample after the track's
-  edit list, or null.
-- Only box headers are read up to `moov`, which must fit in `MaxMetadataBytes`; media data is skipped by seeking or
-  reading forward. A non-QuickTime, truncated or corrupt movie throws `ImageFormatException`. Streams are read from
-  their current position and left open. Writing or decoding the movie is out of scope.
+The photo's ContentIdentifier (Apple MakerNote) is compared with the movie's
+(`com.apple.quicktime.content.identifier`): `Matched`, `MissingIdentifier` or `ConflictingIdentifiers`. File names are
+never used. `StillImageTime` is the time of the still image in the movie, or null. Only the movie's headers up to
+`moov` are read (within `MaxMetadataBytes`); a corrupt movie throws `ImageFormatException`.
 
 ## Colour conversion
 
-Colour comes from the item's `colr nclx`, else the HEVC VUI, else the HEVC defaults (BT.601, limited range). Matrix
-coefficients 1, 2, 4, 5, 6, 7 and 9 are supported. The conversion reproduces `heif-dec` from libheif 1.20.2 exactly:
+Colour comes from the item's nclx, else the HEVC VUI, else BT.601 limited range. Matrices 1, 2, 4, 5, 6, 7 and 9 are
+supported, and the result equals `heif-dec` (libheif 1.20.2) exactly:
 
 | Case | Chroma upsampling | Arithmetic |
 | --- | --- | --- |
-| 8-bit, full range | nearest neighbour | fixed point, coefficients `round(k × 256)`, `(v + 128) >> 8` |
-| 8-bit limited range, 10-bit | nearest neighbour | `float`, limited-range scales 1.1689 (luma) and 1.1429 (chroma), `floor(x + 0.5)` |
-| `clap` starting at an odd column or row | bilinear `(9a + 3b + 3c + d + 8) >> 4` on the whole image | `float` as above |
+| 8-bit full range | nearest | fixed point, `round(k × 256)`, `(v + 128) >> 8` |
+| 8-bit limited range, 10-bit | nearest | `float`, `floor(x + 0.5)` |
+| crop starting at an odd column or row | bilinear `(9a + 3b + 3c + d + 8) >> 4` | `float` |
 
-Monochrome copies luma to R, G and B. 10-bit results become 8-bit with `round(v × 255 / 1023)`, as PictureSharp
-does for 16-bit PNG.
+Monochrome becomes grey RGB; 10-bit values become 8-bit with `round(v × 255 / 1023)`.
 
 ## Speed
 
-Decoding to `Rgba32`, best of five runs, against libheif with libde265 decoding to RGBA. Intel Core i5-12500H
-(16 threads, libheif 1.20.2):
+Decoding to `Rgba32`, best of five runs, against libheif with libde265:
 
-| Photo | PictureSharp.Heif, 1 thread | all threads | libheif, 1 thread | all threads |
-| --- | --- | --- | --- | --- |
-| 12 MP iPhone (grid of 48 tiles) | 646 ms | 109 ms | 613 ms | 237 ms |
-| 24 MP iPhone (grid of 45 tiles) | 1195 ms | 193 ms | 981 ms | 394 ms |
-| 48 MP (grid of 192 tiles) | 1009 ms | 165 ms | 973 ms | 416 ms |
-| 48 MP (one picture, x265) | 1096 ms | 1092 ms | 935 ms | 938 ms |
+| Photo | i5-12500H, 1 thread | 16 threads | libheif 16 threads | Orange Pi 5 (ARM64), 8 threads | libheif |
+| --- | --- | --- | --- | --- | --- |
+| 12 MP iPhone (48 tiles) | 646 ms | 109 ms | 237 ms | 347 ms | 820 ms |
+| 24 MP iPhone (45 tiles) | 1195 ms | 193 ms | 394 ms | 651 ms | 2701 ms |
+| 48 MP (192 tiles) | 1009 ms | 165 ms | 416 ms | 718 ms | 2392 ms |
+| 48 MP (one picture) | 1096 ms | 1092 ms | 938 ms | 2658 ms | 4151 ms |
 
-Orange Pi 5 (ARM64 RK3588, 4 + 4 cores, Ubuntu libheif 1.17.6):
-
-| Photo | PictureSharp.Heif, 1 thread | all threads | libheif, 1 thread | all threads |
-| --- | --- | --- | --- | --- |
-| 12 MP iPhone (grid of 48 tiles) | 1593 ms | 347 ms | 2222 ms | 820 ms |
-| 24 MP iPhone (grid of 45 tiles) | 2733 ms | 651 ms | 4471 ms | 2701 ms |
-| 48 MP (grid of 192 tiles) | 2618 ms | 718 ms | 4335 ms | 2392 ms |
-| 48 MP (one picture, x265) | 2885 ms | 2658 ms | 4123 ms | 4151 ms |
-
-A single HEVC picture decodes on one thread. Vector and scalar paths give the same pixels on both architectures.
-Full data: `docs/measurements/speed-x64.tsv` and `speed-arm64.tsv`.
+A single picture decodes on one thread. Vector and scalar code give the same pixels. Data:
+`docs/measurements/speed-x64.tsv` and `speed-arm64.tsv`.
 
 ## Verification
 
-- 43 raw HEVC streams from HM and kvazaar (`tests/assets/generate-hevc-corpus.py`) and the HEVC items of the HEIC corpus
-  must match HM's YCbCr hashes (libde265 agrees unless its own hash check rejects its output).
-- Every corpus file must match `heif-dec` RGB (`tests/assets/generate-corpus.py`): BT.601/709/2020, both ranges, 8 and
-  10 bits, VUI-only and absent colour, monochrome, straight, premultiplied and 10-bit alpha, grids, all transforms,
-  even and odd clean apertures, ICC, EXIF and XMP.
-- `Category=Conformance`: the first picture of 145 JCT-VC HEVC v1 conformance streams matches HM bit for bit
-  (`scripts/fetch-jctvc-conformance.py --approved`, hashes in `scripts/jctvc-conformance-v1.sha256`).
-- Gain map corpus files and private iPhone photos: `ToHdr` equals PictureSharp's reconstruction from the map
-  `heif-dec` writes, bit for bit.
-- Depth samples match HM and libde265 for 8- and 10-bit, grids, odd crops and transforms (`Category=Oracle`) and on
-  private Portrait photos (`Category=Local`).
-- `Category=Local` also checks every HEVC item of private photos against HM and libde265 and whole photos against
-  `heif-dec`; `Category=Slow` fuzzes the HEVC decoder and the HEIF decode path, and every run fuzzes the MOV parser.
+- HEVC: 43 HM/kvazaar streams, the HEIC corpus and 145 JCT-VC conformance streams (`Category=Conformance`) match HM
+  bit for bit.
+- RGB: every corpus file matches `heif-dec` (colour spaces, ranges, bit depths, alpha, grids, transforms, crops,
+  metadata); `ToHdr` matches the reconstruction from the map `heif-dec` writes.
+- Depth samples match HM and libde265 (`Category=Oracle`).
+- Portrait rendering: subject pixels stay bit-exact, background detail drops as the aperture opens, and output is the
+  same for any thread count.
+- `Category=Local` repeats the checks on private iPhone photos and compares Portrait renderings with Photos exports;
+  `Category=Slow` fuzzes the decoder.

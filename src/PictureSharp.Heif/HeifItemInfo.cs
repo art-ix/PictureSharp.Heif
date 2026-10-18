@@ -58,6 +58,23 @@ public sealed class HeifItemInfo
     /// <summary>Items whose cdsc reference points to this item (EXIF, XMP), in identifier order.</summary>
     public IReadOnlyList<HeifItemInfo> MetadataItems { get; private set; } = [];
 
+    /// <summary>
+    /// The first auxiliary image of this item (in identifier order) whose <see cref="HeifAuxiliaryInfo.Type"/> equals
+    /// <paramref name="auxiliaryType"/>, such as <see cref="HeifAppleAuxiliaryTypes.PortraitEffectsMatte"/>; null when none.
+    /// </summary>
+    public HeifItemInfo? FindAuxiliaryImage(string auxiliaryType)
+    {
+        ArgumentNullException.ThrowIfNull(auxiliaryType);
+        return AuxiliaryImages.FirstOrDefault(item => item.Auxiliary?.Type == auxiliaryType);
+    }
+
+    /// <summary>
+    /// The first depth or disparity auxiliary image of this item (<see cref="HeifAuxiliaryKind.Depth"/> or
+    /// <see cref="HeifAuxiliaryKind.Disparity"/>), as <see cref="HeifDocument.LoadDepth"/> reads it; null when none.
+    /// </summary>
+    public HeifItemInfo? FindDepthImage() =>
+        AuxiliaryImages.FirstOrDefault(item => item.Auxiliary?.Kind is HeifAuxiliaryKind.Depth or HeifAuxiliaryKind.Disparity);
+
     // Resolves relationships once every item of the document exists; references were validated on opening.
     internal void Link(IReadOnlyDictionary<uint, HeifItemInfo> items)
     {

@@ -247,6 +247,35 @@ public sealed class HeifDocument
         return new HeifDepthImage(depth.Id, photo, auxiliary, samples.Width, samples.Height, bitDepth, samples.Pixels, exif, xmp);
     }
 
+    /// <summary>
+    /// Loads the photograph, its depth (<see cref="HeifItemInfo.FindDepthImage"/>) and its portrait matte when present
+    /// (<see cref="HeifAppleAuxiliaryTypes.PortraitEffectsMatte"/>), and renders the depth-of-field effect with
+    /// <see cref="HeifPortrait.Render"/>. Each item is read with <paramref name="options"/> except TargetSize, which
+    /// applies to the photograph only; the depth and matte are resampled to it.
+    /// </summary>
+    /// <exception cref="ArgumentException">The item is not an image of this document, or has no depth or disparity image.</exception>
+    /// <exception cref="NotSupportedException">The depth item has no Apple depth description, or an item uses unsupported coding.</exception>
+    /// <exception cref="ImageFormatException">An item is corrupt, the depth or matte is inconsistent with the photograph, or a limit is exceeded.</exception>
+    public Image RenderPortrait(HeifItemInfo photo, HeifPortraitOptions? portrait = null, DecoderOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        CheckImage(photo);
+        HeifItemInfo depthItem = photo.FindDepthImage()
+            ?? throw new ArgumentException($"HEIF item {photo.Id} has no depth or disparity image.", nameof(photo));
+        HeifDepthImage depth = LoadDepth(depthItem, options, cancellationToken);
+        if (depth.AppleDepth is null)
+        {
+            throw new NotSupportedException($"HEIF depth item {depthItem.Id} has no Apple depth description.");
+        }
+
+        DecoderOptions auxiliary = (options ?? DecoderOptions.Default) with { TargetSize = null };
+        using Image image = LoadImage(photo, options, cancellationToken);
+        using Image? matte = photo.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte) is { IsSupported: true } matteItem
+            ? LoadImage(matteItem, auxiliary, cancellationToken)
+            : null;
+        return HeifPortrait.RenderCore(image, depth, matte, portrait, fromFile: true, cancellationToken);
+    }
+
     private DecoderOptions ReadOptions(HeifItemInfo image, DecoderOptions? options)
     {
         CheckImage(image);

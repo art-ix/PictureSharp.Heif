@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.6.4: raw depth and disparity samples (HeifDocument.LoadDepth, HeifDepthImage) at the coded bit depth with grids and transforms, and Live Photo pairing (LivePhotoPair) of a HEIC/JPEG photo and a MOV by ContentIdentifier, with the still image time. Image decoding unchanged. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.4/docs/releases/release-0.6.4.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.5: Apple Portrait effect. HeifAppleDepthInfo reads the depth item's Apple XMP (disparity range, simulated aperture, raw calibration); HeifDepthImage.AppleDepth and ToImage; Apple matte types and FindAuxiliaryImage/FindDepthImage; HeifDocument.RenderPortrait and HeifPortrait.Render approximate the depth-of-field blur Photos applies at display time (aperture, focus point, matte-protected subject; not identical to Photos). Image decoding unchanged. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.5/docs/releases/release-0.6.5.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

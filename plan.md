@@ -2,12 +2,13 @@
 
 ## Status and goal
 
-**Current version: 0.6.4, released 2026-10-18; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.5, prepared 2026-10-18, not yet published (last released: 0.6.4); minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
   without HEVC decoding, item selection through `HeifDecoderOptions.ItemId`, compressed XMP (`deflate`), raw depth
-  samples (`LoadDepth`), Live Photo pairing with MOV (`LivePhotoPair`). P/B slices, RExt, SCC, PQ/HLG, sequences →
+  samples (`LoadDepth`), Apple depth description (`AppleDepth`) and Portrait effect rendering (`RenderPortrait`), Live
+  Photo pairing with MOV (`LivePhotoPair`). P/B slices, RExt, SCC, PQ/HLG, sequences →
   `NotSupportedException`.
 - Writing: HEVC Main 8-bit 4:2:0, alpha 4:0:0, tile grid, nclx/ICC, Exif/XMP (`SaveAsHeic`, `HeifEncoderOptions`).
 - SIMD on x64/ARM64 bit-identical to scalar, parallel tiles, result independent of the thread count.
@@ -39,7 +40,7 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.2 | `HeifDocument` catalog, references, auxiliary images, reading and generating thumbnails | 0.7.6 | Released 2026-10-18 |
 | 0.6.3 | `HeifDocument` API correction (incompatible with 0.6.2) | 0.7.6 | Released 2026-10-18 |
 | 0.6.4 | Raw depth samples, Live Photo pair detection | 0.7.6 | Released 2026-10-18 |
-| 0.6.5 | Apple portrait effect: disparity description, depth-of-field rendering | 0.7.6 (assumed) | Planned |
+| 0.6.5 | Apple portrait effect: disparity description, depth-of-field rendering | 0.7.6 | Prepared 2026-10-18, not published |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.7.6 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
 
@@ -175,6 +176,21 @@ photo without blur.
   guides tuning of the blur kernel, radius curve and matte blending. Visual review by the user on
   their own photos (a manual check, not a compatibility claim). XML docs, guide section, API snapshot.
 
+- **Status (2026-10-18):** release prepared (VERSION, notes, package), not published. API: `HeifAppleDepthInfo` (`FromXmp`, `ToFloat`),
+  `HeifDepthImage.AppleDepth` and `ToImage` (greyscale view of the map, added at the user's request),
+  `HeifAppleAuxiliaryTypes`, `HeifItemInfo.FindAuxiliaryImage`/`FindDepthImage`, `HeifPortrait.Render`,
+  `HeifDocument.RenderPortrait`, `HeifPortraitOptions` (aperture, focus point, `MaxPixels`, parallelism). Radius
+  model fitted on the four pairs: r = 0.0055 · L · φ^1.5 · ((4.5 / N) · |D − Df| − 0.02), with L the longer side, φ the
+  focal length over the sensor's longer side from the intrinsics and D disparity in 1/m; the matte protects only
+  pixels with a small radius (a person far behind the focus is blurred, as in Photos). Layers: radii ≤ 3 px gathered
+  directly, larger ones from a 2×2 box pyramid (Half storage), normalized convolution without the protected subject,
+  linear light. Local: background PSNR 22.2→32.9, 21.7→33.3, 21.1→32.6, 27.6→40.0 dB, SSIM 0.52–0.70 → 0.96–0.98,
+  subject unchanged (−0.5 to +11 dB); `HeifPortrait.Render` 0.27–0.38 s at 12 MP and 0.50–0.53 s at 24 MP,
+  `RenderPortrait` with decoding 0.37–0.90 s and 0.41–1.1 GiB allocated (i5-12500H). Full tests 513/514 (Kodak
+  measurement skipped) with Oracle and Local, 0 warnings. Released without further tests at the user's decision:
+  scalar only (no SIMD, so no SIMD/ARM64 identity to check), no ARM64 run and no package consumer/Native AOT rerun.
+  [Release notes](docs/releases/release-0.6.5.md).
+
 ### 0.7.0 — integration and closing the scope
 
 - No new features: regression of the catalog, thumbnails, depth, portrait effect, HDR and Live Photo; a corpus with combinations of
@@ -242,6 +258,7 @@ SPI needs are reported to the core plan; we do not work around them by copying i
 
 ## Changelog
 
+- [0.6.5](docs/releases/release-0.6.5.md): Apple Portrait effect (`HeifAppleDepthInfo`, `RenderPortrait`, `HeifPortrait`, `HeifDepthImage.ToImage`).
 - [0.6.4](docs/releases/release-0.6.4.md): raw depth samples (`LoadDepth`, `HeifDepthImage`) and Live Photo pairing (`LivePhotoPair`).
 - [0.6.3](docs/releases/release-0.6.3.md): `HeifDocument` API correction (incompatible with 0.6.2), `ReadMetadata`, `FindThumbnail`.
 - [0.6.2](docs/releases/release-0.6.2.md): catalog of photos and relations, preview selection and thumbnail generation.

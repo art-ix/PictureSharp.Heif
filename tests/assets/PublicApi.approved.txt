@@ -1,3 +1,48 @@
+PictureSharp.Formats.Heif.HeifAppleAuxiliaryTypes
+PictureSharp.Formats.Heif.HeifAppleDepthInfo
+  Int32 IntMaxValue
+  Int32 IntMinValue
+  Int32 get_IntMaxValue()
+  Int32 get_IntMinValue()
+  PictureSharp.Formats.Heif.HeifAppleDepthInfo FromXmp(System.ReadOnlySpan`1[System.Byte])
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind Kind
+  PictureSharp.Formats.Heif.HeifAuxiliaryKind get_Kind()
+  Single FloatMaxValue
+  Single FloatMinValue
+  Single ToFloat(Int32)
+  Single get_FloatMaxValue()
+  Single get_FloatMinValue()
+  System.Collections.Generic.IReadOnlyList`1[System.Single] ExtrinsicMatrix
+  System.Collections.Generic.IReadOnlyList`1[System.Single] IntrinsicMatrix
+  System.Collections.Generic.IReadOnlyList`1[System.Single] InverseLensDistortionCoefficients
+  System.Collections.Generic.IReadOnlyList`1[System.Single] LensDistortionCoefficients
+  System.Collections.Generic.IReadOnlyList`1[System.Single] get_ExtrinsicMatrix()
+  System.Collections.Generic.IReadOnlyList`1[System.Single] get_IntrinsicMatrix()
+  System.Collections.Generic.IReadOnlyList`1[System.Single] get_InverseLensDistortionCoefficients()
+  System.Collections.Generic.IReadOnlyList`1[System.Single] get_LensDistortionCoefficients()
+  System.Nullable`1[System.Boolean] IsFiltered
+  System.Nullable`1[System.Boolean] get_IsFiltered()
+  System.Nullable`1[System.Drawing.PointF] LensDistortionCenter
+  System.Nullable`1[System.Drawing.PointF] get_LensDistortionCenter()
+  System.Nullable`1[System.Drawing.Size] IntrinsicMatrixReferenceSize
+  System.Nullable`1[System.Drawing.Size] get_IntrinsicMatrixReferenceSize()
+  System.Nullable`1[System.Int32] DepthDataVersion
+  System.Nullable`1[System.Int32] get_DepthDataVersion()
+  System.Nullable`1[System.Single] PixelSize
+  System.Nullable`1[System.Single] SimulatedAperture
+  System.Nullable`1[System.Single] get_PixelSize()
+  System.Nullable`1[System.Single] get_SimulatedAperture()
+  System.ReadOnlyMemory`1[System.Byte] RenderingParameters
+  System.ReadOnlyMemory`1[System.Byte] get_RenderingParameters()
+  System.String Accuracy
+  System.String NativeFormat
+  System.String Quality
+  System.String StoredFormat
+  System.String get_Accuracy()
+  System.String get_NativeFormat()
+  System.String get_Quality()
+  System.String get_StoredFormat()
+  Void ToFloat(System.ReadOnlySpan`1[System.UInt16], System.Span`1[System.Single])
 PictureSharp.Formats.Heif.HeifAuxiliaryInfo
   PictureSharp.Formats.Heif.HeifAuxiliaryKind Kind
   PictureSharp.Formats.Heif.HeifAuxiliaryKind get_Kind()
@@ -31,8 +76,11 @@ PictureSharp.Formats.Heif.HeifDepthImage
   Int32 get_BitDepth()
   Int32 get_Height()
   Int32 get_Width()
+  PictureSharp.Formats.Heif.HeifAppleDepthInfo AppleDepth
+  PictureSharp.Formats.Heif.HeifAppleDepthInfo get_AppleDepth()
   PictureSharp.Formats.Heif.HeifAuxiliaryInfo Auxiliary
   PictureSharp.Formats.Heif.HeifAuxiliaryInfo get_Auxiliary()
+  PictureSharp.Image ToImage()
   System.Nullable`1[System.UInt32] PhotoItemId
   System.Nullable`1[System.UInt32] get_PhotoItemId()
   System.ReadOnlyMemory`1[System.Byte] Exif
@@ -55,6 +103,7 @@ PictureSharp.Formats.Heif.HeifDocument
   PictureSharp.Formats.Heif.HeifItemInfo get_PrimaryImage()
   PictureSharp.Image LoadImage(PictureSharp.Formats.Heif.HeifItemInfo, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
   PictureSharp.Image LoadPreview(PictureSharp.Formats.Heif.HeifItemInfo, System.Drawing.Size, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
+  PictureSharp.Image RenderPortrait(PictureSharp.Formats.Heif.HeifItemInfo, PictureSharp.Formats.Heif.HeifPortraitOptions, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
   PictureSharp.ImageInfo Identify(PictureSharp.Formats.Heif.HeifItemInfo, PictureSharp.DecoderOptions)
   PictureSharp.ImageMetadata ReadMetadata(PictureSharp.Formats.Heif.HeifItemInfo, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
   System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemInfo] Items
@@ -135,6 +184,8 @@ PictureSharp.Formats.Heif.HeifItemInfo
   Boolean get_IsSupported()
   PictureSharp.Formats.Heif.HeifAuxiliaryInfo Auxiliary
   PictureSharp.Formats.Heif.HeifAuxiliaryInfo get_Auxiliary()
+  PictureSharp.Formats.Heif.HeifItemInfo FindAuxiliaryImage(System.String)
+  PictureSharp.Formats.Heif.HeifItemInfo FindDepthImage()
   System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemInfo] AuxiliaryImages
   System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemInfo] MetadataItems
   System.Collections.Generic.IReadOnlyList`1[PictureSharp.Formats.Heif.HeifItemInfo] SourceImages
@@ -161,6 +212,29 @@ PictureSharp.Formats.Heif.HeifItemReference
   System.String Type
   System.String get_Type()
 PictureSharp.Formats.Heif.HeifItemTypes
+PictureSharp.Formats.Heif.HeifPortrait
+  PictureSharp.Image Render(PictureSharp.Image, PictureSharp.Formats.Heif.HeifDepthImage, PictureSharp.Image, PictureSharp.Formats.Heif.HeifPortraitOptions, System.Threading.CancellationToken)
+PictureSharp.Formats.Heif.HeifPortraitOptions
+  Boolean Equals(PictureSharp.Formats.Heif.HeifPortraitOptions)
+  Boolean Equals(System.Object)
+  Boolean op_Equality(PictureSharp.Formats.Heif.HeifPortraitOptions, PictureSharp.Formats.Heif.HeifPortraitOptions)
+  Boolean op_Inequality(PictureSharp.Formats.Heif.HeifPortraitOptions, PictureSharp.Formats.Heif.HeifPortraitOptions)
+  Int32 GetHashCode()
+  Int32 MaxDegreeOfParallelism
+  Int32 get_MaxDegreeOfParallelism()
+  Int64 MaxPixels
+  Int64 get_MaxPixels()
+  PictureSharp.Formats.Heif.HeifPortraitOptions <Clone>$()
+  System.Nullable`1[System.Drawing.Point] FocusPoint
+  System.Nullable`1[System.Drawing.Point] get_FocusPoint()
+  System.Nullable`1[System.Single] Aperture
+  System.Nullable`1[System.Single] get_Aperture()
+  System.String ToString()
+  Void .ctor()
+  Void set_Aperture(System.Nullable`1[System.Single])
+  Void set_FocusPoint(System.Nullable`1[System.Drawing.Point])
+  Void set_MaxDegreeOfParallelism(Int32)
+  Void set_MaxPixels(Int64)
 PictureSharp.Formats.Heif.HeifReferenceTypes
 PictureSharp.Formats.Heif.LivePhotoPair
   PictureSharp.Formats.Heif.LivePhotoPair Read(System.IO.Stream, System.IO.Stream, PictureSharp.DecoderOptions, System.Threading.CancellationToken)
