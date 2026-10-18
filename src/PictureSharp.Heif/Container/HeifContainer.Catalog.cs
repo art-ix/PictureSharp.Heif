@@ -65,12 +65,31 @@ internal sealed partial class HeifContainer
             }
 
             result.Add(new HeifItemInfo(item.Id, FourCc(item.Type), item.Name, item.IsHidden, image,
-                CatalogSize(item), CatalogBits(item, bitDepths), auxiliary,
+                image && CatalogSupported(item), CatalogSize(item), CatalogBits(item, bitDepths), auxiliary,
                 item.References.Select(pair => new HeifItemReference(FourCc(pair.Key), pair.Value)),
                 Incoming(HeifFourCc.Thmb, item.Id), Incoming(HeifFourCc.Auxl, item.Id), Incoming(HeifFourCc.Cdsc, item.Id)));
         }
 
         return (result.ToArray(), topLevel);
+    }
+
+    // The container checks decoding runs before HEVC: type, storage, essential properties, transforms and grid layout.
+    // Malformed declarations count as supported, so decoding reports the corruption instead of silently skipping it.
+    private bool CatalogSupported(HeifItem item)
+    {
+        try
+        {
+            Describe(item, 0);
+            return true;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+        catch (ImageFormatException)
+        {
+            return true;
+        }
     }
 
     private Size? CatalogSize(HeifItem item)

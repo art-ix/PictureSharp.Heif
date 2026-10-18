@@ -27,14 +27,14 @@ public sealed class HeifThumbnailTests
         original.Metadata.SetBlock(MetadataKinds.Xmp, "<photo/>"u8);
         byte[] bytes = original.ToHeic(new HeifEncoderOptions { Configuration = Configuration, ThumbnailMaxDimension = 41, AlphaQuality = 90 });
         HeifDocument doc = HeifDocument.Open(bytes);
-        HeifItemInfo photo = doc.GetItem(doc.PrimaryItemId);
-        HeifItemInfo thumbnail = doc.GetItem(photo.ThumbnailItemIds.Single());
+        HeifItemInfo photo = doc.PrimaryImage;
+        HeifItemInfo thumbnail = photo.Thumbnails.Single();
         bool swaps = (int)orientation >= 5;
         await Assert.That(thumbnail.DisplaySize).IsEqualTo(swaps ? new Size(23, 41) : new Size(41, 23));
-        await Assert.That(thumbnail.MetadataItemIds.Count).IsEqualTo(0);
-        await Assert.That(thumbnail.AuxiliaryItemIds.Count).IsEqualTo(1);
-        await Assert.That(doc.TopLevelImages.Select(item => item.Id)).IsEquivalentTo(new[] { doc.PrimaryItemId }, CollectionOrdering.Matching);
-        using Image preview = doc.LoadPreview(photo.Id, new Size(41, 41), DecodeOptions);
+        await Assert.That(thumbnail.MetadataItems.Count).IsEqualTo(0);
+        await Assert.That(thumbnail.AuxiliaryImages.Count).IsEqualTo(1);
+        await Assert.That(doc.TopLevelImages.Select(item => item.Id)).IsEquivalentTo(new[] { doc.PrimaryImage.Id }, CollectionOrdering.Matching);
+        using Image preview = doc.LoadPreview(photo, new Size(41, 41), DecodeOptions);
         await Assert.That(preview.Size).IsEqualTo(thumbnail.DisplaySize!.Value);
         await Assert.That(preview.HasAlpha).IsTrue();
         await Assert.That(preview.Metadata.IccProfile!).IsEquivalentTo(icc, CollectionOrdering.Matching);
@@ -57,14 +57,14 @@ public sealed class HeifThumbnailTests
         var options = new HeifEncoderOptions { Configuration = Configuration, ThumbnailMaxDimension = 95, TileSize = tileSize };
         byte[] bytes = original.ToHeic(options);
         HeifDocument doc = HeifDocument.Open(bytes);
-        HeifItemInfo thumbnail = doc.GetItem(doc.GetItem(doc.PrimaryItemId).ThumbnailItemIds.Single());
+        HeifItemInfo thumbnail = doc.PrimaryImage.Thumbnails.Single();
         await Assert.That(thumbnail.DisplaySize).IsEqualTo(new Size(95, 57));
-        using Image preview = doc.LoadPreview(doc.PrimaryItemId, new Size(80, 80), DecodeOptions);
+        using Image preview = doc.LoadPreview(doc.PrimaryImage, new Size(80, 80), DecodeOptions);
         await Assert.That(preview.Size).IsEqualTo(new Size(80, 48));
         using Image small = HeifEncodeTests.Sample(7, 3);
         HeifDocument smallDoc = HeifDocument.Open(small.ToHeic(options));
-        await Assert.That(smallDoc.GetItem(smallDoc.GetItem(smallDoc.PrimaryItemId).ThumbnailItemIds.Single()).DisplaySize).IsEqualTo(new Size(7, 3));
-        using Image smallPreview = smallDoc.LoadPreview(smallDoc.PrimaryItemId, new Size(80, 80), DecodeOptions);
+        await Assert.That(smallDoc.PrimaryImage.Thumbnails.Single().DisplaySize).IsEqualTo(new Size(7, 3));
+        using Image smallPreview = smallDoc.LoadPreview(smallDoc.PrimaryImage, new Size(80, 80), DecodeOptions);
         await Assert.That(smallPreview.Size).IsEqualTo(new Size(7, 3));
     }
 
@@ -77,13 +77,14 @@ public sealed class HeifThumbnailTests
         byte[] serial = original.ToHeic(options with { MaxDegreeOfParallelism = 1 });
         byte[] parallel = original.ToHeic(options with { MaxDegreeOfParallelism = -1 });
         await Assert.That(parallel).IsEquivalentTo(serial, CollectionOrdering.Matching);
-        using Image preview = HeifDocument.Open(serial).LoadPreview(1, new Size(60, 60), DecodeOptions);
+        HeifDocument serialDoc = HeifDocument.Open(serial);
+        using Image preview = serialDoc.LoadPreview(serialDoc.GetItem(1), new Size(60, 60), DecodeOptions);
         await Assert.That(preview.Metadata.IccProfile).IsNull();
         await Assert.That(preview.Metadata.Xmp).IsNull();
         await Assert.That(new HeifEncoderOptions().ThumbnailMaxDimension).IsEqualTo(0);
         await Assert.That(() => new HeifEncoderOptions { ThumbnailMaxDimension = -1 }).Throws<ArgumentOutOfRangeException>();
         HeifDocument disabled = HeifDocument.Open(original.ToHeic(options with { ThumbnailMaxDimension = 0 }));
-        await Assert.That(disabled.GetItem(disabled.PrimaryItemId).ThumbnailItemIds.Count).IsEqualTo(0);
+        await Assert.That(disabled.PrimaryImage.Thumbnails.Count).IsEqualTo(0);
     }
 
     [Test]
@@ -94,7 +95,7 @@ public sealed class HeifThumbnailTests
         using Image original = HeifEncodeTests.Sample(width, height);
         byte[] bytes = original.ToHeic(new HeifEncoderOptions { Configuration = Configuration, ThumbnailMaxDimension = 31 });
         HeifDocument doc = HeifDocument.Open(bytes);
-        using Image preview = doc.LoadPreview(doc.PrimaryItemId, new Size(3, 3), DecodeOptions);
+        using Image preview = doc.LoadPreview(doc.PrimaryImage, new Size(3, 3), DecodeOptions);
         await Assert.That(preview.Size).IsEqualTo(width == 1 ? new Size(1, 3) : new Size(3, 1));
     }
 
@@ -138,8 +139,8 @@ public sealed class HeifThumbnailTests
                 "-Wl,-rpath," + Path.Combine(tools, "lib"), "-lheif", "-o", driver);
             string[] dimensions = (await Run(driver, file, rgba)).Trim().Split(' ');
             HeifDocument doc = HeifDocument.Open(bytes);
-            await Assert.That(uint.Parse(dimensions[0])).IsEqualTo(doc.GetItem(doc.PrimaryItemId).ThumbnailItemIds.Single());
-            using Image preview = doc.LoadPreview(doc.PrimaryItemId, new Size(maximum, maximum), DecodeOptions);
+            await Assert.That(uint.Parse(dimensions[0])).IsEqualTo(doc.PrimaryImage.Thumbnails.Single().Id);
+            using Image preview = doc.LoadPreview(doc.PrimaryImage, new Size(maximum, maximum), DecodeOptions);
             await Assert.That(preview.Size).IsEqualTo(new Size(int.Parse(dimensions[1]), int.Parse(dimensions[2])));
             byte[] actual = System.Runtime.InteropServices.MemoryMarshal.AsBytes(preview.GetPixelSpan()).ToArray();
             byte[] referencePixels = File.ReadAllBytes(rgba);

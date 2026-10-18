@@ -17,7 +17,7 @@ public sealed class HeifDocumentIoTests
         await Assert.That(() => new HeifDocumentOptions { MaxInputBytes = -1 }).Throws<ArgumentOutOfRangeException>();
         byte[] bytes = Build(new Item(1, Hidden: true));
         HeifDocument doc = HeifDocument.Open(bytes, new HeifDocumentOptions { MaxInputBytes = bytes.Length });
-        await Assert.That(doc.PrimaryImage).IsSameReferenceAs(doc.GetItem(doc.PrimaryItemId));
+        await Assert.That(doc.PrimaryImage).IsSameReferenceAs(doc.PrimaryImage);
         await Assert.That(doc.PrimaryImage.IsHidden).IsTrue();
         await Assert.That(doc.TopLevelImages.Count).IsEqualTo(0);
     }
@@ -32,7 +32,7 @@ public sealed class HeifDocumentIoTests
         await Assert.That(stream.CanRead).IsTrue();
         await Assert.That(doc.PrimaryImage.DisplaySize).IsEqualTo(new Size(80, 60));
         stream.Dispose();
-        using Image image = doc.LoadImage(doc.PrimaryItemId, Options);
+        using Image image = doc.LoadImage(doc.PrimaryImage, Options);
         using Image direct = Image.Load(bytes, Options);
         await Assert.That(HeifDecodeTests.RgbaHash(image)).IsEqualTo(HeifDecodeTests.RgbaHash(direct));
     }
@@ -49,7 +49,7 @@ public sealed class HeifDocumentIoTests
             System.IO.File.Delete(path);
             await Assert.That(asyncDoc.Items.Select(item => (item.Id, item.Type, item.DisplaySize)))
                 .IsEquivalentTo(syncDoc.Items.Select(item => (item.Id, item.Type, item.DisplaySize)), CollectionOrdering.Matching);
-            using Image image = asyncDoc.LoadImage(asyncDoc.PrimaryItemId, Options);
+            using Image image = asyncDoc.LoadImage(asyncDoc.PrimaryImage, Options);
             await Assert.That(image.Size).IsEqualTo(new Size(80, 60));
         }
         finally
@@ -96,40 +96,43 @@ public sealed class HeifDocumentIoTests
         byte[] bytes = Build(photo, new Item(2, "mime", [], xmp, References: [("cdsc", [1])]));
         HeifDocument doc = HeifDocument.Open(bytes, new HeifDocumentOptions { MaxInputBytes = bytes.Length });
         var options = Options with { FormatOptions = [new HeifDecoderOptions { ItemId = 999 }], TargetSize = new Size(20, 15) };
-        using Image reduced = doc.LoadImage(1, options);
+        using Image reduced = doc.LoadImage(doc.GetItem(1), options);
         await Assert.That(reduced.Size).IsEqualTo(new Size(20, 15));
         await Assert.That(reduced.Metadata.Xmp!).IsEquivalentTo(xmp, CollectionOrdering.Matching);
         await Assert.That(options.GetFormatOptions<HeifDecoderOptions>()!.ItemId).IsEqualTo(999u);
         await Assert.That(options.TargetSize).IsEqualTo(new Size(20, 15));
-        await Assert.That(() => doc.LoadImage(1, Options with { MaxInputBytes = bytes.Length - 1 })).Throws<ImageFormatException>();
-        await Assert.That(() => doc.LoadImage(1, Options with { MaxPixels = 4799 })).Throws<ImageFormatException>();
-        await Assert.That(() => doc.LoadImage(1, Options with { MaxMetadataBytes = xmp.Length - 1 })).Throws<ImageFormatException>();
-        using Image ignored = doc.LoadImage(1, Options with { IgnoreMetadata = true, MaxMetadataBytes = 0 });
+        // The input was limited when opening; a smaller read limit does not reject the owned buffer.
+        using Image unlimited = doc.LoadImage(doc.GetItem(1), Options with { MaxInputBytes = 1 });
+        await Assert.That(unlimited.Size).IsEqualTo(new Size(80, 60));
+        await Assert.That(() => doc.LoadImage(doc.GetItem(1), Options with { MaxPixels = 4799 })).Throws<ImageFormatException>();
+        await Assert.That(() => doc.LoadImage(doc.GetItem(1), Options with { MaxMetadataBytes = xmp.Length - 1 })).Throws<ImageFormatException>();
+        using Image ignored = doc.LoadImage(doc.GetItem(1), Options with { IgnoreMetadata = true, MaxMetadataBytes = 0 });
         await Assert.That(ignored.Metadata.Xmp).IsNull();
         for (int i = 0; i < 2; i++)
         {
-            using Image full = doc.LoadImage(1, Options with { MaxPixels = 4800, MaxMetadataBytes = xmp.Length });
+            using Image full = doc.LoadImage(doc.GetItem(1), Options with { MaxPixels = 4800, MaxMetadataBytes = xmp.Length });
             await Assert.That(full.Size).IsEqualTo(new Size(80, 60));
         }
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
-        await Assert.That(() => doc.LoadImage(1, Options, cts.Token)).Throws<OperationCanceledException>();
-        await Assert.That(() => doc.LoadImage(2, Options)).Throws<ImageFormatException>();
+        await Assert.That(() => doc.LoadImage(doc.GetItem(1), Options, cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(() => doc.LoadImage(doc.GetItem(2), Options)).Throws<ArgumentException>();
     }
 
     [Test]
-    public async Task PrimaryPreview_DelegatesWithTheSameOptionsLimitsAndErrors()
+    public async Task PreviewWithoutThumbnail_MatchesResizedPhoto_WithTheSameOptionsLimitsAndErrors()
     {
         HeifDocument doc = HeifDocument.Open(Build(Encoded(1, 80, 60)));
         var options = Options with { TargetSize = new Size(1, 1), FormatOptions = [new HeifDecoderOptions { ItemId = 999 }] };
-        using Image primary = doc.LoadPreview(new Size(20, 15), options);
-        using Image explicitId = doc.LoadPreview(doc.PrimaryItemId, new Size(20, 15), options);
-        await Assert.That(primary.Size).IsEqualTo(new Size(20, 15));
-        await Assert.That(HeifDecodeTests.RgbaHash(primary)).IsEqualTo(HeifDecodeTests.RgbaHash(explicitId));
+        await Assert.That(doc.FindThumbnail(doc.PrimaryImage, new Size(20, 15))).IsNull();
+        using Image preview = doc.LoadPreview(doc.PrimaryImage, new Size(20, 15), options);
+        using Image resized = doc.LoadImage(doc.PrimaryImage, options with { TargetSize = new Size(20, 15) });
+        await Assert.That(preview.Size).IsEqualTo(new Size(20, 15));
+        await Assert.That(HeifDecodeTests.RgbaHash(preview)).IsEqualTo(HeifDecodeTests.RgbaHash(resized));
         await Assert.That(options.TargetSize).IsEqualTo(new Size(1, 1));
-        await Assert.That(() => doc.LoadPreview(new Size(20, 15), Options with { MaxPixels = 1 })).Throws<ImageFormatException>();
-        await Assert.That(() => doc.LoadPreview(new Size(0, 15), options)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => doc.LoadPreview(doc.PrimaryImage, new Size(20, 15), Options with { MaxPixels = 1 })).Throws<ImageFormatException>();
+        await Assert.That(() => doc.LoadPreview(doc.PrimaryImage, new Size(0, 15), options)).Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
@@ -146,13 +149,13 @@ public sealed class HeifDocumentIoTests
         HeifDocument doc = HeifDocument.Open(Build(new Item(1, Properties: [Ispe(101, 57), Hvcc()]), thumbnail));
         if (accepted)
         {
-            using Image preview = doc.LoadPreview(new Size(20, 20), Options);
+            using Image preview = doc.LoadPreview(doc.PrimaryImage, new Size(20, 20), Options);
             await Assert.That(preview.Width).IsEqualTo(20);
         }
         else
         {
             // The full photograph has no HEVC payload, so rejecting the thumbnail must fail on fallback.
-            await Assert.That(() => doc.LoadPreview(new Size(20, 20), Options)).Throws<ImageFormatException>();
+            await Assert.That(() => doc.LoadPreview(doc.PrimaryImage, new Size(20, 20), Options)).Throws<ImageFormatException>();
         }
     }
 
@@ -162,7 +165,7 @@ public sealed class HeifDocumentIoTests
         Item thumbnail = Encoded(2, 40, 30, [("thmb", [1])]);
         HeifDocument doc = HeifDocument.Open(Build(new Item(1, "jpeg", []), thumbnail));
         await Assert.That(doc.PrimaryImage.DisplaySize).IsNull();
-        await Assert.That(() => doc.LoadPreview(new Size(20, 15), Options)).Throws<NotSupportedException>();
+        await Assert.That(() => doc.LoadPreview(doc.PrimaryImage, new Size(20, 15), Options)).Throws<NotSupportedException>();
     }
 
     private sealed class AsyncOnlyStream(byte[] bytes, int initialPosition = 0, CancellationToken expectedToken = default) : Stream

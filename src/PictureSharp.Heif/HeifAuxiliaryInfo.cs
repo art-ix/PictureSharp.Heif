@@ -21,7 +21,7 @@ public sealed class HeifAuxiliaryInfo
     internal HeifAuxiliaryInfo(string? type, ReadOnlySpan<byte> subtype, HeifAuxiliaryKind kind)
     {
         Type = type;
-        Subtype = Array.AsReadOnly(subtype.ToArray());
+        Subtype = subtype.ToArray();
         Kind = kind;
     }
 
@@ -29,7 +29,7 @@ public sealed class HeifAuxiliaryInfo
     public string? Type { get; }
 
     /// <summary>The original aux_subtype bytes, without interpretation.</summary>
-    public IReadOnlyList<byte> Subtype { get; }
+    public ReadOnlyMemory<byte> Subtype { get; }
 
     /// <summary>The recognized role. Unknown manufacturer types have the role <see cref="HeifAuxiliaryKind.Other"/>.</summary>
     public HeifAuxiliaryKind Kind { get; }

@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.6.2: inspect HEIF photos and relationships with HeifDocument; load images or embedded previews with independent decoder options; generate thumbnails with ThumbnailMaxDimension. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.2/docs/releases/release-0.6.2.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.3: breaking HeifDocument API correction. Reads take a HeifItemInfo; new Identify, ReadMetadata, FindThumbnail and TryGetItem; relationships return items; invalid arguments throw ArgumentException. Requires PictureSharp 0.7.6. Migration: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.3/docs/releases/release-0.6.3.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

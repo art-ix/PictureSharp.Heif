@@ -41,17 +41,20 @@ var document = await HeifDocument.OpenAsync("burst.heic",
 foreach (var photo in document.TopLevelImages)
     Console.WriteLine($"{photo.Id}: {photo.Name}, {photo.DisplaySize}");
 
-using Image full = document.LoadImage(document.PrimaryImage.Id);
-using Image preview = document.LoadPreview(new System.Drawing.Size(320, 240));
+using Image full = document.LoadImage(document.PrimaryImage);
+using Image preview = document.LoadPreview(document.PrimaryImage, new System.Drawing.Size(320, 240));
+ImageMetadata metadata = document.ReadMetadata(document.TopLevelImages[^1]); // EXIF/XMP of another photo
 ```
 
-Opening copies the input without decoding pixels. Reads accept independent `DecoderOptions`.
-`LoadPreview` selects a matching thumbnail or resizes the photo. Embedded previews may differ in framing and colour;
+Opening copies the input without decoding pixels. Reads take an item of the document and independent `DecoderOptions`;
+`Identify` and `ReadMetadata` describe one photo without decoding it.
+`LoadPreview` selects a matching thumbnail (`FindThumbnail` tells which) or resizes the photo. Embedded previews may differ in framing and colour;
 use `LoadImage` with `TargetSize` for the photo itself.
 
 `Open` accepts paths, streams or memory; `OpenAsync` accepts paths or streams. Caller streams remain open.
 The document owns its buffer and needs no disposal; dispose returned images. `Items` includes unsupported entries,
-while `PrimaryImage` identifies the default photo independently of catalogue filtering.
+while `PrimaryImage` identifies the default photo independently of catalogue filtering. Relationships such as
+`Thumbnails`, `AuxiliaryImages`, `MetadataItems` and `SourceImages` return the related items directly.
 
 ## Encode
 

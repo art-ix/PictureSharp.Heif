@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using PictureSharp.Formats.Heif.Container;
 
@@ -8,8 +9,16 @@ namespace PictureSharp.Formats.Heif;
 /// An immutable catalogue of a HEIF still-image container. Opening copies the input and validates its structure
 /// without decoding HEVC pixels or decompressing XMP. The document retains no file handle.
 /// </summary>
+/// <remarks>
+/// Read methods take a <see cref="HeifItemInfo"/> of this document (from <see cref="PrimaryImage"/>,
+/// <see cref="TopLevelImages"/>, <see cref="GetItem"/> or an item's relationships). Each read has independent
+/// <see cref="DecoderOptions"/>; <see cref="DecoderOptions.MaxInputBytes"/> is not checked again because
+/// <see cref="HeifDocumentOptions.MaxInputBytes"/> already limited the input. HeifFormat must be registered in the
+/// supplied or default configuration. Returned images belong to the caller.
+/// </remarks>
 public sealed class HeifDocument
 {
+    private const int ChunkSize = 16384;
     private readonly ReadOnlyMemory<byte> data;
     private readonly Dictionary<uint, HeifItemInfo> byId;
 
@@ -17,17 +26,20 @@ public sealed class HeifDocument
     {
         this.data = data;
         HeifContainer container = HeifContainer.OpenCatalog(data, new DecoderOptions { MaxInputBytes = options.MaxInputBytes }, cancellationToken);
-        PrimaryItemId = container.PrimaryItemId;
         (HeifItemInfo[] items, HashSet<uint> topLevel) = container.Catalog();
+        byId = items.ToDictionary(item => item.Id);
+        foreach (HeifItemInfo item in items)
+        {
+            item.Link(byId);
+        }
+
         Items = Array.AsReadOnly(items);
         TopLevelImages = Array.AsReadOnly(items.Where(item => topLevel.Contains(item.Id)).ToArray());
-        byId = items.ToDictionary(item => item.Id);
+        PrimaryImage = byId[container.PrimaryItemId];
     }
 
-    /// <summary>The primary identifier declared by pitm, independent of decoder ItemId options.</summary>
-    public uint PrimaryItemId { get; }
-    /// <summary>The primary item description, including when it is excluded from TopLevelImages. Does not decode pixels.</summary>
-    public HeifItemInfo PrimaryImage => byId[PrimaryItemId];
+    /// <summary>The primary item declared by pitm, including when it is excluded from TopLevelImages.</summary>
+    public HeifItemInfo PrimaryImage { get; }
     /// <summary>All items, including metadata, tiles and unsupported types, in identifier order.</summary>
     public IReadOnlyList<HeifItemInfo> Items { get; }
     /// <summary>Visible photographs, excluding tiles, thumbnails, auxiliary images and ISO tmap descriptors.</summary>
@@ -48,35 +60,12 @@ public sealed class HeifDocument
     {
         ArgumentNullException.ThrowIfNull(stream);
         options ??= new HeifDocumentOptions();
-        long limit = Math.Min(options.MaxInputBytes, Array.MaxLength);
-        using var buffer = new MemoryStream();
-        byte[] chunk = ArrayPool<byte>.Shared.Rent(16384);
-        try
-        {
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                int count = (int)Math.Min(chunk.Length, limit - buffer.Length + 1);
-                int read = stream.Read(chunk, 0, count);
-                if (read == 0)
-                {
-                    break;
-                }
-
-                AppendInput(buffer, chunk.AsSpan(0, read), options);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            return new HeifDocument(buffer.ToArray(), options, cancellationToken);
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(chunk);
-        }
+        // Without asynchronous I/O the read completes synchronously.
+        byte[] input = ReadAll(stream, options, asynchronous: false, cancellationToken).GetAwaiter().GetResult();
+        return new HeifDocument(input, options, cancellationToken);
     }
 
     /// <summary>Copies and opens encoded bytes; the caller may subsequently change or release the input buffer.</summary>
-    /// <remarks>Pixel and metadata budgets are supplied separately to each LoadImage or LoadPreview call.</remarks>
     public static HeifDocument Open(ReadOnlyMemory<byte> data, HeifDocumentOptions? options = null, CancellationToken cancellationToken = default)
     {
         options ??= new HeifDocumentOptions();
@@ -109,109 +98,128 @@ public sealed class HeifDocument
     {
         ArgumentNullException.ThrowIfNull(stream);
         options ??= new HeifDocumentOptions();
-        long limit = Math.Min(options.MaxInputBytes, Array.MaxLength);
-        using var buffer = new MemoryStream();
-        byte[] chunk = ArrayPool<byte>.Shared.Rent(16384);
-        try
-        {
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                int count = (int)Math.Min(chunk.Length, limit - buffer.Length + 1);
-                int read = await stream.ReadAsync(chunk.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
-                if (read == 0)
-                {
-                    break;
-                }
-
-                AppendInput(buffer, chunk.AsSpan(0, read), options);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            return new HeifDocument(buffer.ToArray(), options, cancellationToken);
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(chunk);
-        }
+        byte[] input = await ReadAll(stream, options, asynchronous: true, cancellationToken).ConfigureAwait(false);
+        return new HeifDocument(input, options, cancellationToken);
     }
 
     /// <summary>Finds an item by identifier.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The identifier is absent from the document.</exception>
-    public HeifItemInfo GetItem(uint itemId) => byId.TryGetValue(itemId, out HeifItemInfo? item)
+    public HeifItemInfo GetItem(uint itemId) => TryGetItem(itemId, out HeifItemInfo? item)
         ? item : throw new ArgumentOutOfRangeException(nameof(itemId), itemId, "The item is not in this HEIF document.");
 
-    /// <summary>
-    /// Decodes the specified item from the document's owned input. The caller owns the returned image.
-    /// Null options use the core defaults; explicit itemId overrides HeifDecoderOptions.ItemId while TargetSize is respected.
-    /// HeifFormat must be registered in the supplied or default configuration.
-    /// </summary>
-    /// <remarks>
-    /// Each call has independent pixel and metadata budgets. A MaxInputBytes smaller than the document's buffer rejects
-    /// the read. Opening limits and options from earlier reads are never reused or modified.
-    /// </remarks>
-    public Image LoadImage(uint itemId, DecoderOptions? options = null, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!GetItem(itemId).IsImage)
-        {
-            throw HeifReader.Error("The selected HEIF item is not an image.");
-        }
+    /// <summary>Finds an item by identifier; false when the document has no such item.</summary>
+    public bool TryGetItem(uint itemId, [NotNullWhen(true)] out HeifItemInfo? item) => byId.TryGetValue(itemId, out item);
 
-        options ??= DecoderOptions.Default;
-        return Image.Load(data, options with
-        {
-            FormatOptions = [.. options.FormatOptions.Where(option => option is not HeifDecoderOptions), new HeifDecoderOptions { ItemId = itemId }]
-        }, cancellationToken);
+    /// <summary>
+    /// Decodes the image item with its own transforms, colour, alpha, EXIF and XMP. Null options use the core defaults;
+    /// the item replaces HeifDecoderOptions.ItemId in options, and TargetSize is respected.
+    /// </summary>
+    /// <exception cref="ArgumentException">The item is not an image or belongs to another document.</exception>
+    /// <exception cref="NotSupportedException">The item uses coding or features the decoder does not support.</exception>
+    public Image LoadImage(HeifItemInfo image, DecoderOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        DecoderOptions read = ReadOptions(image, options);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Image.Load(data, read, cancellationToken);
     }
 
-    /// <summary>Loads a preview of the primary image; equivalent to LoadPreview(PrimaryItemId, targetSize, options, cancellationToken).</summary>
-    public Image LoadPreview(Size targetSize, DecoderOptions? options = null, CancellationToken cancellationToken = default) =>
-        LoadPreview(PrimaryItemId, targetSize, options, cancellationToken);
+    /// <summary>Describes the image item as <c>Image.Identify</c> does, without decoding HEVC pixels.</summary>
+    /// <exception cref="ArgumentException">The item is not an image or belongs to another document.</exception>
+    public ImageInfo Identify(HeifItemInfo image, DecoderOptions? options = null) => Image.Identify(data, ReadOptions(image, options));
 
     /// <summary>
-    /// Loads the smallest supported thumbnail with matching displayed proportions covering the requested size,
-    /// or resizes the photograph when none qualifies. Fits inside the positive target dimensions without enlarging.
-    /// Explicit itemId and targetSize replace ItemId and TargetSize in this call's options. The caller owns the image.
+    /// Reads the image item's metadata (EXIF, XMP, ICC and colour description) as <c>Image.ReadMetadata</c> does,
+    /// without decoding HEVC pixels.
+    /// </summary>
+    /// <exception cref="ArgumentException">The item is not an image or belongs to another document.</exception>
+    public ImageMetadata ReadMetadata(HeifItemInfo image, DecoderOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        DecoderOptions read = ReadOptions(image, options);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Image.ReadMetadata(data, read, cancellationToken);
+    }
+
+    /// <summary>
+    /// Selects the embedded thumbnail that <see cref="LoadPreview"/> decodes: the smallest supported thumbnail of the
+    /// image with matching displayed proportions that covers <paramref name="targetSize"/> after fitting the photograph
+    /// inside it; null when none qualifies. Does not decode pixels.
     /// </summary>
     /// <remarks>
-    /// Proportions tolerate one pixel of shorter-side rounding; unknown dimensions cannot select a thumbnail.
-    /// Embedded previews may differ in framing, compression and color from the photograph even with matching proportions.
-    /// Use LoadImage with TargetSize when the photograph itself is required. Each item retains its own color and transforms.
-    /// Unsupported thumbnails are skipped; corrupt data, limit violations and cancellation are reported.
-    /// HeifFormat must be registered in the supplied or default configuration. Null options use the core defaults.
+    /// Proportions tolerate one pixel of shorter-side rounding; unknown dimensions cannot select a thumbnail. Ties
+    /// choose the lower identifier. Embedded previews may differ in framing, compression and colour from the photograph.
     /// </remarks>
-    public Image LoadPreview(uint itemId, Size targetSize, DecoderOptions? options = null, CancellationToken cancellationToken = default)
+    /// <exception cref="ArgumentException">The item is not an image or belongs to another document.</exception>
+    public HeifItemInfo? FindThumbnail(HeifItemInfo image, Size targetSize)
     {
+        CheckImage(image);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetSize.Width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetSize.Height);
-        cancellationToken.ThrowIfCancellationRequested();
-        HeifItemInfo image = GetItem(itemId);
-        if (!image.IsImage)
+        if (image.DisplaySize is not { } photo)
         {
-            throw HeifReader.Error("The selected HEIF item is not an image.");
+            return null;
         }
 
+        Size needed = Fit(photo, targetSize);
+        return image.Thumbnails
+            .Where(item => item.IsSupported && item.DisplaySize is { } size && MatchingProportions(photo, size)
+                && size.Width >= needed.Width && size.Height >= needed.Height)
+            .OrderBy(item => (long)item.DisplaySize!.Value.Width * item.DisplaySize.Value.Height).ThenBy(item => item.Id)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Loads the thumbnail <see cref="FindThumbnail"/> selects, or the photograph when none qualifies, resized to fit
+    /// inside the positive target dimensions without enlarging. The selected item replaces ItemId and targetSize
+    /// replaces TargetSize in this call's options. Each item retains its own colour and transforms.
+    /// </summary>
+    /// <remarks>
+    /// When the selected thumbnail's bitstream turns out unsupported, the photograph is loaded instead; corrupt data,
+    /// limit violations and cancellation are reported. Use <see cref="LoadImage"/> with TargetSize when the photograph
+    /// itself is required.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The item is not an image or belongs to another document.</exception>
+    public Image LoadPreview(HeifItemInfo image, Size targetSize, DecoderOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        HeifItemInfo? thumbnail = FindThumbnail(image, targetSize);
         options = (options ?? DecoderOptions.Default) with { TargetSize = targetSize };
-        Size needed = image.DisplaySize is { } size ? Fit(size, targetSize) : targetSize;
-        IEnumerable<HeifItemInfo> candidates = image.ThumbnailItemIds.Select(GetItem)
-            .Where(item => item.IsImage && image.DisplaySize is { } photoSize && item.DisplaySize is { } dimensions
-                && MatchingProportions(photoSize, dimensions) && dimensions.Width >= needed.Width && dimensions.Height >= needed.Height)
-            .OrderBy(item => (long)item.DisplaySize!.Value.Width * item.DisplaySize.Value.Height).ThenBy(item => item.Id);
-        foreach (HeifItemInfo candidate in candidates)
+        if (thumbnail is not null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return LoadImage(candidate.Id, options, cancellationToken);
+                return LoadImage(thumbnail, options, cancellationToken);
             }
             catch (NotSupportedException)
             {
-                // Only a valid unsupported thumbnail permits another candidate or the full photograph.
+                // Only a valid unsupported thumbnail permits falling back to the photograph.
             }
         }
 
-        return LoadImage(itemId, options, cancellationToken);
+        return LoadImage(image, options, cancellationToken);
+    }
+
+    private DecoderOptions ReadOptions(HeifItemInfo image, DecoderOptions? options)
+    {
+        CheckImage(image);
+        options ??= DecoderOptions.Default;
+        return options with
+        {
+            MaxInputBytes = data.Length,
+            FormatOptions = [.. options.FormatOptions.Where(option => option is not HeifDecoderOptions), new HeifDecoderOptions { ItemId = image.Id }]
+        };
+    }
+
+    private void CheckImage(HeifItemInfo image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        if (!byId.TryGetValue(image.Id, out HeifItemInfo? own) || !ReferenceEquals(own, image))
+        {
+            throw new ArgumentException("The item belongs to another HEIF document.", nameof(image));
+        }
+
+        if (!image.IsImage)
+        {
+            throw new ArgumentException($"HEIF item {image.Id} ({image.Type}) is not an image.", nameof(image));
+        }
     }
 
     // Compare at the thumbnail's longer side using integer products, so a one-pixel tolerance does not grow with size.
@@ -228,16 +236,42 @@ public sealed class HeifDocument
         return new Size(Math.Max(1, (int)Math.Round(source.Width * scale)), Math.Max(1, (int)Math.Round(source.Height * scale)));
     }
 
-    private static void AppendInput(MemoryStream buffer, ReadOnlySpan<byte> chunk, HeifDocumentOptions options)
+    // Reads up to one byte past the limit, so an oversized stream fails without buffering it whole.
+    private static async ValueTask<byte[]> ReadAll(Stream stream, HeifDocumentOptions options, bool asynchronous, CancellationToken cancellationToken)
     {
-        CheckLength(buffer.Length + chunk.Length, options);
-        if (buffer.Length + chunk.Length > buffer.Capacity)
+        long limit = Math.Min(options.MaxInputBytes, Array.MaxLength);
+        using var buffer = new MemoryStream();
+        byte[] chunk = ArrayPool<byte>.Shared.Rent(ChunkSize);
+        try
         {
-            long limit = Math.Min(options.MaxInputBytes, Array.MaxLength);
-            buffer.Capacity = (int)Math.Min(limit, Math.Max(buffer.Length + chunk.Length, (long)buffer.Capacity * 2));
-        }
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                int count = (int)Math.Min(chunk.Length, limit - buffer.Length + 1);
+                int read = asynchronous
+                    ? await stream.ReadAsync(chunk.AsMemory(0, count), cancellationToken).ConfigureAwait(false)
+                    : stream.Read(chunk, 0, count);
+                if (read == 0)
+                {
+                    break;
+                }
 
-        buffer.Write(chunk);
+                CheckLength(buffer.Length + read, options);
+                if (buffer.Length + read > buffer.Capacity)
+                {
+                    buffer.Capacity = (int)Math.Min(limit, Math.Max(buffer.Length + read, (long)buffer.Capacity * 2));
+                }
+
+                buffer.Write(chunk, 0, read);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return buffer.ToArray();
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(chunk);
+        }
     }
 
     private static void CheckLength(long length, HeifDocumentOptions options)

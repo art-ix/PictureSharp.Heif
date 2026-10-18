@@ -48,22 +48,27 @@ Console.WriteLine($"{image.Width} × {image.Height}, ICC: {image.Metadata.IccPro
 ```csharp
 var document = await HeifDocument.OpenAsync("photo.heic");
 var options = new DecoderOptions { Configuration = configuration };
-using Image preview = document.LoadPreview(new System.Drawing.Size(320, 240), options);
-// For another photo: document.LoadPreview(itemId, targetSize, options).
-// For the photo itself: document.LoadImage(itemId, options with { TargetSize = targetSize }).
+var size = new System.Drawing.Size(320, 240);
+HeifItemInfo? thumbnail = document.FindThumbnail(document.PrimaryImage, size); // null: the photo is resized
+using Image preview = document.LoadPreview(document.PrimaryImage, size, options);
+// For another photo: document.LoadPreview(document.GetItem(itemId), size, options).
+// For the photo itself: document.LoadImage(photo, options with { TargetSize = size }).
 ```
 
 `LoadPreview` fits inside positive target dimensions without enlarging. It selects the smallest supported thumbnail
 covering the required size with matching displayed proportions (up to one pixel of rounding); equal areas use the
-lower ID. Unknown dimensions, unsuitable proportions or no supported thumbnail cause a full-photo resize.
-Corrupt data, limit violations and cancellation propagate.
+lower ID. Thumbnails whose `IsSupported` is false are skipped. `FindThumbnail` returns this choice without decoding;
+unknown dimensions, unsuitable proportions or no supported thumbnail return null, and `LoadPreview` resizes the
+photo. A selected thumbnail whose bitstream turns out unsupported also falls back to the photo. Corrupt data, limit
+violations and cancellation propagate.
 
 The result uses the selected item's own colour, alpha, transforms and metadata. Embedded previews can differ in
 framing, compression and colour; matching proportions do not guarantee the same crop. Use `LoadImage` with
 `TargetSize` for a resized photo.
 
-Each read takes independent `DecoderOptions`; null means core defaults. Explicit IDs override `ItemId`, and previews
-also override `TargetSize`. `LoadImage` respects `TargetSize` and otherwise returns the full size. Register `HeifFormat`
+Each read takes independent `DecoderOptions`; null means core defaults. The item argument overrides `ItemId`, and
+previews also override `TargetSize`. An item that is not an image, or that comes from another document, throws
+`ArgumentException`. `LoadImage` respects `TargetSize` and otherwise returns the full size. Register `HeifFormat`
 in the read's configuration or the default configuration. The caller owns each returned image.
 
 ## HDR gain maps

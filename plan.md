@@ -2,7 +2,7 @@
 
 ## Stan i cel
 
-**Bieżąca wersja: 0.6.2, wydana 2026-10-18; minimalny PictureSharp 0.7.6.** Wtyczka formatu w C#, bez bibliotek
+**Bieżąca wersja: 0.6.3, wydana 2026-10-18; minimalny PictureSharp 0.7.6.** Wtyczka formatu w C#, bez bibliotek
 natywnych, z własnym dekoderem i enkoderem HEVC intra.
 
 - Odczyt: kontener HEIF (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 i 4:0:0, siatki, `iden`,
@@ -14,7 +14,7 @@ natywnych, z własnym dekoderem i enkoderem HEVC intra.
 
 **Cel 0.7.0 (zakres uproszczony 2026-10-18):** katalog zawartości pliku (zdjęcia, miniatury, obrazy pomocnicze),
 odczyt i generowanie miniatur, surowe próbki depth oraz rozpoznawanie par Live Photo. Realizacja w wydaniach
-0.6.1–0.6.3, następnie integracyjne 0.7.0. Zapis kolekcji, animacje HEIF, interpretacja depth i eksport Live Photo
+0.6.1–0.6.4, następnie integracyjne 0.7.0. Zapis kolekcji, animacje HEIF, interpretacja depth i eksport Live Photo
 przeniesione poza 0.7.0.
 
 Decyzje użytkownika (2026-10-16): własny port dekodera i enkodera HEVC intra w C# (nie wrapper libheif); osobne
@@ -36,7 +36,8 @@ wersji 0.1.0–0.6.0 (DoD, wyniki, pomiary, kryteria enkodera): [docs/history.md
 | 0.6.0 | `HeifDecoderOptions.ItemId` przez `DecoderOptions.FormatOptions` | 0.7.6 | Wydana 2026-10-18 |
 | 0.6.1 | Skompresowane XMP: zlib/deflate i limity | 0.7.6 | Wydana 2026-10-18 |
 | 0.6.2 | Katalog `HeifDocument`, powiązania, auxiliary, odczyt i generowanie miniatur | 0.7.6 | Wydana 2026-10-18 |
-| 0.6.3 | Surowe próbki depth, rozpoznawanie par Live Photo | 0.7.6 (założenie) | Planowana |
+| 0.6.3 | Korekta API `HeifDocument` (niezgodna z 0.6.2) | 0.7.6 | Wydana 2026-10-18 |
+| 0.6.4 | Surowe próbki depth, rozpoznawanie par Live Photo | 0.7.6 (założenie) | Planowana |
 | 0.7.0 | Integracja, regresje, dokumentacja i paczka całego zakresu | 0.7.6 (założenie) | Planowana |
 | dalej | Patrz „Poza 0.7.0” | Do ustalenia | Poza 0.7.0 |
 
@@ -98,7 +99,18 @@ Szczegółowa kolejność prac, kontrakt API i bramki testów: [plan implementac
   Cztery porównania z kodem 0.6.1 potwierdzają identyczny zapis przy wyłączonej miniaturze.
   `VERSION` 0.6.2; GitHub Release i publikacja NuGet zakończone. Workflow Release 39149646458: sukces.
 
-### 0.6.3 — surowe próbki depth i pary Live Photo
+### 0.6.3 — korekta API `HeifDocument`
+
+- **Korekta API `HeifDocument` (niezgodna z 0.6.2; wydana 2026-10-18):** odczyty przyjmują
+  `HeifItemInfo` dokumentu (`LoadImage`, `LoadPreview`, nowe `Identify`, `ReadMetadata`, `FindThumbnail`) zamiast ID;
+  usunięte `PrimaryItemId` i `LoadPreview(Size)` (używać `PrimaryImage`). Powiązania jako obiekty (`SourceImages`,
+  `Thumbnails`, `AuxiliaryImages`, `MetadataItems`), `TryGetItem`, `IsSupported`, `Subtype` jako
+  `ReadOnlyMemory<byte>`, stałe `HeifItemTypes`/`HeifReferenceTypes`. Element niebędący obrazem lub z innego
+  dokumentu → `ArgumentException`; odczyt nie sprawdza ponownie `MaxInputBytes`. Numer 0.6.3 wybrany przez
+  użytkownika. [Notatki i migracja](docs/releases/release-0.6.3.md).
+- **Stan:** build Release bez ostrzeżeń, pełne testy 459/460 (1 opcjonalny pomiar pominięty), Oracle 6/6.
+
+### 0.6.4 — surowe próbki depth i pary Live Photo
 
 - `HeifDepthImage`: `ReadOnlyMemory<ushort>`, głębia bitowa, wymiary, ID zdjęcia nadrzędnego, surowe `aux_subtype`
   i surowe bloki metadanych elementu (`cdsc`, XMP). Próbki pobierane przed konwersją koloru i redukcją do 8 bitów;
@@ -117,7 +129,7 @@ Szczegółowa kolejność prac, kontrakt API i bramki testów: [plan implementac
   depth, gain map i auxiliary producentów; pomiar pamięci/czasu otwierania katalogu dużych plików.
 - Zgodność API 0.6.0, architektura, SIMD/skalar i deterministyczność liczby wątków.
 - Walidacja paczki NuGet i przykładów; dokumentacja możliwości i ograniczeń.
-- **DoD:** kryteria 0.6.1–0.6.3 spełnione, dokumentacja zgodna z paczką, brak regresji. Dopiero potem aktualizacja
+- **DoD:** kryteria 0.6.1–0.6.4 spełnione, dokumentacja zgodna z paczką, brak regresji. Dopiero potem aktualizacja
   VERSION i statusu w planie; publikacja na osobną decyzję użytkownika.
 
 ### Wspólne założenia i granice
@@ -174,6 +186,7 @@ potrzeby. Nowe potrzeby SPI zgłaszamy do planu rdzenia; nie obchodzimy ich kopi
 
 ## Changelog
 
+- [0.6.3](docs/releases/release-0.6.3.md): korekta API `HeifDocument` (niezgodna z 0.6.2), `ReadMetadata`, `FindThumbnail`.
 - [0.6.2](docs/releases/release-0.6.2.md): katalog zdjęć i relacji, wybór podglądu i generowanie miniatur.
 
 - [0.6.1](docs/releases/release-0.6.1.md): skompresowane XMP (`deflate`) w limicie `MaxMetadataBytes`.
