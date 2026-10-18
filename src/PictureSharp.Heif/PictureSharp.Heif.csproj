@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>First public release: HEIC/HEIF decoding and encoding (HEVC intra), alpha, transforms, ICC/EXIF/XMP, HDR gain maps, vector and parallel decoding. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.5.0/docs/releases/release-0.5.0.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.0: choose the image item to decode with HeifDecoderOptions.ItemId in DecoderOptions.FormatOptions; requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.0/docs/releases/release-0.6.0.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

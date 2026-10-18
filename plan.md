@@ -23,7 +23,7 @@ Reguły pracy: [AGENTS.md](AGENTS.md). Lokalna historia pracy: `progres.md` (bez
 | 0.4.0 | Gain map Apple/ISO → `ToHdr`, `ReadMetadata` bez dekodu | 0.7.1 | Zamknięta lokalnie (DoD spełnione, 2026-10-17) |
 | 0.5.0 | SIMD i równoległość, pomiary względem libheif, ARM64 | 0.7.1 | Zamknięta 2026-10-17 (x64 i ARM64), pierwsze publiczne wydanie (GitHub Release, NuGet przez Trusted Publishing) |
 | 0.5.1 | Skompresowane XMP (`content_encoding` w `infe`) przez `System.IO.Compression` | 0.7.1 | Planowana (decyzja użytkownika 2026-10-17) |
-| 0.6.0 | Opcje dekodera: `HeifDecoderOptions.ItemId` przez `DecoderOptions.FormatOptions` | 0.7.6 | Gotowa lokalnie (bez commita, 2026-10-18) |
+| 0.6.0 | Opcje dekodera: `HeifDecoderOptions.ItemId` przez `DecoderOptions.FormatOptions` | 0.7.6 | Wydana 2026-10-18 (GitHub Release v0.6.0, NuGet) |
 | dalej | Zapis gain map w HEIC, ewentualnie szybka miniatura `thmb` | 0.8.0 | Do decyzji |
 
 Numery określają kolejność, nie terminy. Każda wersja wymaga własnego DoD (niżej) oraz wspólnej bramki jakości.
