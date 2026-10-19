@@ -1,7 +1,7 @@
 # PictureSharp.Heif 0.6.6
 
 Faster HEVC decoding and encoding. Requires PictureSharp 0.7.6 and .NET 10. Public API is unchanged.
-Prepared locally on 2026-10-19; not published.
+Release date: 2026-10-19.
 
 ## Decoding
 

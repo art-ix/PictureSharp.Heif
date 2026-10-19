@@ -93,3 +93,5 @@ Raw data: `speed-encoder-x64-0.6.6.tsv` (numbers only; the private input stays i
 On 2026-10-19 the user inspected full-resolution before/after PNGs at Q50 and reported no visible difference,
 accepted this encoder trade-off and requested preparation of version 0.6.6 with a local commit and no push.
 The original 1.5× and +0.5% gates remain unmet as documented above; ARM64 and decoder memory work are outstanding.
+
+After local preparation, the user authorized push and release publication of version 0.6.6 on 2026-10-19.
