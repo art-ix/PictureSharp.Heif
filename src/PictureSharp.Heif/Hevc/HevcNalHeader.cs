@@ -35,8 +35,9 @@ internal readonly record struct HevcNalHeader(int Type, int LayerId, int Tempora
         return new((nal[0] >> 1) & 0x3f, ((nal[0] & 1) << 5) | (nal[1] >> 3), temporalIdPlus1 - 1);
     }
 
-    // 7.4.2: removes emulation_prevention_three_byte from the payload after the two-byte header.
-    public static int ExtractRbsp(ReadOnlySpan<byte> nal, Span<byte> destination)
+    // 7.4.2: removes emulation_prevention_three_byte from the payload after the two-byte header. With removed, records
+    // the RBSP length at each removal, so payload positions (entry points count those bytes) map back to the RBSP.
+    public static int ExtractRbsp(ReadOnlySpan<byte> nal, Span<byte> destination, List<int>? removed = null)
     {
         int length = 0;
         int zeros = 0;
@@ -46,6 +47,7 @@ internal readonly record struct HevcNalHeader(int Type, int LayerId, int Tempora
             if (zeros >= 2 && value == 3)
             {
                 zeros = 0;
+                removed?.Add(length);
                 continue;
             }
 

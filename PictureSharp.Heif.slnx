@@ -2,6 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/PictureSharp.Heif/PictureSharp.Heif.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/PictureSharp.Heif.Speed/PictureSharp.Heif.Speed.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PictureSharp.Heif.Tests/PictureSharp.Heif.Tests.csproj" />
   </Folder>

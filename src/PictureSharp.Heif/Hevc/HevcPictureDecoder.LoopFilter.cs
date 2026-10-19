@@ -17,29 +17,48 @@ internal sealed partial class HevcPictureDecoder
 
     // H.265 8.7.2: all vertical edges of the picture, then all horizontal edges. Every edge of an intra picture has
     // bS 2. port: HM TComLoopFilter::loopFilterPic, xEdgeFilterLuma, xEdgeFilterChroma
-    private void Deblock()
+    // Within one direction edges are independent: a vertical edge changes only its own rows, and horizontal edges on
+    // the 8x8 grid read four and change three samples on each side, so bands of block rows filter in parallel.
+    private void Deblock(ParallelOptions? parallel)
     {
         for (int direction = 0; direction < 2; direction++)
         {
             bool vertical = direction == 0;
-            byte edgeFlag = vertical ? EdgeVertical : EdgeHorizontal;
-            for (int by = 0; by < blocksHigh; by++)
+            if (parallel is null)
             {
-                for (int bx = 0; bx < blocksWide; bx++)
-                {
-                    int edge = vertical ? bx : by;
-                    if ((edge & 1) != 0 || edge == 0 || (blockFlags[(by * blocksWide) + bx] & edgeFlag) == 0)
-                    {
-                        continue;
-                    }
+                DeblockRows(vertical, 0, blocksHigh);
+                continue;
+            }
 
-                    int q = (by * blocksWide) + bx;
-                    int p = vertical ? q - 1 : q - blocksWide;
-                    FilterLumaSegment(bx << 2, by << 2, vertical, p, q);
-                    if (sps.ChromaFormatIdc != 0 && (edge & 3) == 0)
-                    {
-                        FilterChromaSegment(bx << 1, by << 1, vertical, p, q);
-                    }
+            int bands = BandCount(blocksHigh, parallel);
+            Parallel.For(0, bands, parallel, band =>
+                DeblockRows(vertical, (int)((long)blocksHigh * band / bands), (int)((long)blocksHigh * (band + 1) / bands)));
+        }
+    }
+
+    // A few bands per worker balance uneven rows without much scheduling overhead.
+    private static int BandCount(int rows, ParallelOptions parallel) =>
+        Math.Max(1, Math.Min(rows, 4 * (parallel.MaxDegreeOfParallelism > 0 ? parallel.MaxDegreeOfParallelism : Environment.ProcessorCount)));
+
+    private void DeblockRows(bool vertical, int startRow, int endRow)
+    {
+        byte edgeFlag = vertical ? EdgeVertical : EdgeHorizontal;
+        for (int by = startRow; by < endRow; by++)
+        {
+            for (int bx = 0; bx < blocksWide; bx++)
+            {
+                int edge = vertical ? bx : by;
+                if ((edge & 1) != 0 || edge == 0 || (blockFlags[(by * blocksWide) + bx] & edgeFlag) == 0)
+                {
+                    continue;
+                }
+
+                int q = (by * blocksWide) + bx;
+                int p = vertical ? q - 1 : q - blocksWide;
+                FilterLumaSegment(bx << 2, by << 2, vertical, p, q);
+                if (sps.ChromaFormatIdc != 0 && (edge & 3) == 0)
+                {
+                    FilterChromaSegment(bx << 1, by << 1, vertical, p, q);
                 }
             }
         }
@@ -208,7 +227,8 @@ internal sealed partial class HevcPictureDecoder
     // H.265 8.7.3 sample adaptive offset on a copy of the deblocked picture.
     // port: HM TComSampleAdaptiveOffset::offsetCTU, offsetBlock, TComPicSym::deriveLoopFilterBoundaryAvailibility;
     // PCM/lossless samples keep their reconstruction as after HM xPCMRestoration.
-    private void ApplySao()
+    // CTBs read the deblocked copy and write only their own samples, so rows of CTBs run in parallel.
+    private void ApplySao(ParallelOptions? parallel)
     {
         if (!slices.Exists(s => s.SaoLuma || s.SaoChroma))
         {
@@ -220,12 +240,24 @@ internal sealed partial class HevcPictureDecoder
         {
             ushort[] destination = frame.Planes[cIdx];
             ushort[] source = (ushort[])destination.Clone();
-            for (int ctb = 0; ctb < layout.CtbCount; ctb++)
+            if (parallel is null)
             {
-                if (saoTypes[(ctb * 3) + cIdx] != 0)
-                {
-                    SaoCtb(ctb, cIdx, source, destination);
-                }
+                SaoRows(cIdx, source, destination, 0, layout.HeightInCtbs);
+                continue;
+            }
+
+            int component = cIdx;
+            Parallel.For(0, layout.HeightInCtbs, parallel, row => SaoRows(component, source, destination, row, row + 1));
+        }
+    }
+
+    private void SaoRows(int cIdx, ushort[] source, ushort[] destination, int startRow, int endRow)
+    {
+        for (int ctb = startRow * layout.WidthInCtbs; ctb < endRow * layout.WidthInCtbs; ctb++)
+        {
+            if (saoTypes[(ctb * 3) + cIdx] != 0)
+            {
+                SaoCtb(ctb, cIdx, source, destination);
             }
         }
     }
@@ -259,15 +291,19 @@ internal sealed partial class HevcPictureDecoder
             int bandShift = bitDepth - 5;
             for (int y = 0; y < height; y++)
             {
+                int row = ((y0 + y) * stride) + x0;
+                if (!checkNoFilter)
+                {
+                    HevcSao.BandRow(source.AsSpan(row, width), destination.AsSpan(row, width), bandTable, bandShift, maximum);
+                    continue;
+                }
+
                 for (int x = 0; x < width; x++)
                 {
-                    if (checkNoFilter && IsNoFilterSample(x0 + x, y0 + y, shift))
+                    if (!IsNoFilterSample(x0 + x, y0 + y, shift))
                     {
-                        continue;
+                        destination[row + x] = (ushort)HevcTransform.Clip(source[row + x] + bandTable[source[row + x] >> bandShift], maximum);
                     }
-
-                    int i = ((y0 + y) * stride) + x0 + x;
-                    destination[i] = (ushort)HevcTransform.Clip(source[i] + bandTable[source[i] >> bandShift], maximum);
                 }
             }
 
@@ -283,9 +319,25 @@ internal sealed partial class HevcPictureDecoder
             2 => (-1, -1, 1, 1),
             _ => (1, -1, -1, 1),
         };
+        int offsetA = (ay * stride) + ax;
+        int offsetB = (by * stride) + bx;
         for (int y = 0; y < height; y++)
         {
-            for (int x = 0; x < width; x++)
+            int row = ((y0 + y) * stride) + x0;
+            // Inside the CTB columns 1..width-2 the neighbours never cross its left or right edge, so their usability
+            // depends on the row alone.
+            int interiorEnd = 0;
+            if (!checkNoFilter && width >= 3 && NeighbourUsable(1 + ax, y + ay, width, height, neighbours)
+                && NeighbourUsable(1 + bx, y + by, width, height, neighbours))
+            {
+                int start = row + 1;
+                int count = width - 2;
+                HevcSao.EdgeRow(source.AsSpan(start, count), source.AsSpan(start + offsetA, count), source.AsSpan(start + offsetB, count),
+                    destination.AsSpan(start, count), offsets, maximum);
+                interiorEnd = width - 1;
+            }
+
+            for (int x = 0; x < width; x = x == 0 && interiorEnd > 0 ? interiorEnd : x + 1)
             {
                 if (!NeighbourUsable(x + ax, y + ay, width, height, neighbours)
                     || !NeighbourUsable(x + bx, y + by, width, height, neighbours))
@@ -298,11 +350,8 @@ internal sealed partial class HevcPictureDecoder
                     continue;
                 }
 
-                int i = ((y0 + y) * stride) + x0 + x;
-                int current = source[i];
-                int edge = Math.Sign(current - source[i + (ay * stride) + ax]) + Math.Sign(current - source[i + (by * stride) + bx]);
-                int offset = edge switch { -2 => offsets[0], -1 => offsets[1], 1 => offsets[2], 2 => offsets[3], _ => 0 };
-                destination[i] = (ushort)HevcTransform.Clip(current + offset, maximum);
+                int i = row + x;
+                destination[i] = (ushort)HevcTransform.Clip(source[i] + HevcSao.EdgeOffset(source[i], source[i + offsetA], source[i + offsetB], offsets), maximum);
             }
         }
     }

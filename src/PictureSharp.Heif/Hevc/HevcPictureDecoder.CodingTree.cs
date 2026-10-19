@@ -513,7 +513,7 @@ internal sealed partial class HevcPictureDecoder
             return false;
         }
 
-        int ctbCurrent = layout.TsToRs[decodedCtbs];
+        int ctbCurrent = layout.TsToRs[currentCtbAddrTs];
         return pps.LoopFilterAcrossTilesEnabled || layout.TileIdOfRs(ctbN) == layout.TileIdOfRs(ctbCurrent);
     }
 }

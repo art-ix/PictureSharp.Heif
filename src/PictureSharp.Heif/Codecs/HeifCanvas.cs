@@ -31,8 +31,12 @@ internal sealed class HeifCanvas<T>(int width, int height) where T : unmanaged
         return result;
     }
 
-    // irot: anti-clockwise rotation by quarterTurns * 90 degrees. A band of destination rows is a band of source columns;
-    // walking the source rows in order keeps the reads sequential.
+    // Source rows read together by a quarter turn: each destination row gets a contiguous run of this many samples while
+    // the source lines stay in cache for the next destination rows.
+    private const int RotateBlock = 16;
+
+    // irot: anti-clockwise rotation by quarterTurns * 90 degrees. A band of destination rows is a band of source
+    // columns, transposed in blocks of RotateBlock source rows.
     private HeifCanvas<T> Rotate(int quarterTurns, ParallelOptions parallel)
     {
         if (quarterTurns == 0)
@@ -50,12 +54,17 @@ internal sealed class HeifCanvas<T>(int width, int height) where T : unmanaged
             {
                 case 1:
                     // (x, y) moves to (y, Width - 1 - x).
-                    for (int y = 0; y < Height; y++)
+                    for (int y0 = 0; y0 < Height; y0 += RotateBlock)
                     {
-                        ReadOnlySpan<T> source = Pixels.AsSpan((y * Width) + Width - end, end - start);
+                        int y1 = Math.Min(y0 + RotateBlock, Height);
                         for (int ny = start; ny < end; ny++)
                         {
-                            destination[(ny * width) + y] = source[end - 1 - ny];
+                            Span<T> row = destination.Slice((ny * width) + y0, y1 - y0);
+                            int x = Width - 1 - ny;
+                            for (int y = y0; y < y1; y++)
+                            {
+                                row[y - y0] = Pixels[(y * Width) + x];
+                            }
                         }
                     }
 
@@ -71,13 +80,16 @@ internal sealed class HeifCanvas<T>(int width, int height) where T : unmanaged
                     break;
                 default:
                     // (x, y) moves to (Height - 1 - y, x).
-                    for (int y = 0; y < Height; y++)
+                    for (int y0 = 0; y0 < Height; y0 += RotateBlock)
                     {
-                        ReadOnlySpan<T> source = Pixels.AsSpan((y * Width) + start, end - start);
-                        int nx = Height - 1 - y;
+                        int y1 = Math.Min(y0 + RotateBlock, Height);
                         for (int ny = start; ny < end; ny++)
                         {
-                            destination[(ny * width) + nx] = source[ny - start];
+                            Span<T> row = destination.Slice(ny * width, width);
+                            for (int y = y0; y < y1; y++)
+                            {
+                                row[Height - 1 - y] = Pixels[(y * Width) + ny];
+                            }
                         }
                     }
 

@@ -23,6 +23,9 @@ internal sealed class HevcSliceHeader
     // Byte offset of slice_segment_data within the RBSP.
     public int DataOffset { get; private init; }
 
+    // entry_point_offset_minus1 values: substream sizes minus one in NAL unit bytes, emulation prevention included.
+    public uint[] EntryPointOffsetsMinus1 { get; private init; } = [];
+
     public static int ReadPpsId(ReadOnlySpan<byte> rbsp, HevcNalHeader nal)
     {
         var reader = new HevcBitReader(rbsp);
@@ -65,6 +68,7 @@ internal sealed class HevcSliceHeader
                 throw HevcError.Invalid("dependent slice segment without a preceding slice.");
             }
 
+            (int segmentDataOffset, uint[] segmentEntryPoints) = ReadTail(ref reader, pps, layout);
             return new HevcSliceHeader
             {
                 FirstSliceSegmentInPic = first,
@@ -81,7 +85,8 @@ internal sealed class HevcSliceHeader
                 BetaOffsetDiv2 = previous.BetaOffsetDiv2,
                 TcOffsetDiv2 = previous.TcOffsetDiv2,
                 LoopFilterAcrossSlices = previous.LoopFilterAcrossSlices,
-                DataOffset = ReadTail(ref reader, pps, layout),
+                DataOffset = segmentDataOffset,
+                EntryPointOffsetsMinus1 = segmentEntryPoints,
             };
         }
 
@@ -185,6 +190,7 @@ internal sealed class HevcSliceHeader
             acrossSlices = reader.ReadFlag();
         }
 
+        (int dataOffset, uint[] entryPoints) = ReadTail(ref reader, pps, layout);
         return new HevcSliceHeader
         {
             FirstSliceSegmentInPic = first,
@@ -200,21 +206,32 @@ internal sealed class HevcSliceHeader
             BetaOffsetDiv2 = beta,
             TcOffsetDiv2 = tc,
             LoopFilterAcrossSlices = acrossSlices,
-            DataOffset = ReadTail(ref reader, pps, layout),
+            DataOffset = dataOffset,
+            EntryPointOffsetsMinus1 = entryPoints,
         };
     }
 
-    // Entry points, header extension and byte_alignment(). Substreams are decoded sequentially, so the entry point
-    // offsets are only skipped.
-    private static int ReadTail(ref HevcBitReader reader, HevcPictureParameterSet pps, HevcPictureLayout layout)
+    // Entry points, header extension and byte_alignment(). Entry points let wavefront rows decode in parallel; the
+    // sequential path reads substreams one after another and ignores them.
+    private static (int DataOffset, uint[] EntryPoints) ReadTail(ref HevcBitReader reader, HevcPictureParameterSet pps, HevcPictureLayout layout)
     {
+        uint[] entryPoints = [];
         if (pps.TilesEnabled || pps.EntropyCodingSyncEnabled)
         {
             int count = reader.ReadUe(layout.CtbCount, "num_entry_point_offsets");
             if (count > 0)
             {
                 int length = reader.ReadUe(31, "offset_len_minus1") + 1;
-                reader.Skip(checked(count * length));
+                if ((long)count * length > reader.BitsRemaining)
+                {
+                    throw HevcError.Invalid("truncated header.");
+                }
+
+                entryPoints = new uint[count];
+                for (int i = 0; i < count; i++)
+                {
+                    entryPoints[i] = reader.ReadBits(length);
+                }
             }
         }
 
@@ -236,6 +253,6 @@ internal sealed class HevcSliceHeader
             }
         }
 
-        return reader.BitPosition >> 3;
+        return (reader.BitPosition >> 3, entryPoints);
     }
 }

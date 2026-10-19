@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace PictureSharp.Formats.Heif.Hevc;
 
 // Decodes the slice segments of one intra picture: CABAC parsing, reconstruction, deblocking and SAO.
@@ -32,7 +34,7 @@ internal sealed partial class HevcPictureDecoder : IHevcAvailability
     private readonly short[] saoOffsets;
     private readonly List<HevcSliceHeader> slices = [];
 
-    private readonly HevcCabacDecoder cabac = new();
+    private HevcCabacDecoder cabac;
     private readonly byte[] contexts = new byte[HevcContext.Count];
     private readonly byte[] wppContexts = new byte[HevcContext.Count];
     private readonly byte[] dependentContexts = new byte[HevcContext.Count];
@@ -50,6 +52,7 @@ internal sealed partial class HevcPictureDecoder : IHevcAvailability
     private HevcSliceHeader slice = null!;
     private int sliceIndex = -1;
     private int decodedCtbs;
+    private int currentCtbAddrTs;
     private int lastQpY;
     private int qpYPred;
     private int qpY;
@@ -83,10 +86,40 @@ internal sealed partial class HevcPictureDecoder : IHevcAvailability
         log2MinCuQpDeltaSize = sps.Log2CtbSize - pps.DiffCuQpDeltaDepth;
     }
 
+    // A wavefront worker: shares the picture, its block and CTB maps and the slice list with owner, and has its own
+    // entropy decoder, contexts, coefficient buffers, intra predictor and QP state.
+    private HevcPictureDecoder(HevcPictureDecoder owner)
+    {
+        sps = owner.sps;
+        pps = owner.pps;
+        cancellationToken = owner.cancellationToken;
+        layout = owner.layout;
+        frame = owner.frame;
+        scalingList = owner.scalingList;
+        intra = new HevcIntraPredictor(sps.StrongIntraSmoothingEnabled);
+        blocksWide = owner.blocksWide;
+        blocksHigh = owner.blocksHigh;
+        ctDepth = owner.ctDepth;
+        intraModes = owner.intraModes;
+        qpMap = owner.qpMap;
+        blockFlags = owner.blockFlags;
+        ctbSliceAddress = owner.ctbSliceAddress;
+        ctbSliceIndex = owner.ctbSliceIndex;
+        saoTypes = owner.saoTypes;
+        saoClasses = owner.saoClasses;
+        saoOffsets = owner.saoOffsets;
+        slices = owner.slices;
+        log2MinCuQpDeltaSize = owner.log2MinCuQpDeltaSize;
+        slice = owner.slice;
+        sliceIndex = owner.sliceIndex;
+    }
+
     public HevcPictureParameterSet Pps => pps;
 
-    // Decodes one slice segment NAL unit (RBSP with the two-byte header removed).
-    public void DecodeSliceSegment(byte[] rbsp, int length, HevcNalHeader nal)
+    // Decodes one slice segment NAL unit (RBSP with the two-byte header removed). removed lists the RBSP positions of
+    // the emulation prevention bytes taken out of the NAL unit (HevcNalHeader.ExtractRbsp); with it and parallel, a
+    // slice segment covering the whole picture with wavefront entry points decodes its CTB rows in parallel.
+    public void DecodeSliceSegment(byte[] rbsp, int length, HevcNalHeader nal, List<int>? removed = null, ParallelOptions? parallel = null)
     {
         HevcSliceHeader header = HevcSliceHeader.Parse(rbsp.AsSpan(0, length), nal, sps, pps, layout,
             slices.Count > 0 ? slices[^1] : null);
@@ -109,6 +142,12 @@ internal sealed partial class HevcPictureDecoder : IHevcAvailability
             lastQpY = header.SliceQpY;
         }
 
+        if (parallel is not null && removed is not null && SubstreamStarts(header, length, removed) is { } starts
+            && DecodeWavefronts(rbsp, starts, parallel))
+        {
+            return;
+        }
+
         cabac.Reset(rbsp, header.DataOffset, length - header.DataOffset);
         int ctbAddrRs = header.SegmentAddress;
         BeginCtb(ctbAddrRs);
@@ -117,6 +156,7 @@ internal sealed partial class HevcPictureDecoder : IHevcAvailability
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            currentCtbAddrTs = ctbAddrTs;
             DecodeCodingTreeUnit(ctbAddrRs);
             decodedCtbs++;
             if (pps.EntropyCodingSyncEnabled && StoresWppContexts(ctbAddrTs, ctbAddrRs))
@@ -165,7 +205,185 @@ internal sealed partial class HevcPictureDecoder : IHevcAvailability
         }
     }
 
-    public HevcFrame Finish()
+    // RBSP start of each CTB row's substream plus the end of the slice data, or null when the segment is not one
+    // whole-picture wavefront slice segment or its entry points are inconsistent (then it decodes sequentially, as
+    // before entry points were used). Entry points count emulation prevention bytes (7.4.7.1).
+    private int[]? SubstreamStarts(HevcSliceHeader header, int length, List<int> removed)
+    {
+        int rows = layout.HeightInCtbs;
+        uint[] offsets = header.EntryPointOffsetsMinus1;
+        if (!pps.EntropyCodingSyncEnabled || pps.TilesEnabled || header.SegmentAddress != 0 || rows < 2
+            || offsets.Length != rows - 1)
+        {
+            return null;
+        }
+
+        // The emulation prevention byte removed before RBSP position removed[i] has payload position removed[i] + i.
+        int before = 0;
+        while (before < removed.Count && removed[before] <= header.DataOffset)
+        {
+            before++;
+        }
+
+        var starts = new int[rows + 1];
+        starts[0] = header.DataOffset;
+        starts[rows] = length;
+        long payload = header.DataOffset + before;
+        int skipped = 0;
+        for (int row = 1; row < rows; row++)
+        {
+            payload += offsets[row - 1] + 1L;
+            while (skipped < removed.Count && removed[skipped] + skipped < payload)
+            {
+                skipped++;
+            }
+
+            long start = payload - skipped;
+            if (start <= starts[row - 1] || start >= length)
+            {
+                return null;
+            }
+
+            starts[row] = (int)start;
+        }
+
+        return starts;
+    }
+
+    // 9.3.1 / 9.3.2.2 wavefront parallel decoding of a whole-picture slice segment: workers take CTB rows in order, and
+    // CTB (x, y) starts once row y - 1 has finished CTB x + 1, so every neighbour the CTB reads (and the contexts saved
+    // after the second CTB of the row above) is complete. Workers write only their own CTBs' samples and map entries.
+    // Each row must end exactly where the next entry point starts, which is where sequential parsing would continue,
+    // so a successful parallel decode equals the sequential one. Returns false after invalid data (wrong entry points
+    // or a corrupt row) with the maps reset: the caller then decodes sequentially, which gives the same pixels or the
+    // same error as without parallelism.
+    private bool DecodeWavefronts(byte[] rbsp, int[] starts, ParallelOptions parallel)
+    {
+        int rows = layout.HeightInCtbs;
+        var progress = new int[rows];
+        var rowContexts = new byte[rows * HevcContext.Count];
+        var errors = new ExceptionDispatchInfo?[rows];
+        int nextRow = -1;
+        int failed = 0;
+        int workers = Math.Min(rows, parallel.MaxDegreeOfParallelism > 0 ? parallel.MaxDegreeOfParallelism : Environment.ProcessorCount);
+        Parallel.For(0, workers, parallel, _ =>
+        {
+            var worker = new HevcPictureDecoder(this);
+            int row;
+            while (Volatile.Read(ref failed) == 0 && (row = Interlocked.Increment(ref nextRow)) < rows)
+            {
+                try
+                {
+                    worker.DecodeWavefrontRow(row, rbsp, starts, progress, rowContexts, ref failed);
+                }
+                catch (Exception exception)
+                {
+                    errors[row] = ExceptionDispatchInfo.Capture(exception);
+                    Volatile.Write(ref failed, 1);
+                }
+            }
+        });
+
+        foreach (ExceptionDispatchInfo? error in errors)
+        {
+            if (error is null)
+            {
+                continue;
+            }
+
+            if (error.SourceException is not ImageFormatException)
+            {
+                // Cancellation, or a failure that does not depend on the data.
+                error.Throw();
+            }
+
+            blockFlags.AsSpan().Clear();
+            ctbSliceAddress.AsSpan().Fill(-1);
+            return false;
+        }
+
+        decodedCtbs = layout.CtbCount;
+        return true;
+    }
+
+    private void DecodeWavefrontRow(int row, byte[] rbsp, int[] starts, int[] progress, byte[] rowContexts, ref int failed)
+    {
+        int width = layout.WidthInCtbs;
+        int rows = layout.HeightInCtbs;
+        cabac.Reset(rbsp, starts[row], starts[row + 1] - starts[row]);
+        for (int x = 0; x < width; x++)
+        {
+            if (row > 0)
+            {
+                int needed = Math.Min(x + 2, width);
+                var spin = new SpinWait();
+                while (Volatile.Read(ref progress[row - 1]) < needed)
+                {
+                    if (Volatile.Read(ref failed) != 0)
+                    {
+                        return;
+                    }
+
+                    spin.SpinOnce(sleep1Threshold: -1);
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            int ctbAddrRs = (row * width) + x;
+            BeginCtb(ctbAddrRs);
+            if (x == 0)
+            {
+                // InitializeContexts: the first row starts the slice; later rows take the contexts stored after the
+                // second CTB of the row above when that CTB exists.
+                lastQpY = slice.SliceQpY;
+                if (row > 0 && width > 1)
+                {
+                    rowContexts.AsSpan((row - 1) * HevcContext.Count, HevcContext.Count).CopyTo(contexts);
+                }
+                else
+                {
+                    HevcContext.Initialize(contexts, slice.SliceQpY);
+                }
+
+                cabac.Start();
+            }
+
+            currentCtbAddrTs = ctbAddrRs;
+            DecodeCodingTreeUnit(ctbAddrRs);
+            if (x == 1)
+            {
+                contexts.CopyTo(rowContexts, row * HevcContext.Count);
+            }
+
+            bool endOfSliceSegment = cabac.DecodeTerminate() != 0;
+            if (x < width - 1 || row < rows - 1)
+            {
+                if (endOfSliceSegment)
+                {
+                    throw HevcError.Invalid("the picture is missing slice segments.");
+                }
+
+                if (x == width - 1 && (cabac.DecodeTerminate() == 0 || cabac.Position != starts[row + 1]))
+                {
+                    throw HevcError.Invalid("CTB row does not end at the next entry point.");
+                }
+            }
+            else if (!endOfSliceSegment)
+            {
+                throw HevcError.Invalid("slice data continues past the last coding tree block.");
+            }
+
+            Volatile.Write(ref progress[row], x + 1);
+        }
+
+        if (cabac.Overrun > 0)
+        {
+            throw HevcError.Invalid("truncated slice segment data.");
+        }
+    }
+
+    // Deblocking and SAO; with parallel they run in bands of rows (same samples).
+    public HevcFrame Finish(ParallelOptions? parallel = null)
     {
         if (decodedCtbs != layout.CtbCount)
         {
@@ -173,9 +391,9 @@ internal sealed partial class HevcPictureDecoder : IHevcAvailability
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        Deblock();
+        Deblock(parallel);
         cancellationToken.ThrowIfCancellationRequested();
-        ApplySao();
+        ApplySao(parallel);
         return frame;
     }
 

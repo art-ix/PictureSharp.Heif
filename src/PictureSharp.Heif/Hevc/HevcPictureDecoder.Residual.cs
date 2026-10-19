@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace PictureSharp.Formats.Heif.Hevc;
 
 internal sealed partial class HevcPictureDecoder
@@ -86,11 +88,13 @@ internal sealed partial class HevcPictureDecoder
         int size = 1 << log2Size;
         Span<int> block = coefficients.AsSpan(0, size * size);
         ClearWrittenCoefficients();
+        HevcCabacDecoder engine = cabac;
+        Span<byte> contexts = this.contexts;
         bool luma = cIdx == 0;
         bool transformSkip = false;
         if (pps.TransformSkipEnabled && !cuTransquantBypass && log2Size == 2)
         {
-            transformSkip = cabac.DecodeBin(ref contexts[luma ? HevcContext.TransformSkipLuma : HevcContext.TransformSkipChroma]) != 0;
+            transformSkip = engine.DecodeBin(ref contexts[luma ? HevcContext.TransformSkipLuma : HevcContext.TransformSkipChroma]) != 0;
         }
 
         // 7.4.9.11 scanIdx: mode-dependent scan for 4x4 and luma 8x8 blocks.
@@ -112,25 +116,25 @@ internal sealed partial class HevcPictureDecoder
         int ctxShift = luma ? (log2Size + 1) >> 2 : log2Size - 2;
         int groups = GroupIndex[size - 1];
         int lastX = 0;
-        while (lastX < groups && cabac.DecodeBin(ref contexts[HevcContext.LastXPrefix + ctxOffset + (lastX >> ctxShift)]) != 0)
+        while (lastX < groups && engine.DecodeBin(ref contexts[HevcContext.LastXPrefix + ctxOffset + (lastX >> ctxShift)]) != 0)
         {
             lastX++;
         }
 
         int lastY = 0;
-        while (lastY < groups && cabac.DecodeBin(ref contexts[HevcContext.LastYPrefix + ctxOffset + (lastY >> ctxShift)]) != 0)
+        while (lastY < groups && engine.DecodeBin(ref contexts[HevcContext.LastYPrefix + ctxOffset + (lastY >> ctxShift)]) != 0)
         {
             lastY++;
         }
 
         if (lastX > 3)
         {
-            lastX = MinInGroup[lastX] + (int)cabac.DecodeBypassBits((lastX - 2) >> 1);
+            lastX = MinInGroup[lastX] + (int)engine.DecodeBypassBits((lastX - 2) >> 1);
         }
 
         if (lastY > 3)
         {
-            lastY = MinInGroup[lastY] + (int)cabac.DecodeBypassBits((lastY - 2) >> 1);
+            lastY = MinInGroup[lastY] + (int)engine.DecodeBypassBits((lastY - 2) >> 1);
         }
 
         if (scanIdx == HevcScan.Vertical)
@@ -201,7 +205,7 @@ internal sealed partial class HevcPictureDecoder
                 int right = xS < groupsWide - 1 ? codedSubBlocks[(yS * groupsWide) + xS + 1] : 0;
                 int below = yS < groupsWide - 1 ? codedSubBlocks[((yS + 1) * groupsWide) + xS] : 0;
                 int ctx = (right | below) + (luma ? 0 : 2);
-                codedSubBlocks[(yS * groupsWide) + xS] = (byte)cabac.DecodeBin(ref contexts[HevcContext.CodedSubBlock + ctx]);
+                codedSubBlocks[(yS * groupsWide) + xS] = (byte)engine.DecodeBin(ref contexts[HevcContext.CodedSubBlock + ctx]);
                 inferredSigned = true;
             }
 
@@ -219,17 +223,22 @@ internal sealed partial class HevcPictureDecoder
                 pattern |= codedSubBlocks[((yS + 1) * groupsWide) + xS] << 1;
             }
 
+            // Significance contexts of this sub-block by position in it (port: HM TComTrQuant::getSigCtxInc): a fixed
+            // map for 4x4 blocks, otherwise the neighbour pattern's count plus the block's offset; DC uses context 0.
+            ReadOnlySpan<byte> sigCounts = log2Size == 2 ? ContextIndexMap4x4 : PatternSigCounts.Slice(pattern << 4, 16);
+            int sigOffset = log2Size == 2 ? sigBase : sigBase + firstSigContext + ((xS | yS) != 0 && luma ? 3 : 0);
             for (; p >= 0; p--)
             {
-                int xC = (xS << 2) + (positionScan[p] & 15);
-                int yC = (yS << 2) + (positionScan[p] >> 4);
+                int position = positionScan[p];
+                int xC = (xS << 2) + (position & 15);
+                int yC = (yS << 2) + (position >> 4);
                 int significant = 0;
                 if (coded)
                 {
                     if (p > 0 || !inferredSigned || count > 0)
                     {
-                        int ctx = SignificanceContext(xC, yC, log2Size, pattern, firstSigContext, luma);
-                        significant = cabac.DecodeBin(ref contexts[sigBase + ctx]);
+                        int ctx = xC + yC == 0 ? sigBase : sigOffset + sigCounts[((position >> 4) << 2) + (position & 15)];
+                        significant = engine.DecodeBin(ref contexts[ctx]);
                     }
                     else
                     {
@@ -267,7 +276,7 @@ internal sealed partial class HevcPictureDecoder
             bool escape = count > 8;
             for (int i = 0; i < Math.Min(count, 8); i++)
             {
-                int bin = cabac.DecodeBin(ref contexts[greater1Base + c1]);
+                int bin = engine.DecodeBin(ref contexts[greater1Base + c1]);
                 if (bin != 0)
                 {
                     c1 = 0;
@@ -290,7 +299,7 @@ internal sealed partial class HevcPictureDecoder
 
             if (c1 == 0 && firstGreater1 >= 0)
             {
-                int bin = cabac.DecodeBin(ref contexts[HevcContext.Greater2 + (luma ? 0 : 4) + ctxSet]);
+                int bin = engine.DecodeBin(ref contexts[HevcContext.Greater2 + (luma ? 0 : 4) + ctxSet]);
                 absolute[firstGreater1] = bin + 2;
                 if (bin != 0)
                 {
@@ -300,7 +309,7 @@ internal sealed partial class HevcPictureDecoder
 
             bool hideSign = signHidden && signHidingAllowed;
             int signCount = hideSign ? count - 1 : count;
-            uint signs = signCount > 0 ? cabac.DecodeBypassBits(signCount) << (32 - signCount) : 0;
+            uint signs = signCount > 0 ? engine.DecodeBypassBits(signCount) << (32 - signCount) : 0;
             if (escape)
             {
                 int rice = 0;
@@ -310,7 +319,7 @@ internal sealed partial class HevcPictureDecoder
                     int baseLevel = i < 8 ? 2 + firstCoefficient2 : 1;
                     if (absolute[i] == baseLevel)
                     {
-                        absolute[i] = baseLevel + ReadCoeffAbsLevelRemaining(rice);
+                        absolute[i] = baseLevel + ReadCoeffAbsLevelRemaining(ref engine, rice);
                         if (absolute[i] > 3 << rice)
                         {
                             rice = Math.Min(rice + 1, 4);
@@ -351,6 +360,7 @@ internal sealed partial class HevcPictureDecoder
             }
         }
 
+        cabac = engine;
         return transformSkip;
     }
 
@@ -365,37 +375,22 @@ internal sealed partial class HevcPictureDecoder
         writtenCoefficientCount = 0;
     }
 
-    // port: HM TComTrQuant::getSigCtxInc (without transform_skip_context)
-    private static int SignificanceContext(int xC, int yC, int log2Size, int pattern, int firstContext, bool luma)
-    {
-        if (xC + yC == 0)
-        {
-            return 0;
-        }
-
-        if (log2Size == 2)
-        {
-            return ContextIndexMap4x4[(yC << 2) + xC];
-        }
-
-        int xP = xC & 3;
-        int yP = yC & 3;
-        int count = pattern switch
-        {
-            0 => xP + yP >= 3 ? 0 : xP + yP >= 1 ? 1 : 2,
-            1 => yP >= 2 ? 0 : yP >= 1 ? 1 : 2,
-            2 => xP >= 2 ? 0 : xP >= 1 ? 1 : 2,
-            _ => 2,
-        };
-        bool notFirstGroup = (xC >> 2) + (yC >> 2) > 0;
-        return firstContext + (notFirstGroup && luma ? 3 : 0) + count;
-    }
+    // Significance context counts for 8x8 and larger blocks by coded-sub-block pattern (right | below << 1) and the
+    // position (yP << 2) + xP in the sub-block (port: HM TComTrQuant::getSigCtxInc).
+    private static ReadOnlySpan<byte> PatternSigCounts =>
+    [
+        2, 1, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 1, 0, 0, 2, 1, 0, 0, 2, 1, 0, 0, 2, 1, 0, 0,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    ];
 
     // port: HM TDecSbac::xReadCoefRemainExGolomb (useLimitedPrefixLength false)
-    private int ReadCoeffAbsLevelRemaining(int rice)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int ReadCoeffAbsLevelRemaining(ref HevcCabacDecoder engine, int rice)
     {
         int prefix = 0;
-        while (cabac.DecodeBypass() != 0)
+        while (engine.DecodeBypass() != 0)
         {
             if (++prefix > 32)
             {
@@ -405,7 +400,7 @@ internal sealed partial class HevcPictureDecoder
 
         if (prefix < 3)
         {
-            return (prefix << rice) + (rice > 0 ? (int)cabac.DecodeBypassBits(rice) : 0);
+            return (prefix << rice) + (rice > 0 ? (int)engine.DecodeBypassBits(rice) : 0);
         }
 
         int suffixLength = prefix - 3 + rice;
@@ -414,7 +409,7 @@ internal sealed partial class HevcPictureDecoder
             throw HevcError.Invalid("coeff_abs_level_remaining too large.");
         }
 
-        int suffix = (int)cabac.DecodeBypassBits(suffixLength);
+        int suffix = (int)engine.DecodeBypassBits(suffixLength);
         return (((1 << (prefix - 3)) + 3 - 1) << rice) + suffix;
     }
 

@@ -1,12 +1,15 @@
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace PictureSharp.Formats.Heif.Hevc;
 
 // H.265 9.3.4.3 arithmetic decoding engine.
 // port: HM source/Lib/TLibDecoder/TDecBinCoderCABAC.cpp (byte-wise refill, same range/value representation)
-internal sealed class HevcCabacDecoder
+// A mutable struct so that hot parsing loops can copy the engine into a local, keep its state in registers and store
+// it back once (see ParseResidualCoding).
+internal struct HevcCabacDecoder
 {
-    private byte[] data = [];
+    private byte[] data;
     private int position;
     private int end;
     private uint value;
@@ -47,45 +50,31 @@ internal sealed class HevcCabacDecoder
     }
 
     // port: TDecBinCABAC::decodeBin; state is (pStateIdx << 1) | valMps as in HM ContextModel.
+    // The MPS/LPS decision is about as likely as a coin toss for many contexts, so it selects with a mask instead of a
+    // branch. Renormalization shifts the new range to at least 256: for the MPS path that is 0 or 1 bit, for the LPS
+    // path HM's sm_aucRenormTable, both equal to LeadingZeroCount(range) - 23. The arithmetic is HM's, bit for bit.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int DecodeBin(ref byte state)
     {
         int s = state;
         uint lps = LpsTable[((s >> 1) << 2) + (int)((range >> 6) - 4)];
-        range -= lps;
-        uint scaledRange = range << 7;
-        int bin;
-        if (value < scaledRange)
+        uint mpsRange = range - lps;
+        uint scaledRange = mpsRange << 7;
+        uint lpsMask = (uint)((int)(scaledRange - 1 - value) >> 31);
+        value -= scaledRange & lpsMask;
+        uint newRange = (lps & lpsMask) | (mpsRange & ~lpsMask);
+        state = NextState[(int)(lpsMask & 128) | s];
+        int numBits = BitOperations.LeadingZeroCount(newRange) - 23;
+        range = newRange << numBits;
+        value <<= numBits;
+        bitsNeeded += numBits;
+        if (bitsNeeded >= 0)
         {
-            bin = s & 1;
-            state = NextStateMps[s];
-            if (scaledRange < (256 << 7))
-            {
-                range = scaledRange >> 6;
-                value += value;
-                if (++bitsNeeded == 0)
-                {
-                    bitsNeeded = -8;
-                    value += ReadByte();
-                }
-            }
-        }
-        else
-        {
-            bin = (s & 1) ^ 1;
-            int numBits = RenormTable[(int)(lps >> 3)];
-            value = (value - scaledRange) << numBits;
-            range = lps << numBits;
-            state = NextStateLps[s];
-            bitsNeeded += numBits;
-            if (bitsNeeded >= 0)
-            {
-                value += ReadByte() << bitsNeeded;
-                bitsNeeded -= 8;
-            }
+            value += ReadByte() << bitsNeeded;
+            bitsNeeded -= 8;
         }
 
-        return bin;
+        return (s & 1) ^ (int)(lpsMask & 1);
     }
 
     // port: TDecBinCABAC::decodeBinEP
@@ -109,25 +98,20 @@ internal sealed class HevcCabacDecoder
         return 0;
     }
 
-    // port: TDecBinCABAC::decodeBinsEP (the aligned fast path is equivalent and not needed without RExt alignment)
+    // port: TDecBinCABAC::decodeBinsEP (the aligned fast path is equivalent and not needed without RExt alignment).
+    // HM's per-bin compare-and-subtract loop is restoring division by range << 7: while value < range << (7 + n) the
+    // quotient fits in n bits and one integer division gives the same bins and remainder. Arithmetic-coded data keeps
+    // value below range << 7 after every bin, but corrupt data can start above it (Start reads 0xFFxx), so larger
+    // values take HM's loop, which never yields more than n bits.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public uint DecodeBypassBits(int count)
     {
+        uint scaledRange = range << 7;
         uint bins = 0;
         while (count > 8)
         {
             value = (value << 8) + (ReadByte() << (8 + bitsNeeded));
-            uint scaled = range << 15;
-            for (int i = 0; i < 8; i++)
-            {
-                bins += bins;
-                scaled >>= 1;
-                if (value >= scaled)
-                {
-                    bins++;
-                    value -= scaled;
-                }
-            }
-
+            bins = (bins << 8) | DivideBins(scaledRange, 8);
             count -= 8;
         }
 
@@ -139,15 +123,29 @@ internal sealed class HevcCabacDecoder
             bitsNeeded -= 8;
         }
 
-        uint scaledRange = range << (count + 7);
+        return (bins << count) | DivideBins(scaledRange, count);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private uint DivideBins(uint scaledRange, int count)
+    {
+        if (value < scaledRange << count)
+        {
+            uint quotient = value / scaledRange;
+            value -= quotient * scaledRange;
+            return quotient;
+        }
+
+        uint bins = 0;
+        uint scaled = scaledRange << count;
         for (int i = 0; i < count; i++)
         {
             bins += bins;
-            scaledRange >>= 1;
-            if (value >= scaledRange)
+            scaled >>= 1;
+            if (value >= scaled)
             {
                 bins++;
-                value -= scaledRange;
+                value -= scaled;
             }
         }
 
@@ -234,15 +232,8 @@ internal sealed class HevcCabacDecoder
         6, 8, 9, 11, 6, 7, 9, 10, 6, 7, 8, 9, 2, 2, 2, 2,
     ];
 
-    // port: TComCABACTables::sm_aucRenormTable
-    private static ReadOnlySpan<byte> RenormTable =>
-    [
-        6, 5, 4, 4, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ];
-
-    // port: ContextModel::m_aucNextStateMPS
-    private static ReadOnlySpan<byte> NextStateMps =>
+    // port: ContextModel::m_aucNextStateMPS (entries 0-127) followed by m_aucNextStateLPS (128-255)
+    private static ReadOnlySpan<byte> NextState =>
     [
         2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
         18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
@@ -252,11 +243,6 @@ internal sealed class HevcCabacDecoder
         82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
         98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113,
         114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 124, 125, 126, 127,
-    ];
-
-    // port: ContextModel::m_aucNextStateLPS
-    private static ReadOnlySpan<byte> NextStateLps =>
-    [
         1, 0, 0, 1, 2, 3, 4, 5, 4, 5, 8, 9, 8, 9, 10, 11,
         12, 13, 14, 15, 16, 17, 18, 19, 18, 19, 22, 23, 22, 23, 24, 25,
         26, 27, 26, 27, 30, 31, 30, 31, 32, 33, 32, 33, 36, 37, 36, 37,

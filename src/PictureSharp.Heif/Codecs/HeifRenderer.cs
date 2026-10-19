@@ -6,7 +6,7 @@ namespace PictureSharp.Formats.Heif.Codecs;
 
 // Renders image nodes to straight-alpha RGBA: HEVC pictures, grids assembled in YCbCr, identity items, and the container
 // transforms in association order. Uses no decode context, so detached nodes (gain maps) render after the load.
-// Grid tiles decode in parallel; the result does not depend on the thread count.
+// Grid tiles, or the wavefront rows of a single picture, decode in parallel; the result does not depend on the thread count.
 internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken cancellationToken)
 {
     private const int MaxDepth = 32;
@@ -126,12 +126,13 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
     private static HeifNclx FromVui(HevcColourDescription? vui) =>
         vui is { } v ? new(v.Primaries, v.Transfer, v.Matrix, v.FullRange) : HeifNclx.Unspecified;
 
-    // A decoded HEVC picture, or a grid of them assembled in YCbCr (libheif converts the assembled image).
-    private HeifPlanes Assemble(HeifImageNode node, int depth)
+    // A decoded HEVC picture, or a grid of them assembled in YCbCr (libheif converts the assembled image). A picture
+    // outside a grid may decode its wavefront rows in parallel; grid tiles already decode in parallel.
+    private HeifPlanes Assemble(HeifImageNode node, int depth, bool tile = false)
     {
         if (node is HeifCodedNode coded)
         {
-            HevcFrame frame = HevcDecoder.Decode(coded.NalUnits, null, cancellationToken);
+            HevcFrame frame = HevcDecoder.Decode(coded.NalUnits, null, cancellationToken, tile ? null : parallel);
             if ((frame.CroppedWidth, frame.CroppedHeight) != coded.StoredSize)
             {
                 throw HeifReader.Error("HEVC picture size does not match the image item's spatial extents.");
@@ -181,7 +182,7 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
             throw new NotSupportedException("Transformed HEIF grid tiles are not supported.");
         }
 
-        return Assemble(tileNode, depth + 1);
+        return Assemble(tileNode, depth + 1, tile: true);
     }
 
     // Tiles share one size (the container checked their descriptions), so tile index determines the position.

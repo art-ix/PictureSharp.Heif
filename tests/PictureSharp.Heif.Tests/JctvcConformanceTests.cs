@@ -18,7 +18,16 @@ public sealed class JctvcConformanceTests
     [Test]
     [Property("Category", "Conformance")]
     [MethodDataSource(nameof(Streams))]
-    public async Task FirstPicture_MatchesHm(string name)
+    public Task FirstPicture_MatchesHm(string name) => DecodeMatchesHm(name, null);
+
+    // Whole-picture wavefront slice segments decode their CTB rows in parallel (WPP_*, ENTP_*); other streams fall back
+    // to sequential parsing with parallel loop filters. Both must match HM.
+    [Test]
+    [Property("Category", "Conformance")]
+    [MethodDataSource(nameof(Streams))]
+    public Task FirstPicture_Parallel_MatchesHm(string name) => DecodeMatchesHm(name, new ParallelOptions { MaxDegreeOfParallelism = 4 });
+
+    private static async Task DecodeMatchesHm(string name, ParallelOptions? parallel)
     {
         Entry entry = Manifest.Value.Single(e => e.Name == name);
         string path = Path.Combine(FindRoot(), "tests", "assets", "external", "jctvc", "streams", entry.File);
@@ -28,7 +37,7 @@ public sealed class JctvcConformanceTests
         HevcFrame frame;
         try
         {
-            frame = HevcDecoder.Decode(HevcConformanceTests.SplitAnnexB(bytes), null, CancellationToken.None);
+            frame = HevcDecoder.Decode(HevcConformanceTests.SplitAnnexB(bytes), null, CancellationToken.None, parallel);
         }
         catch (NotSupportedException error)
         {
