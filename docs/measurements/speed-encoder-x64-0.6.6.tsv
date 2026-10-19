@@ -1,0 +1,5 @@
+revision	operation	file	threads	ms	alloc_mb	bytes
+e076511	encode	IMG_3928.HEIC	1	30761	388.9	1773678
+e076511	encode	IMG_3928.HEIC	all	4200	389.3	1773678
+optimized	encode	IMG_3928.HEIC	1	21828	322.1	1769599
+optimized	encode	IMG_3928.HEIC	all	2858	322.8	1769599

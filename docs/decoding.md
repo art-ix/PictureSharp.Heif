@@ -128,7 +128,21 @@ Monochrome becomes grey RGB; 10-bit values become 8-bit with `round(v × 255 / 1
 
 ## Speed
 
-Decoding to `Rgba32`, best of five runs, against libheif with libde265:
+Version 0.6.6, i5-12500H, decoding to `Rgba32` (milliseconds, 1 / 16 threads):
+
+| Photo | 0.6.5 | 0.6.6 |
+| --- | ---: | ---: |
+| 12 MP iPhone grid | 663 / 116 | 568 / 103 |
+| 24 MP iPhone grid | 1178 / 187 | 938 / 161 |
+| 48 MP grid | 1090 / 170 | 916 / 146 |
+| 48 MP single picture, WPP | 1115 / 1097 | 848 / 173 |
+
+CABAC residual parsing, SAO and rotation are faster. A supported single-picture WPP stream parses CTB rows in
+parallel; deblocking and SAO also run over row bands. Malformed entry points fall back to sequential parsing.
+Decoded pixels match 0.6.5 and do not depend on the thread count. These are results recorded during the decoder
+stage; ARM64 has not been remeasured for 0.6.6. [Release details](releases/release-0.6.6.md).
+
+Earlier 0.5.0 measurements, best of five runs, against libheif with libde265:
 
 | Photo | i5-12500H, 1 thread | 16 threads | libheif 16 threads | Orange Pi 5 (ARM64), 8 threads | libheif |
 | --- | --- | --- | --- | --- | --- |
@@ -137,7 +151,8 @@ Decoding to `Rgba32`, best of five runs, against libheif with libde265:
 | 48 MP (192 tiles) | 1009 ms | 165 ms | 416 ms | 718 ms | 2392 ms |
 | 48 MP (one picture) | 1096 ms | 1092 ms | 938 ms | 2658 ms | 4151 ms |
 
-A single picture decodes on one thread. Vector and scalar code give the same pixels. Data:
+The earlier single-picture measurement used sequential parsing. Version 0.6.6 can parallelize supported WPP
+streams; other streams retain sequential parsing. Vector and scalar code give the same pixels. Earlier data:
 `docs/measurements/speed-x64.tsv` and `speed-arm64.tsv`.
 
 ## Verification

@@ -126,7 +126,7 @@ internal sealed class HevcRdoq
                     }
                     else
                     {
-                        int sigContext = sigBase + HevcSyntaxWriter.SignificanceContext(blockPos % size, blockPos / size, log2Size,
+                        int sigContext = sigBase + HevcSyntaxWriter.SignificanceContext(blockPos & (size - 1), blockPos >> log2Size, log2Size,
                             pattern, firstSigContext, luma);
                         level = CodedLevel(ref costCoefficient[scanPos], costZero[scanPos], ref costSig[scanPos], scaled, maxLevel,
                             sigContext, oneContext, absContext, rice, c1Index, c2Index, qBits, errorScale, false, contexts, lambda);
@@ -285,8 +285,8 @@ internal sealed class HevcRdoq
                 int blockPos = scan[scanPos];
                 if (levels[blockPos] != 0)
                 {
-                    int x = blockPos % size;
-                    int y = blockPos / size;
+                    int x = blockPos & (size - 1);
+                    int y = blockPos >> log2Size;
                     double lastCost = scanIdx == HevcScan.Vertical ? LastCost(y, x, log2Size, luma, contexts, lambda) : LastCost(x, y, log2Size, luma, contexts, lambda);
                     double total = baseCost + lastCost - costSig[scanPos];
                     if (total < bestCost)

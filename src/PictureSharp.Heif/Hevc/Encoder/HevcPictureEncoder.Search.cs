@@ -122,7 +122,13 @@ internal sealed partial class HevcPictureEncoder
     // Estimated bits of the coding unit's syntax from the current maps; update leaves ctx in the coded state.
     private double CodingUnitBits(int x0, int y0, int log2Size, byte[] ctx, bool update)
     {
-        Span<byte> state = update ? ctx : ctx.AsSpan().ToArray();
+        Span<byte> scratch = stackalloc byte[HevcContext.Count];
+        Span<byte> state = update ? ctx : scratch;
+        if (!update)
+        {
+            ctx.CopyTo(state);
+        }
+
         counter.FractionalBits = 0;
         WriteCodingUnit(counter, state, x0, y0, log2Size);
         return counter.FractionalBits * Fraction;
@@ -136,8 +142,9 @@ internal sealed partial class HevcPictureEncoder
         MpmCandidates(x, y, candidates);
 
         // SATD pre-selection, coarse to fine: planar, DC and every fourth angular mode, then the neighbours at distance
-        // two and one of the best angular modes. The best few go to rate-distortion checks with the MPMs.
-        int keep = log2Size <= 3 ? 4 : 2;
+        // two and one of the best angular modes. Refine the winner and competitive MPMs with ordinary
+        // quantization; only the selected mode needs the full RDOQ pass.
+        const int keep = 1;
         Span<double> satd = stackalloc double[35];
         satd.Fill(double.NaN);
         intra.PrepareReferences(recon[0], strides[0], 0, x, y, log2Size, 8, x, y, this);
@@ -167,9 +174,11 @@ internal sealed partial class HevcPictureEncoder
             trial[trials++] = bestModes[i];
         }
 
+        // MPMs have cheaper signalling, but a poor prediction rarely recovers that difference during RDO.
         foreach (int candidate in candidates)
         {
-            if (!trial[..trials].Contains(candidate))
+            SatdCost(candidate, x, y, log2Size, candidates, satd);
+            if (!trial[..trials].Contains(candidate) && satd[candidate] <= satd[bestModes[0]] * 1.5)
             {
                 trial[trials++] = candidate;
             }
@@ -183,7 +192,7 @@ internal sealed partial class HevcPictureEncoder
             int mode = trial[i];
             // The SATD pass prepared this block's references; trials write only the block itself, so they stay valid.
             double distortion = CodeBlock(0, x, y, log2Size, mode, x, y, ctx, HevcContext.CbfLuma + (trafoDepth == 0 ? 1 : 0),
-                referencesPrepared: true);
+                referencesPrepared: true, useRdoq: false);
             double bits = LumaModeBits(mode, candidates, ctx) + ResidualBits(0, x, y, log2Size, ScanIndex(mode, log2Size, true), ctx, trafoDepth);
             double cost = distortion + (lambda * bits);
             if (cost < best)
@@ -191,15 +200,22 @@ internal sealed partial class HevcPictureEncoder
                 best = cost;
                 bestMode = mode;
                 bestDistortion = distortion;
-                if (i < trials - 1)
+                if (!settings.Rdoq && i < trials - 1)
                 {
                     CopyLuma(x, y, size, bestModeRecon, bestModeLevels, save: true);
                 }
             }
         }
 
-        // Keep the best candidate's coding instead of coding it again.
-        if (bestMode != trial[trials - 1])
+        // Refine the selected mode with RDOQ after the cheaper mode search.
+        if (settings.Rdoq)
+        {
+            bestDistortion = CodeBlock(0, x, y, log2Size, bestMode, x, y, ctx,
+                HevcContext.CbfLuma + (trafoDepth == 0 ? 1 : 0), referencesPrepared: true);
+        }
+
+        // With RDOQ disabled, keep the best trial's reconstruction instead of coding it again.
+        if (!settings.Rdoq && bestMode != trial[trials - 1])
         {
             CopyLuma(x, y, size, bestModeRecon, bestModeLevels, save: false);
         }
@@ -424,9 +440,10 @@ internal sealed partial class HevcPictureEncoder
 
     // Predicts, transforms, quantizes and reconstructs one transform block; returns its squared error.
     // (xTbY, yTbY) is the luma location of the block for neighbour availability. referencesPrepared: the intra
-    // predictor already holds this block's reference samples (PrepareReferences).
+    // predictor already holds this block's reference samples (PrepareReferences). Mode trials disable useRdoq;
+    // the selected mode and its residual tree use the configured quantization.
     private double CodeBlock(int cIdx, int x, int y, int log2Size, int mode, int xTbY, int yTbY, byte[] ctx, int cbfContext,
-        bool referencesPrepared = false)
+        bool referencesPrepared = false, bool useRdoq = true)
     {
         int size = 1 << log2Size;
         int count = size * size;
@@ -452,7 +469,7 @@ internal sealed partial class HevcPictureEncoder
         bool dst = cIdx == 0 && log2Size == 2;
         int blockQp = cIdx == 0 ? qp : chromaQp;
         HevcForwardTransform.Forward(residual, coefficients, temporary, log2Size, dst, 8);
-        int nonZero = settings.Rdoq
+        int nonZero = settings.Rdoq && useRdoq
             ? rdoq.Quantize(coefficients, quantized, log2Size, blockQp, cIdx == 0, ScanIndex(mode, log2Size, cIdx == 0), ctx,
                 cbfContext, lambda, settings.SignHidingEnabled)
             : HevcForwardTransform.Quantize(coefficients, quantized, log2Size, blockQp, 8);

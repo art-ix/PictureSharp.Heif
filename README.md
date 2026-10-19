@@ -64,6 +64,8 @@ Guides: [decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/de
 [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md) ·
 [container and catalogue](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md)
 
+[0.6.6 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.6.md): faster HEVC decoding and encoding, with measured quality and speed comparisons.
+
 ## License and patents
 
 MIT. Ported code follows H.265, HM and kvazaar (BSD-3); see `THIRD-PARTY-NOTICES.txt`. libheif, libde265 and x265 are

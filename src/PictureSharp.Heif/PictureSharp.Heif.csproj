@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.6.5: Apple Portrait effect. HeifAppleDepthInfo reads the depth item's Apple XMP (disparity range, simulated aperture, raw calibration); HeifDepthImage.AppleDepth and ToImage; Apple matte types and FindAuxiliaryImage/FindDepthImage; HeifDocument.RenderPortrait and HeifPortrait.Render approximate the depth-of-field blur Photos applies at display time (aperture, focus point, matte-protected subject; not identical to Photos). Image decoding unchanged. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.5/docs/releases/release-0.6.5.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.6: faster HEVC decoding with optimized CABAC, SAO, rotation and parallel WPP for single pictures; decoded pixels unchanged. Faster intra encoding with fewer mode trials and RDOQ for the selected mode: about 29% less single-thread time and 17% fewer allocations on a 12 MP photo. Encoded bytes change; Kodak equal-quality size cost averages +0.95% RGB PSNR / +1.26% luma SSIM. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.6/docs/releases/release-0.6.6.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

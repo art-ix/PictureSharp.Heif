@@ -8,6 +8,7 @@ using PictureSharp.Processing;
 // Wall-clock speed probe for decoding and encoding (best of N runs, after a warm-up run).
 //   decode <file.heic>... [--runs 5] [--threads 1,all]
 //   encode <file.heic>... [--runs 2] [--threads 1,all] [--quality 50]
+//   quality <file.png>... [--runs 2] [--threads 1]  size, RGB PSNR, luma SSIM dB and time at Q30/45/60/75
 //   hash <file.heic>... [--threads 1,all]    SHA-256 of the decoded Rgba32 pixels (bit-identity checks)
 //   encodehash <file.heic>... [--quality 50]  SHA-256 of the encoded file (byte-identity checks)
 //   make48 <file.heic> <out-grid.heic>   writes the 2x upscaled photo as a 512x512 grid (the 0.5.0 48 MP input)
@@ -16,7 +17,7 @@ ImageConfiguration.Default = ImageConfiguration.Default.ToBuilder().AddFormat(ne
 var configuration = ImageConfiguration.Default;
 string mode = args.Length > 0 ? args[0] : "";
 var files = args.Skip(1).TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
-int runs = Option("--runs", mode == "encode" ? 2 : 5);
+int runs = Option("--runs", mode is "encode" or "quality" ? 2 : 5);
 int quality = Option("--quality", 50);
 string[] threads = (OptionText("--threads") ?? "1,all").Split(',');
 
@@ -48,6 +49,23 @@ switch (mode)
                 int length = 0;
                 (double ms, double mb) = Measure(() => length = image.ToHeic(options).Length);
                 Row("encode", file, t, ms, mb, length);
+            }
+        }
+
+        break;
+    case "quality":
+        Console.WriteLine("image\tquality\tbytes\tpsnr_rgb\tssim_db\tms");
+        foreach (string file in files)
+        {
+            using Image image = Image.Load(file, new DecoderOptions { Configuration = configuration });
+            image.Metadata.Clear();
+            foreach (int q in new[] { 30, 45, 60, 75 })
+            {
+                byte[] encoded = [];
+                var options = new HeifEncoderOptions { Quality = q, MaxDegreeOfParallelism = Threads(threads[0]) };
+                (double ms, _) = Measure(() => encoded = image.ToHeic(options));
+                using Image decoded = Image.Load(encoded.AsSpan(), new DecoderOptions { Configuration = configuration });
+                Console.WriteLine(FormattableString.Invariant($"{Path.GetFileNameWithoutExtension(file)}\t{q}\t{encoded.Length}\t{QualityMetrics.Psnr(image, decoded):F6}\t{QualityMetrics.SsimDb(image, decoded):F6}\t{ms:F3}"));
             }
         }
 
@@ -88,7 +106,7 @@ switch (mode)
     }
 
     default:
-        Console.Error.WriteLine("usage: decode|encode <files> [--runs N] [--threads 1,all] [--quality Q] | make48 <in> <out>");
+        Console.Error.WriteLine("usage: decode|encode|quality <files> [--runs N] [--threads 1,all] [--quality Q] | make48 <in> <out>");
         return 1;
 }
 

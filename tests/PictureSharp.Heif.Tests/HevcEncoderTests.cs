@@ -53,7 +53,9 @@ public sealed class HevcEncoderTests
     [Arguments(200, 136, 30, false, 1.5)]
     [Arguments(96, 64, 8, false, 3.0)]
     [Arguments(160, 96, 45, true, 1.0)]
-    public async Task Encode_DecoderReproducesTheReconstruction(int width, int height, int qp, bool monochrome, double aq = 0)
+    [Arguments(96, 64, 22, false, 0, false)]
+    [Arguments(72, 40, 27, true, 0, false)]
+    public async Task Encode_DecoderReproducesTheReconstruction(int width, int height, int qp, bool monochrome, double aq = 0, bool rdoq = true)
     {
         var settings = new HevcEncoderSettings
         {
@@ -61,6 +63,7 @@ public sealed class HevcEncoderTests
             Height = height,
             Qp = qp,
             ChromaFormatIdc = monochrome ? 0 : 1,
+            Rdoq = rdoq,
             DeblockingDisabled = true,
             SaoEnabled = false,
             AqStrength = aq,

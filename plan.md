@@ -2,7 +2,7 @@
 
 ## Status and goal
 
-**Current version: 0.6.5, released 2026-10-18; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.6, prepared 2026-10-19 (not published); minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
@@ -41,7 +41,7 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.3 | `HeifDocument` API correction (incompatible with 0.6.2) | 0.7.6 | Released 2026-10-18 |
 | 0.6.4 | Raw depth samples, Live Photo pair detection | 0.7.6 | Released 2026-10-18 |
 | 0.6.5 | Apple portrait effect: disparity description, depth-of-field rendering | 0.7.6 | Released 2026-10-18 |
-| 0.6.6 | HEVC decoding and encoding speed: CABAC, RDOQ and bit counting, WPP, fused conversions | 0.7.6 (assumed) | Planned |
+| 0.6.6 | Faster HEVC decoder, WPP for single pictures, faster intra search and fewer encoder allocations | 0.7.6 | Prepared locally; not published |
 | 0.6.7 | Portrait effect calibration on more photos, analysis of Apple's rendering parameters, SIMD | 0.7.6 (assumed) | Planned |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.7.6 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
@@ -219,6 +219,12 @@ RDOQ and bit counting ~40% of encoding.
   CABAC tables, SIMD for intra prediction of candidates; WPP inside a tile for 48 MP and single-picture output;
   pooled buffers per tile (no per-CU allocation). An optional speed/compression trade-off (`HeifEncoderOptions` preset)
   only if the default cannot get closer to x265 without losing compression; decided after measurement.
+- **Encoder update (2026-10-19):** the user permits changed bytes and a small quality trade-off. A measured
+  candidate uses one SATD winner plus competitive MPMs and applies full RDOQ after luma mode selection. Kodak:
+  1.411× mean speed, +0.949% PSNR / +1.262% SSIM BD-rate; worst same-setting PSNR loss 0.131 dB. This exceeds the
+  original +0.5% gate below and does not by itself meet the 1.5× full-photo target. See
+  [experiment report](docs/measurements/encoder-search-0.6.6.md). The user accepted the visual comparison and
+  requested release preparation on 2026-10-19; the original performance gates remain documented below.
 - **Memory:** allocations of `Decode` and `SaveAsHeic` per MP (`ArrayPool`, plane reuse between tiles), peak RSS on
   48 MP.
 - **Invariants:** decoded pixels bit-identical to 0.6.5 (corpus, HM hashes, private photos, `ToHdr`); encoder output
@@ -232,6 +238,19 @@ RDOQ and bit counting ~40% of encoding.
   allocations not higher than 0.6.5; measurements in `docs/measurements/speed-*-0.6.6.tsv` on x64 and ARM64 with
   libheif/heif-enc as the reference; full tests and Oracle, 0 warnings; `docs/decoding.md`/`docs/encoding.md` speed
   sections updated. Publication on a separate user decision.
+
+**Release preparation (2026-10-19):** version 0.6.6 is prepared locally at the user's request after acceptance of
+before/after PNGs (no visible difference reported). Encoder: 12 MP Q50, 30.761→21.828 s on one thread,
+4.200→2.858 s on all threads; allocations 388.9→322.1 MiB. Decoder: 12/24 MP 568/938 ms on one thread,
+103/161 ms on all threads; 48 MP WPP 848/173 ms. API and dependency versions are unchanged.
+Release build: zero warnings/errors; 703/705 tests passed with the two known Local portrait failures below
+(no skips; Category=Measurement excluded). NuGet and symbol packages built and inspected.
+This is preparation of the measured implementation, not a claim that the original DoD is fully met: the 1.5×
+single-thread encoder target and +0.5% BD-rate gate were missed; ARM64, lower decoder allocations, fused colour
+conversion/rotation and the 48 MP peak-memory measurements remain outstanding. No push, tag or publication.
+Two Local portrait test failures reproduce unchanged on 0.6.5 with the current private samples (missing aperture
+and insufficient background improvement on IMG_6854); tracked with the 0.6.7 calibration work.
+See [release notes](docs/releases/release-0.6.6.md).
 
 ### 0.6.7 — Portrait effect calibration and Apple's rendering parameters
 
@@ -341,6 +360,8 @@ SPI needs are reported to the core plan; we do not work around them by copying i
 - An entry in `progres.md` after each significant step. The plan is updated after the DoD is actually met.
 
 ## Changelog
+
+- [0.6.6](docs/releases/release-0.6.6.md): faster HEVC decoding and encoding; prepared locally, not published.
 
 - [0.6.5](docs/releases/release-0.6.5.md): Apple Portrait effect (`HeifAppleDepthInfo`, `RenderPortrait`, `HeifPortrait`, `HeifDepthImage.ToImage`).
 - [0.6.4](docs/releases/release-0.6.4.md): raw depth samples (`LoadDepth`, `HeifDepthImage`) and Live Photo pairing (`LivePhotoPair`).

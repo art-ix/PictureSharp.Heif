@@ -56,3 +56,16 @@ and 5.3 s and writes files 8% and 6% larger. On an Orange Pi 5 (ARM64): 14.0 s a
 
 HM decodes every written bitstream exactly as PictureSharp.Heif does, and `heif-dec` (libheif 1.20.2) gives the same
 pixels, including grids, alpha, crops and all orientations.
+
+### 0.6.6 optimization
+
+The current encoder uses one SATD winner plus competitive neighbouring modes, ordinary quantization during luma
+mode selection and full RDOQ for the winner and its transform tree. On 24 Kodak images at Q30/45/60/75 this reduces
+encoding time by about 29% (1.41× throughput). Compared with the previous search, equal-quality file size increases
+by 0.95% according to RGB PSNR and 1.26% according to luma SSIM. At the same Quality setting, mean PSNR decreases
+by 0.047 dB, with a worst case of 0.131 dB. Output bytes change. These are objective measurements, not a visual
+quality guarantee. See the [method and complete results](measurements/encoder-search-0.6.6.md).
+
+On the 12 MP photo used for the speed comparison, Q50 encoding takes 21.83 s on one thread (previously 30.76 s)
+and 2.86 s on all threads (previously 4.20 s). Allocations fall from 388.9 to 322.1 MiB per encode on one thread.
+These are local x64 results; ARM64 has not yet been measured for this change.
