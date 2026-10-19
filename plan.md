@@ -2,7 +2,7 @@
 
 ## Status and goal
 
-**Current version: 0.6.5, prepared 2026-10-18, not yet published (last released: 0.6.4); minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.5, released 2026-10-18; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
@@ -15,7 +15,7 @@
 
 **Goal for 0.7.0 (scope simplified 2026-10-18):** a catalog of the file contents (photos, thumbnails, auxiliary
 images), reading and generating thumbnails, raw depth samples, Live Photo pair detection and, added 2026-10-18, the
-Apple portrait effect (disparity description and depth-of-field rendering). Delivered in releases 0.6.1–0.6.5,
+Apple portrait effect (disparity description and depth-of-field rendering). Delivered in releases 0.6.1–0.6.7,
 followed by the integration release 0.7.0. Writing collections, HEIF animations, depth interpretation beyond Apple
 portrait disparity and Live Photo export are moved out of 0.7.0.
 
@@ -40,7 +40,9 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.2 | `HeifDocument` catalog, references, auxiliary images, reading and generating thumbnails | 0.7.6 | Released 2026-10-18 |
 | 0.6.3 | `HeifDocument` API correction (incompatible with 0.6.2) | 0.7.6 | Released 2026-10-18 |
 | 0.6.4 | Raw depth samples, Live Photo pair detection | 0.7.6 | Released 2026-10-18 |
-| 0.6.5 | Apple portrait effect: disparity description, depth-of-field rendering | 0.7.6 | Prepared 2026-10-18, not published |
+| 0.6.5 | Apple portrait effect: disparity description, depth-of-field rendering | 0.7.6 | Released 2026-10-18 |
+| 0.6.6 | HEVC decoding and encoding speed: CABAC, RDOQ and bit counting, WPP, fused conversions | 0.7.6 (assumed) | Planned |
+| 0.6.7 | Portrait effect calibration on more photos, analysis of Apple's rendering parameters, SIMD | 0.7.6 (assumed) | Planned |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.7.6 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
 
@@ -176,7 +178,7 @@ photo without blur.
   guides tuning of the blur kernel, radius curve and matte blending. Visual review by the user on
   their own photos (a manual check, not a compatibility claim). XML docs, guide section, API snapshot.
 
-- **Status (2026-10-18):** release prepared (VERSION, notes, package), not published. API: `HeifAppleDepthInfo` (`FromXmp`, `ToFloat`),
+- **Status (2026-10-18):** released (tag v0.6.5, GitHub Release, NuGet). API: `HeifAppleDepthInfo` (`FromXmp`, `ToFloat`),
   `HeifDepthImage.AppleDepth` and `ToImage` (greyscale view of the map, added at the user's request),
   `HeifAppleAuxiliaryTypes`, `HeifItemInfo.FindAuxiliaryImage`/`FindDepthImage`, `HeifPortrait.Render`,
   `HeifDocument.RenderPortrait`, `HeifPortraitOptions` (aperture, focus point, `MaxPixels`, parallelism). Radius
@@ -191,6 +193,88 @@ photo without blur.
   scalar only (no SIMD, so no SIMD/ARM64 identity to check), no ARM64 run and no package consumer/Native AOT rerun.
   [Release notes](docs/releases/release-0.6.5.md).
 
+### 0.6.6 — HEVC decoding and encoding speed
+
+Planned 2026-10-19 at the user's request (the portrait calibration moved to 0.6.7). Starting point, 0.5.0 on x64
+(`docs/measurements/speed-x64.tsv`, i5-12500H): decoding 12 MP 646 / 109 ms (1 / 16 threads; libheif 613 / 237),
+24 MP 1195 / 193 ms (981 / 394), a 48 MP single picture 1096 ms with no parallelism (libheif 935); encoding 12 MP
+31 s / 4.0 s (heif-enc x265 2.0 s), 48 MP 13.7 s (5.3 s). Profile at 0.5.0: CABAC residual parsing ~40% of decoding,
+RDOQ and bit counting ~40% of encoding.
+
+- **Baseline and profiling first:** rerun `speed-x64.tsv` on 0.6.5 (the decoder gained depth, thumbnails and
+  portrait paths since 0.5.0) and collect a per-stage profile (CABAC, prediction, transforms, deblocking, SAO, colour
+  conversion, transforms of the picture; encoder: mode decision, RDOQ, bit estimation, reconstruction). Optimizations
+  are taken in order of measured share, not of this list.
+- **Decoder, single thread:** CABAC engine and residual coding — renormalization by bit counting, batched bypass bins
+  (signs, remainders), context state in local variables, `coeff_abs_level_remaining` without per-bin loops, significance
+  map by subblock without bounds checks; intra prediction and reference sample filtering with SIMD; deblocking and SAO
+  with SIMD (edge filtering per 4-sample segment, SAO band/edge per row); fewer passes over the picture (deblocking and
+  SAO per CTU row while it is in cache).
+- **Decoder, parallelism:** WPP (`entropy_coding_sync_enabled_flag`) and tiles within a single picture when the
+  stream uses them; otherwise row-pipelined deblocking/SAO behind CTU parsing so a single non-grid picture (x265,
+  other encoders) uses more than one core. Colour conversion fused with rotation/mirroring and with the RGBA write
+  (one pass, no intermediate planes); YCbCr→RGB SIMD also for limited range and 10-bit.
+- **Encoder:** RDOQ with incremental rate estimates (tables per context state instead of recomputing), early exits for
+  all-zero blocks and in mode decision (SATD threshold, skipping 4×4 when 8×8 is flat), bit counting from fractional
+  CABAC tables, SIMD for intra prediction of candidates; WPP inside a tile for 48 MP and single-picture output;
+  pooled buffers per tile (no per-CU allocation). An optional speed/compression trade-off (`HeifEncoderOptions` preset)
+  only if the default cannot get closer to x265 without losing compression; decided after measurement.
+- **Memory:** allocations of `Decode` and `SaveAsHeic` per MP (`ArrayPool`, plane reuse between tiles), peak RSS on
+  48 MP.
+- **Invariants:** decoded pixels bit-identical to 0.6.5 (corpus, HM hashes, private photos, `ToHdr`); encoder output
+  byte-identical to 0.6.5 for every optimization that does not change decisions; a change in decisions only with a
+  BD-rate report (`docs/measurements/encoder-bdrate-*`) no worse than +0.5% and the user's approval. SIMD = scalar on
+  x64 and ARM64, `DOTNET_EnableHWIntrinsic=0` run, result independent of the thread count.
+- **Out of scope:** new coding tools or profiles (inter, RExt, 10-bit encoding), a GPU path, native code.
+- **DoD:** single-thread decoding at or below libheif on 12/24/48 MP (x64), all-thread decoding of a single 48 MP
+  picture at least 2× faster than 0.6.5 when the stream allows parallel parsing (WPP/tiles) or row pipelining;
+  single-thread encoding of 12 MP at least 1.5× faster than 0.6.5 with identical bytes (or the approved BD-rate change);
+  allocations not higher than 0.6.5; measurements in `docs/measurements/speed-*-0.6.6.tsv` on x64 and ARM64 with
+  libheif/heif-enc as the reference; full tests and Oracle, 0 warnings; `docs/decoding.md`/`docs/encoding.md` speed
+  sections updated. Publication on a separate user decision.
+
+### 0.6.7 — Portrait effect calibration and Apple's rendering parameters
+
+Planned 2026-10-18 at the user's request. 0.6.5 fitted the blur to four photos from one iPhone (2× and 4× lenses,
+all at f/4.5), so the radius curve, the aperture law and the matte gating rest on little data. The user will add more
+Portrait photos with Photos exports.
+
+- **Reference set (supplied by the user, private, `samples/`, never committed):** each original `IMG_xxxx.HEIC` with
+  one or more Photos exports `IMG_xxxx_2.HEIC`, `IMG_xxxx_3.HEIC`, … Wanted coverage: every lens offering Portrait (1×,
+  2×, tele, front camera); the same photo exported at several apertures (e.g. f/1.4, f/2.8, f/4.5, f/8, f/16) and with
+  a changed focus point; scenes with point lights (bokeh highlights), fine hair, glasses, several people at different
+  depths, foreground objects in front of the subject, and Portrait photos of pets or objects (no person matte); other
+  iPhone models when available. First check whether an export records the changed aperture and focus in its own depth
+  XMP; if not, the file name or a sidecar list (`samples/portrait-pairs.tsv`: export, aperture, focus point) names them.
+- **Calibration tooling:** a `Category=Local` measurement that fits Apple's blur radius per tile against disparity (as
+  done for 0.6.5 with disc kernels) and writes per-photo and pooled results to `docs/measurements/portrait-*.tsv`
+  (numbers only, no pixels or locations); the Local comparison (PSNR/SSIM of background, subject and a band along the
+  matte edge) reports every export, plus the 0.6.5 model as the baseline.
+- **Model questions to settle with the data:** the aperture law (radius ∝ 1/N, or another curve), the focal-length
+  factor (φ^1.5 fitted on two lenses), the in-focus zone and any saturation of the largest radii; blur of objects in
+  front of the focus; focus selection (median under the matte, the face, or the nearest subject); matte gating and the
+  semantic mattes (hair) at edges; behaviour without a person matte; the kernel (disc vs Apple's shape, highlight
+  boost of bright bokeh, grain over blurred areas). Each change is kept only when it improves the pooled result.
+- **`depthBlurEffect:RenderingParameters`:** analyse the private blob across all photos. Known so far (four photos,
+  iPhone 17 Pro): a 16-byte header (`REND`, version 7, size, 1) followed by 8-byte entries (u16 key, u16 type 1 =
+  float32 or 2 = int32, 4-byte value), 168 entries; values differ between lens configurations, not between photos of
+  one lens, and keys 400–453 appear only in one photo (possibly face-related). Catalogue keys and values per photo,
+  correlate them with lens, model, scene and the fitted blur parameters, and document what is known and unknown. Use a
+  value in rendering only when the correlation holds on held-out photos; otherwise keep the blob raw. A parsed view in
+  the public API (entries as key/type/value, without meanings) is decided after the analysis. Format inspection of
+  the user's own files only; no Apple code or binaries.
+- **Engineering carried over from 0.6.5:** SIMD (`Vector128`/`Vector256`) for layer building and the per-pixel gather,
+  identical to scalar on x64 and ARM64; `MathF.Pow(φ, 1.5)` replaced by `φ·√φ` for bit-identical results across
+  platforms; lower allocation of `RenderPortrait` (0.41–1.1 GiB in 0.6.5); the ARM64 run and the package consumer with
+  Native AOT.
+- **Out of scope:** Portrait Lighting, writing the effect or depth back to HEIC, claims of matching Photos.
+- **DoD:** calibration report on at least 15 originals with exports covering at least three lenses and three
+  apertures; pooled background PSNR better than the 0.6.5 model, no pair worse by more than 0.5 dB, subject not worse
+  than the unblurred photo; aperture law confirmed against exports at several apertures; blob findings in
+  `docs/decoding.md` (or a separate note) with confidence levels; SIMD identical to scalar on x64 and ARM64 and
+  thread-count independence; time and memory on 12/24/48 MP; tests, XML docs, guide, API snapshot (if the API
+  changes). Publication on a separate user decision.
+
 ### 0.7.0 — integration and closing the scope
 
 - No new features: regression of the catalog, thumbnails, depth, portrait effect, HDR and Live Photo; a corpus with combinations of
@@ -198,7 +282,7 @@ photo without blur.
   large files.
 - 0.6.0 API compatibility, architecture, SIMD/scalar and thread-count determinism.
 - Validation of the NuGet package and examples; documentation of capabilities and limitations.
-- **DoD:** the 0.6.1–0.6.5 criteria met, documentation consistent with the package, no regressions. Only then update
+- **DoD:** the 0.6.1–0.6.7 criteria met, documentation consistent with the package, no regressions. Only then update
   VERSION and the status in the plan; publication on a separate user decision.
 
 ### Common assumptions and boundaries
