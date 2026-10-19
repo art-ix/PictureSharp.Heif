@@ -9,6 +9,7 @@ using PictureSharp.Processing;
 //   decode <file.heic>... [--runs 5] [--threads 1,all]
 //   encode <file.heic>... [--runs 2] [--threads 1,all] [--quality 50]
 //   hash <file.heic>... [--threads 1,all]    SHA-256 of the decoded Rgba32 pixels (bit-identity checks)
+//   encodehash <file.heic>... [--quality 50]  SHA-256 of the encoded file (byte-identity checks)
 //   make48 <file.heic> <out-grid.heic>   writes the 2x upscaled photo as a 512x512 grid (the 0.5.0 48 MP input)
 // Prints one TSV row per measurement: operation, file, threads, best ms, allocated MB per run, output bytes.
 ImageConfiguration.Default = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
@@ -66,6 +67,16 @@ switch (mode)
         }
 
         break;
+    case "encodehash":
+        foreach (string file in files)
+        {
+            using Image image = Image.Load(File.ReadAllBytes(file).AsSpan(), new DecoderOptions { Configuration = configuration });
+            image.Metadata.Clear();
+            byte[] encoded = image.ToHeic(new HeifEncoderOptions { Quality = quality });
+            Console.WriteLine($"{Path.GetFileName(file)}\tq{quality}\t{encoded.Length}\t{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(encoded))}");
+        }
+
+        break;
     case "make48":
     {
         using Image image = Image.Load(File.ReadAllBytes(files[0]).AsSpan(), new DecoderOptions { Configuration = configuration });
@@ -93,10 +104,16 @@ return 0;
         GC.Collect();
         GC.WaitForPendingFinalizers();
         long before = GC.GetTotalAllocatedBytes(precise: true);
+        TimeSpan pausedBefore = GC.GetTotalPauseDuration();
+        int collectionsBefore = GC.CollectionCount(0);
         long start = Stopwatch.GetTimestamp();
         action();
         best = Math.Min(best, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
         allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        if (Environment.GetEnvironmentVariable("SPEED_GC") is not null)
+        {
+            Console.Error.WriteLine($"gc: {GC.CollectionCount(0) - collectionsBefore} gen0 collections, {(GC.GetTotalPauseDuration() - pausedBefore).TotalMilliseconds:F0} ms paused");
+        }
     }
 
     return (best, allocated / 1048576.0);

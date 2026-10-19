@@ -181,7 +181,9 @@ internal sealed partial class HevcPictureEncoder
         for (int i = 0; i < trials; i++)
         {
             int mode = trial[i];
-            double distortion = CodeBlock(0, x, y, log2Size, mode, x, y, ctx, HevcContext.CbfLuma + (trafoDepth == 0 ? 1 : 0));
+            // The SATD pass prepared this block's references; trials write only the block itself, so they stay valid.
+            double distortion = CodeBlock(0, x, y, log2Size, mode, x, y, ctx, HevcContext.CbfLuma + (trafoDepth == 0 ? 1 : 0),
+                referencesPrepared: true);
             double bits = LumaModeBits(mode, candidates, ctx) + ResidualBits(0, x, y, log2Size, ScanIndex(mode, log2Size, true), ctx, trafoDepth);
             double cost = distortion + (lambda * bits);
             if (cost < best)
@@ -421,15 +423,25 @@ internal sealed partial class HevcPictureEncoder
     }
 
     // Predicts, transforms, quantizes and reconstructs one transform block; returns its squared error.
-    // (xTbY, yTbY) is the luma location of the block for neighbour availability.
-    private double CodeBlock(int cIdx, int x, int y, int log2Size, int mode, int xTbY, int yTbY, byte[] ctx, int cbfContext)
+    // (xTbY, yTbY) is the luma location of the block for neighbour availability. referencesPrepared: the intra
+    // predictor already holds this block's reference samples (PrepareReferences).
+    private double CodeBlock(int cIdx, int x, int y, int log2Size, int mode, int xTbY, int yTbY, byte[] ctx, int cbfContext,
+        bool referencesPrepared = false)
     {
         int size = 1 << log2Size;
         int count = size * size;
         int stride = strides[cIdx];
         ushort[] plane = recon[cIdx];
         ushort[] original = source[cIdx];
-        intra.Predict(plane, stride, cIdx, x, y, log2Size, mode, 8, xTbY, yTbY, this);
+        if (referencesPrepared)
+        {
+            intra.PredictPrepared(cIdx, log2Size, mode, 8);
+        }
+        else
+        {
+            intra.Predict(plane, stride, cIdx, x, y, log2Size, mode, 8, xTbY, yTbY, this);
+        }
+
         int[] prediction = intra.Prediction;
         for (int j = 0; j < size; j++)
         {
