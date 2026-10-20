@@ -1,0 +1,28 @@
+# mean rms8 per scene and adjustment; <kind>_ratio = sum(pred rms8) / sum(baseline rms8) over the predicted pairs, <kind>_worse = pairs where the prediction is farther from the export than the unedited original
+adjustment	scene	model	pairs	baseline	bound3d	fit	tiles	heldout_n	heldout_rms8	heldout_ratio	heldout_worse	midpoint_n	midpoint_rms8	midpoint_ratio	midpoint_worse	antisym_n	antisym_rms8	antisym_ratio	antisym_worse	transfer_n	transfer_rms8	transfer_ratio	transfer_worse	posthoc_evenodd_n	posthoc_evenodd_rms8	posthoc_evenodd_ratio	posthoc_evenodd_worse
+black_point	street	curve_rgb3	6	28.093	1.657	1.730	1.735	2	5.607	0.305	0	2	8.848	0.324	0	0				0				2	8.343	0.454	0
+brightness	perla	curve_rgb3	2	19.983	1.388	2.896	2.922	0				0				2	7.492	0.375	0	4	7.001	0.350	0	0			
+brightness	stadion	curve_rgb3	4	30.813	1.420	2.368	2.434	0				2	6.188	0.347	0	0				6	4.310	0.163	0	0			
+brightness	street	curve_rgb3	6	16.782	1.645	2.037	2.019	2	1.393	0.223	0	2	4.487	0.350	0	0				6	4.074	0.215	0	2	7.009	1.122	2
+brilliance	stadion	curve_rgb_bands	4	23.219	4.614	5.911	5.916	0				2	5.062	0.367	0	0				2	4.270	0.310	0	0			
+brilliance	street	curve_rgb_bands	2	10.896	4.197	4.080	4.049	0				0				2	4.871	0.447	0	2	5.117	0.470	0	0			
+contrast	perla	luma_add	2	13.007	1.320	2.352	2.339	0				0				2	3.109	0.239	0	2	4.186	0.322	0	0			
+contrast	street	luma_add	6	15.179	1.684	2.014	2.086	2	1.256	0.190	0	2	2.536	0.189	0	0				2	3.385	0.253	0	2	2.433	0.369	0
+definition	perla	curve_rgb_bands	3	6.417	4.151	3.397	3.442	1	1.557	0.560	0	1	2.913	0.531	0	0				1	3.817	0.695	0	0			
+definition	street	curve_rgb_bands	1	5.651	4.605	3.753	3.744	0				0				0				1	3.981	0.704	0	0			
+exposure	perla	curve_rgb3	6	21.293	2.005	5.137	5.191	2	5.444	0.724	1	2	7.523	0.453	0	0				12	22.932	1.077	8	2	9.036	1.202	1
+exposure	stadion	curve_rgb3	6	17.095	1.551	1.739	1.743	2	4.260	0.422	0	2	7.306	0.561	1	0				12	13.474	0.788	5	2	3.027	0.300	0
+exposure	street	curve_rgb3	6	13.387	2.627	3.209	3.240	3	3.978	0.898	2	2	6.372	0.690	1	0				14	9.704	0.816	8	3	4.412	0.996	2
+highlights	perla	curve_rgb3	6	8.782	1.411	5.189	5.294	2	2.146	0.829	0	2	6.184	0.690	0	0				6	9.438	0.865	0	2	2.832	1.094	1
+highlights	stadion	curve_rgb3	4	5.601	1.129	1.885	1.910	0				2	3.264	0.601	0	0				6	4.068	0.734	0	0			
+highlights	street	curve_rgb3	2	2.525	1.349	1.353	1.335	0				0				2	1.523	0.603	0	4	2.776	1.099	3	0			
+noise_reduction	street	curve_rgb_bands	1	1.868	2.987	2.222	2.209	0				0				0				0				0			
+saturation	street	chroma_srgb	6	7.349	1.490	2.607	2.599	2	1.650	0.489	0	2	2.847	0.444	0	0				0				2	1.926	0.570	0
+shadows	perla	curve_rgb_bands	2	11.526	2.097	2.949	2.989	0				0				2	9.782	0.849	1	4	5.364	0.465	0	0			
+shadows	stadion	curve_rgb_bands	4	23.444	2.859	4.626	4.620	0				2	6.958	0.518	0	0				6	5.321	0.265	0	0			
+shadows	street	curve_rgb_bands	6	14.789	2.925	3.334	3.311	2	2.811	0.681	0	2	4.925	0.404	0	0				6	4.543	0.260	0	2	4.089	0.991	1
+sharpness	street	curve_rgb_bands	1	9.626	10.717	7.532	7.634	0				0				0				0				0			
+tint	street	curve_rgb3	2	2.921	1.368	1.382	1.389	0				0				2	1.599	0.547	0	0				0			
+vibrance	street	chroma_srgb	2	2.790	1.470	1.823	1.835	0				0				2	2.229	0.799	0	0				0			
+vignette	street	radial_lin_circ	2	9.381	6.589	1.662	1.710	0				0				2	6.339	0.676	0	0				0			
+warmth	street	curve_rgb3	2	5.338	1.465	2.101	2.115	0				0				2	2.279	0.427	0	0				0			

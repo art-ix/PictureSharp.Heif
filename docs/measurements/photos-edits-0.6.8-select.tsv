@@ -1,0 +1,17 @@
+# model selection per adjustment: mean checkerboard-holdout rms8 over training pairs of all scenes
+adjustment	family	schemes	chosen	chroma_lin	chroma_srgb	curve_rgb	curve_rgb3	curve_rgb_bands	gain_lin	luma_add	luma_ratio_lin	matrix_lin	radial_lin_circ	radial_lin_ellip	radial_srgb_ellip
+black_point	tone	street:interp	curve_rgb3			1.993	1.891	1.923		4.242	10.221				
+brightness	tone	perla:antisym,stadion:interp,street:interp	curve_rgb3			3.274	2.527	3.220		3.266	4.758				
+brilliance	tone	stadion:interp,street:antisym	curve_rgb_bands			5.965	5.510	5.294		6.685	5.687				
+contrast	tone	perla:antisym,street:interp	luma_add			4.091	3.614	4.077		2.459	4.180				
+definition	filter	perla:interp,street:spatial	curve_rgb_bands			6.049		4.167							
+exposure	tone	perla:interp,stadion:interp,street:interp	curve_rgb3			4.297	3.785	4.093		4.974	4.209				
+highlights	tone	perla:interp,stadion:interp,street:antisym	curve_rgb3			4.666	3.929	4.641		4.141	4.936				
+noise_reduction	filter	street:spatial	curve_rgb_bands			2.746		2.209							
+saturation	colour	street:interp	chroma_srgb	3.858	3.055		6.673								
+shadows	tone	perla:antisym,stadion:interp,street:interp	curve_rgb_bands			4.456	4.090	4.076		5.471	6.070				
+sharpness	filter	street:spatial	curve_rgb_bands			11.068		7.634							
+tint	wb	street:antisym	curve_rgb3				1.390		1.889			1.773			
+vibrance	colour	street:antisym	chroma_srgb	2.093	1.834		2.300								
+vignette	vignette	street:antisym	radial_lin_circ										1.709	3.681	3.612
+warmth	wb	street:antisym	curve_rgb3				2.115		3.287			2.818			

@@ -67,7 +67,8 @@ float? centre = depth.AppleDepth?.ToFloat(depth.Samples.Span[depth.Samples.Lengt
 - `Samples` are the decoded luma values at the coded bit depth (8 or 10), with grids and transforms applied but nothing
   scaled or converted. `Exif` and `Xmp` are the depth item's own metadata.
 - `AppleDepth` reads Apple's XMP: the declared kind (`Depth` or `Disparity`), the value range, `SimulatedAperture`, raw
-  camera calibration and the private `RenderingParameters` as bytes. It is null without Apple XMP. `ToFloat` maps a
+  camera calibration and the private `RenderingParameters` as bytes
+  ([observations](measurements/portrait-0.6.7-rendering-parameters.md)). It is null without Apple XMP. `ToFloat` maps a
   sample linearly from `IntMinValue`–`IntMaxValue` to `FloatMinValue`–`FloatMaxValue`.
 - `Auxiliary.Kind` follows the container's aux type only. iPhones store disparity under the generic depth type, so the
   kind is `Depth` while `AppleDepth.Kind` is `Disparity`.
@@ -86,27 +87,92 @@ using Image wide = document.RenderPortrait(document.PrimaryImage, new() { Apertu
 using Image refocused = document.RenderPortrait(document.PrimaryImage, new() { FocusPoint = new(400, 900) });
 ```
 
-- The blur radius grows with the distance from the focus and as the aperture opens (f/1.4–f/16; default: the photo's
-  `SimulatedAperture`). The focus defaults to the subject under the portrait matte, from its median depth to its
-  nearest parts (without a matte: the nearest tenth of the scene), so a raised hand or a thin nearest object stays
-  sharp. `FocusPoint` focuses on the single depth plane under that point.
-- The matte keeps people near the focus sharp and their colour out of the background; people far behind the focus are
-  blurred like their surroundings. Foreground people under the matte receive less blur at wide apertures when
-  focusing behind them; the correction fades out by f/8. Along the matte's outline the subject and the background
-  each keep their own depth, background seen between single hairs is replaced by the hair's colour, and the outline
-  itself is slightly softened at wide apertures. Pixels in focus are copied unchanged.
-- Scenery in front of the focus that is not a person (a table, the ground) is blurred less at wide apertures, as in
-  Photos. Blurred areas get fine grain that grows with the photo's ISO. Small bright points (drops, highlights) become
-  hard-edged discs; in night shots clipped lamps become bright cat's-eye discs, oval towards the picture's edges like
-  a real lens's bokeh. Night is told by ISO × exposure time from EXIF; without EXIF the photo is treated as daylight
-  at ISO 64. In portraits of objects (no person matte), what lies just in front of the focus stays sharp.
-- Metadata and alpha are kept; the HDR gain map is not attached to the result. `HeifPortrait.Render` does the same for
-  a photo, depth and matte loaded separately.
-- `MaxPixels` limits the working buffers (about twice the photo), and the result does not depend on the thread count.
+- **Aperture and focus.** The blur grows with the distance from the focus and as the aperture opens (f/1.4–f/16;
+  default: the photo's `SimulatedAperture`). By default the focus covers the subject under the portrait matte, from
+  its median depth to its nearest parts (without a matte: the nearest tenth of the scene), so a raised hand or a thin
+  nearest object stays sharp. `FocusPoint` focuses on the single depth plane under that point.
+- **People and outlines.** People under the matte near the focus stay sharp and their colour does not bleed into the
+  background; people far behind the focus are blurred like their surroundings, and people in front of it get less
+  blur at wide apertures (fading out by f/8). Along the outline the subject and the background keep their own depth,
+  background seen between single hairs takes the hair's colour, and the outline is slightly softened at wide
+  apertures. Pixels in focus are copied unchanged.
+- **Foreground, grain and bokeh.** Scenery in front of the focus (a table, the ground) is blurred less at wide
+  apertures, as in Photos; in portraits of objects (no person matte) what lies just in front of the focus stays
+  sharp. Blurred areas get fine grain that grows with ISO. Small bright points become hard-edged discs; in night
+  shots (ISO × exposure time from EXIF; without EXIF: daylight at ISO 64) clipped lamps become bright cat's-eye
+  discs, oval towards the edges like a real lens's bokeh.
+- **Result.** Metadata and alpha are kept; the HDR gain map is not attached. `MaxPixels` limits the working buffers
+  (about twice the photo), and the result does not depend on the thread count. `HeifPortrait.Render` does the same
+  for a photo, depth and matte loaded separately.
 
-Apple's algorithm is private, so this is an approximation fitted to photos exported by Photos with the effect: their
-background PSNR rose from 21–28 dB without blur to 33–40 dB, with the subject unchanged. Bokeh shapes, highlights and
-Portrait Lighting are not reproduced. Rendering takes about 0.3 s for 12 MP and 0.5 s for 24 MP (i5-12500H).
+Apple's algorithm is private, so this is an approximation calibrated in 0.6.7 against 66 Photos exports of 15
+portraits (f/1.4–f/16, three lenses); against 0.6.6 the background improved by 1.07 dB PSNR and the subject by about
+4.3 dB. Portrait Lighting is not reproduced. At f/1.4 a 12 MP photo renders in about 0.4 s on all threads (2.5 s on
+one) and a 48 MP photo in 2.2 s (i5-12500H). Measurements: [calibration](measurements/portrait-0.6.7-calibration.md),
+[focus range](measurements/portrait-0.6.7-focus-range.md), [edges and hair](measurements/portrait-0.6.7-edges.md),
+[bokeh and grain](measurements/portrait-0.6.7-bokeh.md).
+
+## Photos adjustments
+
+Edits made with the sliders of Photos' "Adjust" panel stay in the Photos library: the original HEIC holds no slider
+values, and the iOS 27 `.AAE` sidecar holds only the portrait effect. `HeifPhotosEdit.Render` re-applies slider
+values that the application supplies, on the scale shown in Photos, and returns a new image:
+
+```csharp
+using Image photo = Image.Load("IMG_8113.HEIC");
+using Image edited = HeifPhotosEdit.Render(photo, new HeifPhotosAdjustments { Brightness = 25, Warmth = 10, Vignette = 30 });
+
+// Records are immutable: derive variants of a recipe with `with`.
+var recipe = new HeifPhotosAdjustments { Warmth = 40, Vibrance = 30, Contrast = 20 };
+using Image mono = HeifPhotosEdit.Render(photo, recipe with { Saturation = -100, MaxDegreeOfParallelism = 2 }, cancellationToken);
+```
+
+| Slider | Range | Positive values (negative values do the opposite) | Match with Photos |
+| --- | --- | --- | --- |
+| `Warmth` | −100…100 | warmer (yellow-red) | close |
+| `Tint` | −100…100 | magenta | close |
+| `Vignette` | −100…100 | darker corners; the centre is kept | close |
+| `Brightness` | −100…100 | brighter mid-tones | close |
+| `Contrast` | −100…100 | steeper tone curve | close |
+| `Saturation` | −100…100 | more colour; −100 is greyscale | approximate |
+| `Vibrance` | −100…100 | more colour in muted tones | approximate |
+| `BlackPoint` | −100…100 | crushes shadows to black | approximate |
+| `Shadows` | −100…100 | lifts dark tones | approximate |
+| `Highlights` | −100…100 | lifts bright tones | approximate |
+| `Brilliance` | −100…100 | brightens with local contrast | approximate |
+| `Definition` | 0…100 | local contrast | approximate |
+| `Exposure` | −100…100 | brighter | rough: Photos adapts it to the scene |
+| `Sharpness` | 0…100 | sharper edges | rough: Photos is edge-adaptive |
+| `NoiseReduction` | 0…100 | smoother fine detail | rough: Photos is edge-adaptive |
+
+- **Values.** 0 leaves a slider off; when all are 0 (`IsEmpty`), `Render` returns an unchanged copy. Values outside
+  the range throw `ArgumentOutOfRangeException`.
+- **Fit.** Each slider was fitted to Photos exports of three iPhone photographs (sunset, night, daylight) edited with
+  that slider alone, at ±25, ±50 and ±100 (25, 50 and 100 for the 0…100 sliders); values in between are
+  interpolated. Exposure can end up farther from Photos than the unedited photo.
+- **Combining sliders.** They are applied in a fixed order: per-channel tone curves, band filters computed from the
+  original (sharpness, definition, noise reduction, brilliance, shadows), contrast, saturation, vibrance, vignette.
+  Whether Photos uses the same order has not been measured.
+- **Input and output.** The photo must have one frame and be in display orientation, as loaded. Metadata and alpha
+  are kept; an attached HDR gain map is removed. The result does not depend on `MaxDegreeOfParallelism`; the token
+  is checked between row bands.
+- **Cost.** About 0.2 s for 12 MP with tone and colour sliders, about 1 s when a band filter is used (i5-12500H). The
+  band filters need about 24 bytes of working memory per pixel.
+
+Starting points for common goals, shown with pictures in the [0.6.8 release details](releases/release-0.6.8-details.md):
+
+| Goal | Sliders |
+| --- | --- |
+| Brighten a backlit photo | `Shadows = 60, Brightness = 30, Highlights = -30, Vibrance = 15` |
+| Lift a shaded scene | `Shadows = 50, Brilliance = 30, Brightness = 10, Warmth = 10` |
+| Bring out detail | `Definition = 60, Sharpness = 40, Contrast = 15, Brilliance = 20` |
+| Deepen the sky | `Highlights = -60, Contrast = 10, Vibrance = 25` |
+| Autumn warmth | `Warmth = 35, Vibrance = 40, Saturation = 10, Vignette = 25` |
+| Black and white | `Saturation = -100, Contrast = 35, Definition = 40, BlackPoint = 10` |
+| Soft matte look | `Contrast = -30, BlackPoint = -40, Saturation = -15, Warmth = 15` |
+
+The release details also compare renders with Photos exports. Residuals per pair and the confidence of each slider:
+[photos-edits-0.6.8-fit.md](measurements/photos-edits-0.6.8-fit.md).
 
 ## Live Photo pairs
 
@@ -138,7 +204,7 @@ Monochrome becomes grey RGB; 10-bit values become 8-bit with `round(v × 255 / 1
 
 ## Speed
 
-Version 0.6.6, i5-12500H, decoding to `Rgba32` (milliseconds, 1 / 16 threads):
+Decoding to `Rgba32` on an i5-12500H, milliseconds on 1 / 16 threads:
 
 | Photo | 0.6.5 | 0.6.6 |
 | --- | ---: | ---: |
@@ -147,23 +213,20 @@ Version 0.6.6, i5-12500H, decoding to `Rgba32` (milliseconds, 1 / 16 threads):
 | 48 MP grid | 1090 / 170 | 916 / 146 |
 | 48 MP single picture, WPP | 1115 / 1097 | 848 / 173 |
 
-CABAC residual parsing, SAO and rotation are faster. A supported single-picture WPP stream parses CTB rows in
-parallel; deblocking and SAO also run over row bands. Malformed entry points fall back to sequential parsing.
-Decoded pixels match 0.6.5 and do not depend on the thread count. These are results recorded during the decoder
-stage; ARM64 has not been remeasured for 0.6.6. [Release details](releases/release-0.6.6.md).
+Grids decode tile by tile in parallel. A single picture coded with wavefronts (WPP) parses its CTB rows in parallel
+since 0.6.6; other single pictures decode sequentially. Vector and scalar code give the same pixels, and the pixels
+do not depend on the thread count. [0.6.6 release notes](releases/release-0.6.6.md).
 
-Earlier 0.5.0 measurements, best of five runs, against libheif with libde265:
+Comparison with libheif (libde265) in 0.5.0, best of five runs; ARM64 has not been remeasured since:
 
-| Photo | i5-12500H, 1 thread | 16 threads | libheif 16 threads | Orange Pi 5 (ARM64), 8 threads | libheif |
+| Photo | i5-12500H, 1 thread | 16 threads | libheif, 16 threads | Orange Pi 5 (ARM64), 8 threads | libheif |
 | --- | --- | --- | --- | --- | --- |
 | 12 MP iPhone (48 tiles) | 646 ms | 109 ms | 237 ms | 347 ms | 820 ms |
 | 24 MP iPhone (45 tiles) | 1195 ms | 193 ms | 394 ms | 651 ms | 2701 ms |
 | 48 MP (192 tiles) | 1009 ms | 165 ms | 416 ms | 718 ms | 2392 ms |
-| 48 MP (one picture) | 1096 ms | 1092 ms | 938 ms | 2658 ms | 4151 ms |
+| 48 MP (one picture, sequential then) | 1096 ms | 1092 ms | 938 ms | 2658 ms | 4151 ms |
 
-The earlier single-picture measurement used sequential parsing. Version 0.6.6 can parallelize supported WPP
-streams; other streams retain sequential parsing. Vector and scalar code give the same pixels. Earlier data:
-`docs/measurements/speed-x64.tsv` and `speed-arm64.tsv`.
+Raw data: `docs/measurements/speed-x64.tsv` and `speed-arm64.tsv`.
 
 ## Verification
 
@@ -174,39 +237,7 @@ streams; other streams retain sequential parsing. Vector and scalar code give th
 - Depth samples match HM and libde265 (`Category=Oracle`).
 - Portrait rendering: subject pixels stay bit-exact, background detail drops as the aperture opens, and output is the
   same for any thread count.
-- `Category=Local` repeats the checks on private iPhone photos and compares Portrait renderings with Photos exports;
-  `Category=Slow` fuzzes the decoder.
-
-
-## Apple portrait rendering parameters: observations from 0.6.7
-
-This section describes the supplied iPhone files; it is not an Apple specification. The inventory is
-[`measurements/portrait-0.6.7-rendering-parameters.tsv`](measurements/portrait-0.6.7-rendering-parameters.tsv).
-The plugin still exposes the raw blob and does not assign meanings to its numeric keys.
-
-| Observation | Evidence | Confidence |
-| --- | --- | --- |
-| The observed layout is little-endian, with a 16-byte `REND` header and 8-byte entries (u16 key, u16 type, 4-byte payload). | All 15 originals have version 7, size field equal to 1352 bytes, final header field 1, and 167 entries. | High for this dataset. |
-| Type 1 behaves as float32 and type 2 as int32. | 149 type-1 and 18 type-2 entries per file; decoded values are finite/plausible; raw hexadecimal payloads are retained. | High for these files, not a guarantee for other versions/types. |
-| All observed keys are present in every original, without duplicates. | Same set of 167 keys in all 15 files. | High. |
-| Exports do not encode the edited aperture/refocus in this blob. | Every one of the 66 exports contains the same blob as its original. | High for the supplied exports. |
-| The blob is not only a lens profile. | Within 1×/2×/4× there are 2/5/4 distinct blobs across 2/6/6 scenes. The front camera has one scene. | High; the cause of the changing fields is unknown. |
-| Keys 400–453 are not evidence of a face-only parameter block. | They occur in every original and vary also on object-only scenes. | High for presence/variation; semantic meaning unknown. |
-
-Across the dataset, 88 keys are constant and 79 change. Keys 400–403 and 450–453 vary within a lens; key 603 also
-varies between the 4× leaf image and other 4× scenes. Other observed differences largely follow camera configuration.
-Several payloads have exact-looking numerical relationships (for example 402 ≈ 48×401); this does not identify
-what they control. No value has been shown to predict a rendering parameter on independent scenes, so none is
-used by the renderer and no parsed public view is added. Earlier four-file hypotheses of 168 entries, no variation
-within a lens, or a face-only 400–453 range are superseded by this larger inventory.
-
-Radius/focus calibration and its limitations are described in
-[`measurements/portrait-0.6.7-calibration.md`](measurements/portrait-0.6.7-calibration.md).
-The [capture-focus experiment](measurements/portrait-0.6.7-capture-focus.md) validated the EXIF-to-display coordinate
-mapping but rejected using the SubjectArea centre as unconditional portrait focus. Default focus still uses the
-portrait-matte estimate or the nearest scene quantiles, now as a depth range (median to 97.5th percentile under the
-matte, 90th to 99.5th percentile of the scene without one); explicit `FocusPoint` retains precedence. Results:
-[`measurements/portrait-0.6.7-focus-range.md`](measurements/portrait-0.6.7-focus-range.md).
-Matte edges, hair and the held-out validation scenes:
-[`measurements/portrait-0.6.7-edges.md`](measurements/portrait-0.6.7-edges.md). Bokeh, grain, foreground and the
-2× lens: [`measurements/portrait-0.6.7-bokeh.md`](measurements/portrait-0.6.7-bokeh.md).
+- Photos adjustments: synthetic tests check the identity, ranges, the direction of each slider, alpha, cancellation
+  and thread-count independence.
+- `Category=Local` repeats the checks on private iPhone photos and compares Portrait renderings and slider renders
+  with Photos exports; `Category=Slow` fuzzes the decoder.

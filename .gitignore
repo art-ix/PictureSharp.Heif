@@ -39,3 +39,7 @@ samples/**/*.[jJ][pP][eE][gG]
 # Private portrait calibration inputs (file hashes, ROI, focus coordinates and fixed tone LUTs).
 samples/portrait/portrait-0.6.7-*.json
 samples/portrait-validation/portrait-0.6.7-*.json
+
+# Photos edit sidecars and annotations (private: faces, focus, edit values)
+samples/**/*.[aA][aA][eE]
+samples/**/edits.tsv

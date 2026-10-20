@@ -151,4 +151,4 @@ The analysis script needs NumPy/SciPy (the recorded run used 2.4.4/1.17.1). They
 the plugin still depends solely on PictureSharp and the BCL. Reproducing the five analysis TSVs in a separate
 output tree gave byte-identical results. The [JSON](portrait-0.6.7-radius-analysis.json) records protocol and hashes.
 The [REND inventory](portrait-0.6.7-rendering-parameters.tsv) is interpreted, with confidence levels, in
-[decoding.md](../decoding.md#apple-portrait-rendering-parameters-observations-from-067).
+[portrait-0.6.7-rendering-parameters.md](portrait-0.6.7-rendering-parameters.md).

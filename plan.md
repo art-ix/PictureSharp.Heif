@@ -2,7 +2,7 @@
 
 ## Status and goal
 
-**Current version: 0.6.7, release 2026-10-20; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.8, release 2026-10-20; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
@@ -16,7 +16,7 @@
 **Goal for 0.7.0 (scope simplified 2026-10-18):** a catalog of the file contents (photos, thumbnails, auxiliary
 images), reading and generating thumbnails, raw depth samples, Live Photo pair detection and, added 2026-10-18, the
 Apple portrait effect (disparity description and depth-of-field rendering) and, added 2026-10-19, Photos edits
-from `.AAE` sidecars and Photographic Styles. Delivered in releases 0.6.1–0.6.9,
+described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.9,
 followed by the integration release 0.7.0. Writing collections, HEIF animations, depth interpretation beyond Apple
 portrait disparity and Live Photo export are moved out of 0.7.0.
 
@@ -44,8 +44,8 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.5 | Apple portrait effect: disparity description, depth-of-field rendering | 0.7.6 | Released 2026-10-18 |
 | 0.6.6 | Faster HEVC decoder, WPP for single pictures, faster intra search and fewer encoder allocations | 0.7.6 | Release 2026-10-19 |
 | 0.6.7 | Portrait focus, edges, bokeh calibration, rendering-parameter analysis, renderer performance (SIMD, memory) | 0.7.6 | Release 2026-10-20 |
-| 0.6.8 | Photos edits from `.AAE` sidecars | 0.7.6 (assumed) | Planned |
-| 0.6.9 | Photographic Styles changed in Photos: `.AAE` style adjustment and the styles item | 0.7.6 (assumed) | Planned |
+| 0.6.8 | Photos edits annotated by hand (`edits.tsv`) and fitted from pairs; `HeifPhotosEdit` with all sliders | 0.7.6 | Release 2026-10-20 |
+| 0.6.9 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.7.6 (assumed) | Planned |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.7.6 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
 
@@ -325,7 +325,7 @@ Portrait photos with Photos exports.
   The earlier `_2` files match the portrait-applied form (blur rendered, depthBlurEffect XMP kept); `IMG_6854_2`
   matches the final look (Clean Up, colours, no depthBlurEffect XMP). Variants: `ref` (no change), `a<f-number>`
   (aperture only, e.g. `a1.4`, `a16`), `f<n>` (focus point only, described in `opis.txt`), `e<n>` (Photos edits, plus
-  `IMG_xxxx_e<n>.AAE` of that edit state), `s<n>` (style change, 0.6.8); combinations join with `_` (`a2.8_f1`).
+  `edits.tsv` of that edit state), `s<n>` (style change, 0.6.8); combinations join with `_` (`a2.8_f1`).
   The variant's settings come from the name and `opis.txt`: checked on the first delivery (`ogrod_4x`, IMG_6011,
   2026-10-19), the portrait-applied exports at f/2.8, f/4.5 and f/8, with and without refocus, all keep
   `SimulatedAperture` 4.5, a byte-identical `RenderingParameters` blob and the same disparity (max 0.346); they carry
@@ -379,7 +379,7 @@ Portrait photos with Photos exports.
   identical to scalar on x64 and ARM64; `MathF.Pow(φ, 1.5)` replaced by `φ·√φ` for bit-identical results across
   platforms; lower allocation of `RenderPortrait` (0.41–1.1 GiB in 0.6.5); the ARM64 run and the package consumer with
   Native AOT.
-- **Out of scope:** Photos edits from `.AAE` (0.6.8), Photographic Styles (0.6.9), Portrait Lighting and Clean Up
+- **Out of scope:** Photos edits (0.6.8), Photographic Styles (0.6.9), Portrait Lighting and Clean Up
   (generative fill), writing the effect or depth back to HEIC, claims of matching Photos. Edited exports already
   supplied (`portret_4x`, IMG_8083) are kept for 0.6.8 and used in 0.6.7 only where the edit does not matter.
 - **DoD:** calibration report on at least 15 originals with exports covering at least three lenses and three
@@ -391,73 +391,107 @@ Portrait photos with Photos exports.
   run (a missing ARM64 run or skipped Oracle is reported as a validation gap, not a pass). Publication on a separate
   user decision.
 
-### 0.6.8 — Photos edits from `.AAE`
+### 0.6.8 — Photos edits described by hand
 
-Added 2026-10-19 at the user's request; moved out of 0.6.7 the same day so that 0.6.7 covers only the portrait
-effect. The user wants the edits made in iPhone Photos respected — filters, exposure/brightness, contrast, colour (saturation, warmth, tint), sharpness and
-the other adjustments Photos offers. They are not in the HEIC: the original IMG_6854.HEIC carries only capture-time
-data (Photographic Styles item `uri tag:apple.com,2023:photo:metadata:styles`, a 57 942-byte binary plist with tone
-statistics per region — image, skin, person — and LUT-like blobs, present in every original), while the Photos edits
-live in the library and leave the device as an `.AAE` sidecar (export of the unmodified original with all photo
-data). The user supplies `.AAE` files next to the originals in `samples/`, together with the Photos export of the
-same edit as the reference.
+Added 2026-10-19; **rewritten 2026-10-20**. The first plan read the edits from `.AAE` sidecars. Inspection of the
+supplied files (`samples/edit/IMG_8017`, `IMG_8140`, iOS 27.0.1, build 23G83) showed that this does not work: the
+`.AAE` is an XML plist whose `adjustmentData` is raw-deflate JSON (`adjustments[]` with `identifier`, `formatIdentifier`,
+`settings`), but both files hold only the capture-time `DepthEffect` of `com.apple.camera` (aperture, `focusRect`,
+faces, `depthInfo`) — no tone, colour, filter or style adjustments, and no crop. The Photos exports differ from the
+originals by lighting and colour (IMG_8140: mean +35 levels, 128×170 px centre crop; IMG_8017: warmer and more
+saturated) that no sidecar records. Edits made in Photos also produced no `.AAE` with the usual export routes
+(`tower/IMG_7678`: exports only, neither the original nor the exports carry adjustment data). Public documentation of
+`adjustmentData` and of any iOS 26/27 change was not found. So edits are **annotated by hand and fitted from pairs**.
 
-- **Format:** parse the `.AAE` property list (XML plist; `adjustmentFormatIdentifier`, `adjustmentFormatVersion`,
-  `adjustmentData` — expected zlib-compressed binary plist with a list of adjustments, each an identifier and its
-  settings). Confirm the structure on the supplied files before designing anything; catalogue every adjustment
-  identifier and setting seen and document it in `docs/` with confidence levels. Format inspection of the user's own
-  files only; no Apple code or binaries.
-- **API:** a parsed, read-only description (adjustments as identifier + settings, raw values kept) and a rendering
-  entry point that applies the supported adjustments to a decoded photograph, together with the portrait effect when
-  the sidecar changes aperture or focus (the depth adjustment overrides `SimulatedAperture`). Names and shape are
-  decided after the format is confirmed; the plugin reads `.AAE` as plain XML/binary plist with BCL code only.
-- **Rendering:** approximate each supported adjustment (tone: exposure, brilliance, highlights, shadows, contrast,
-  brightness, black point; colour: saturation, vibrance, warmth, tint; sharpness, definition, noise reduction,
-  vignette; filters) and fit its curve against the Photos exports, as for the blur. Order of operations and colour
-  space follow what the data shows. Unknown adjustments are reported (not silently ignored) and skipped; crop and
-  straighten are applied if present. Clean Up (generative fill) and Portrait Lighting are not reproduced — reported
-  as unsupported.
-- **Photographic Styles** changed in Photos after capture are left for 0.6.9; a style adjustment found in an
-  `.AAE` is catalogued and reported as unsupported in 0.6.8.
-- **Reference pairs:** each edit needs the original, its `.AAE` and the Photos export; the coverage list asks for one
-  adjustment at a time at a few strengths (e.g. −100/−50/+50/+100) plus every filter, so each curve can be fitted
-  separately, and combined edits (as IMG_6854) for checking the order.
-- **Samples so far:** `portret_4x` (IMG_8083, 4×) — an export with portrait f/4.5 and slider edits, no `.AAE`;
-  `opis.txt` asks for the slider values and the export form. `.AAE` files come from Share → Options → „Wszystkie
-  dane zdjęć” → Save to Files (e.g. a USB-C drive), or over USB with „Zachowaj oryginały” from `DCIM`.
-- **Out of scope:** Photographic Styles (0.6.9), Portrait Lighting and Clean Up (generative fill), writing edits back
-  to HEIC or `.AAE`, claims of matching Photos.
-- **DoD:** `.AAE` parsed on every supplied sidecar (and on synthetic corrupt input: `ImageFormatException`), every
-  adjustment identifier catalogued, each supported adjustment fitted on single-adjustment pairs and closer to the Photos
-  export than the unedited photo on every edited pair (pooled and per pair), unsupported ones reported; findings in
-  `docs/` with confidence levels; tests, XML docs, guide, API snapshot (if the API changes). Publication on a separate
-  user decision.
+- **Annotation instead of a sidecar:** each edited export is described by the user in `samples/edit/<scene>/edits.tsv`
+  (private, never committed): `export`, `original`, `adjustment`, `value` (the slider value as shown in Photos,
+  −100…+100 where the slider has it; sharpness, definition and noise reduction run 0…100 only), one row per adjustment, plus `filter` rows (name and strength) and `crop` rows
+  when known. File names carry the variant as before (`IMG_xxxx_e<n>.HEIC`; the earlier `tower/IMG_7678_e50` and
+  `_e-50` read as „exposure ±50”, to be confirmed in `edits.tsv`). Two files that differ only in letter case
+  (`.HEIC`/`.heic`) are renamed on import (`IMG_xxxx.HEIC`, `IMG_xxxx_e1.heic`).
+- **Sidecar kept for what it does hold:** a small read-only reader for the `.AAE` `DepthEffect` (`aperture`,
+  `focusRect`, `depthInfo`, faces) is still worth having: it gives the portrait renderer the aperture and focus the
+  photographer set at capture and re-edit time (BCL only: plist, `DeflateStream`, `JsonDocument`; corrupt input →
+  `ImageFormatException`; unknown adjustments are reported, not applied). It is not needed to fit the edits and does
+  not block them. Unscheduled until a concrete need.
+- **API:** decided after the first fits. Likely a plain description of adjustments the caller sets by hand
+  (record with the supported sliders, applied to a decoded photograph by a rendering method), with no dependency on
+  any file; values come from the application or from `edits.tsv` in the tests.
+- **Rendering:** approximate each adjustment on the supplied single-adjustment pairs (tone: exposure, brilliance,
+  highlights, shadows, contrast, brightness, black point; colour: saturation, vibrance, warmth, tint; sharpness,
+  definition, noise reduction, vignette; filters) and fit its curve, as for the blur. Order of operations and colour
+  space follow what the data shows. The export brightness offset seen even without edits (see 0.6.7) is measured
+  first and removed from the fit. Crop and straighten only when `edits.tsv` states them. Clean Up and Portrait
+  Lighting are not reproduced.
+- **Reference pairs:** the original and the export with one adjustment at a time at a few strengths
+  (−100/−50/+50/+100; 25/50/100 for the 0…100 sliders) plus every filter, so each curve can be fitted separately, then combined edits to check the
+  order. `edits.tsv` is the only source of the values; an export without it is not used for fitting.
+- **Samples so far:** `street/IMG_8113` and `stadion/IMG_7758` (single-adjustment series, `edits.tsv` generated by
+  `scripts/make-edits-tsv.py` from the Polish file names), `tower/IMG_7678` (original, `_e50`, `_e-50` — values to confirm), `IMG_8017` and `IMG_8140`
+  (original, export, `.AAE` with `DepthEffect` only; colour and brightness change unexplained), `portret_4x`
+  (IMG_8083, slider edits, values requested in `opis.txt`).
+- **Status 2026-10-20 (first fits, analysis only, no API):** `scripts/fit-photos-edits.py` fits candidate models
+  (per-channel sRGB curves, luma curves, linear-light gains/matrices, chroma gain by saturation, radial gain, Gaussian
+  band gains) to `street` (IMG_8113, 51 single-adjustment exports of 15 sliders + 1 repeat), `stadion` (IMG_7758,
+  22 exports: exposure, brightness, brilliance, shadows, highlights) and `perla` (IMG_7725, 21 exports: exposure,
+  highlights, shadows, brightness, contrast, definition); the analysis is closed on these three scenes. Report
+  `docs/measurements/photos-edits-0.6.8-fit.md` with residuals per pair, slider holdout (±25 from ±50, ±50 from
+  ±100, sign negation), scene transfer and confidence levels. Findings: tone sliders act per channel on sRGB values
+  (contrast on luma); repeat-export noise floor rms8 0.77; well determined: warmth, tint, vignette (±50), brightness
+  (transfers between scenes, ratio 0.16–0.35), contrast with moderate error (0.25–0.32); filters (sharpness, noise reduction, definition) are global but
+  non-linear (linear band model insufficient; noise reduction worse than unedited at 8×8 scale); scene-adaptive:
+  exposure (opposite behaviour by scene: highlight-protecting at small + values at sunset/night, strong lift in
+  daylight; 21 of 38 scene transfers worse than unedited), highlights (scales with the bright area, colour-dependent
+  on `perla`), brilliance (local), shadows +, black point, saturation, vibrance; definition medium. DoD not met yet: more
+  scenes, finer slider steps, 0…100 sliders at 25/100 and combined edits are needed (list in the report); the API
+  shape (fixed vs scene-adaptive operations) is decided after a leave-one-scene-out fit.
+- **API (decided 2026-10-20 by the user: all sliders now, weaker ones refined later):** `HeifPhotosAdjustments`
+  (record with the 15 sliders on the Photos scale, `MaxDegreeOfParallelism`) and `HeifPhotosEdit.Render(photo,
+  adjustments)`. Parameters come from `scripts/make-photos-tables.py` (fitted curves averaged over the three scenes,
+  generated `Codecs/HeifPhotosTables.cs`), rendered by `Codecs/HeifPhotosRenderer` (per-channel curves, Gaussian bands,
+  luma contrast, chroma gain, radial vignette; fixed order, scalar, row-parallel, thread-count independent). Tests:
+  `HeifPhotosEditTests` (synthetic: identity, ranges, signs, alpha, determinism, cancellation) and
+  `HeifPhotosEditLocalTests` (all 94 annotated pairs decoded within 1632×1632, ≤2 MP, 18 s; warmth, tint, vignette, brightness, contrast must beat the
+  unedited photo on every pair — they do; in-sample 86/94 pairs beat it, the exceptions are 7 exposure pairs and noise
+  reduction). Guide section in `docs/decoding.md`, release notes `docs/releases/release-0.6.8.md`, API snapshot.
+  Speed: 12 MP 0.2 s (tones) / 1 s (with bands), 24 MP 1.9 s.
+- **Deferred to a later version:** scene-adaptive exposure, highlights, brilliance, shadows, black point (curve as a
+  function of image statistics, leave-one-scene-out); edge-aware sharpness and noise reduction; colour-dependent
+  response (perla); order of operations from combined edits; ±25/±100 for the ±50-only sliders; SIMD for the band
+  filters; Photos filters, crop and straighten. The DoD point "closer than unedited on every pair" holds for the
+  closest five sliders only; the rest are documented as rough.
+- **Out of scope:** reading edits from `.AAE`, Photographic Styles (0.6.9), Portrait Lighting and Clean Up
+  (generative fill), writing edits back to HEIC or `.AAE`, claims of matching Photos.
+- **DoD:** every supplied pair annotated in `edits.tsv`; each supported adjustment fitted on single-adjustment pairs
+  and closer to the Photos export than the unedited photo on every edited pair (pooled and per pair); unsupported
+  ones listed; findings in `docs/` with confidence levels; tests, XML docs, guide, API snapshot (if the API changes).
+  Publication on a separate user decision.
 
 ### 0.6.9 — Photographic Styles
 
 Planned 2026-10-19 at the user's request (moved out of 0.6.7, renumbered from 0.6.8 when the edits moved). iOS 18
 and later let Photos change a photo's
 Photographic Style (and its tone, colour and palette) after capture; the user suspects a changed style, not slider
-edits, caused the colour shift of IMG_6854. Builds on the `.AAE` parsing and adjustment rendering of 0.6.8.
+edits, caused the colour shift of IMG_6854. Builds on the adjustment rendering and the `edits.tsv` annotation of 0.6.8.
 
 - **Known so far (2026-10-19, fifteen originals):** the capture-time style setting looks identical in all of them
   (Apple MakerNote 0x54 the same dictionary; 0x41/0x42 zero), so a later style change, like an edit, is recorded only
-  in the library and leaves the device in the `.AAE`. Every original from iOS 18+ carries a styles item
+  in the library (the `.AAE` samples of 2026-10-20 hold the capture-time `DepthEffect` only). Every original from iOS 18+ carries a styles item
   (`uri tag:apple.com,2023:photo:metadata:styles`, about 58 KB binary plist): tone statistics per region (`6`:
   linear and tone-mapped image, skin, person; percentiles, black/white point), person/skin ratios (`7`), scalars
   (`0`, `2`, `4`, `5`, `h`, `j`, `k`, `e`, `f`, `g`) and blobs (`1` 51 840 B, `3` 516 B, `c`/`d` 2 048 B — likely
   curves or LUTs in half floats). Meanings unconfirmed.
 - **Reference set (supplied by the user):** one photo exported several times with only the style changed (every
-  preset, plus tone/colour/palette extremes), each with its `.AAE`; the same style on photos with and without people
-  (skin/person statistics); IMG_6854 with its `.AAE` to separate style from slider edits.
-- **Work:** identify the style adjustment and its values in the `.AAE`; decode the styles item (blob layouts,
+  preset, plus tone/colour/palette extremes), each described in `edits.tsv`; the same style on photos with and without people
+  (skin/person statistics); IMG_6854 to separate style from slider edits.
+- **Work:** take the style change from `edits.tsv`; decode the styles item (blob layouts,
   half-float curves/LUTs, their axes) and document it with confidence levels; render a style change as an
   approximation fitted to the exports (likely: undo the capture style using the item, apply the new one), in the
   0.6.8 edit pipeline order the data shows. Format inspection of the user's own files only; no Apple code or binaries.
 - **Out of scope:** applying styles to photos without a styles item (iOS 17 and earlier), writing styles back,
   claims of matching Photos.
 - **DoD:** styles item parsed on every supplied original (and synthetic corrupt input: `ImageFormatException`);
-  style adjustments in `.AAE` recognised; the rendered style change closer to the Photos export than the unedited
+  style changes annotated for every pair; the rendered style change closer to the Photos export than the unedited
   photo on every style-only pair (pooled and per pair); findings documented; tests, XML docs, guide, API snapshot (if
   the API changes). Publication on a separate user decision.
 

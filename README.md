@@ -36,26 +36,37 @@ var document = await HeifDocument.OpenAsync("IMG_6655.HEIC");
 HeifItemInfo photo = document.PrimaryImage;
 
 using Image preview = document.LoadPreview(photo, new(320, 240));        // embedded thumbnail when one fits
-using Image portrait = document.RenderPortrait(photo);                    // Portrait background blur
 HeifDepthImage depth = document.LoadDepth(photo.FindDepthImage()!);       // raw depth or disparity samples
 using Image map = depth.ToImage();                                         // the depth map as a greyscale image
 
 using var withMap = Image.Load("IMG_6655.HEIC", new DecoderOptions { LoadGainMap = true });
 using HdrImage hdr = withMap.ToHdr();                                     // HDR from the gain map
 
-LivePhotoPair pair = LivePhotoPair.Read("IMG_8113.HEIC", "IMG_8113.MOV"); // Matched by ContentIdentifier
+LivePhotoPair pair = LivePhotoPair.Read("IMG_8113.HEIC", "IMG_8113.MOV"); // matched by ContentIdentifier
 ```
 
-iPhone stores Portrait photos sharp and blurs them only when displaying, so a converted photo has no blur.
-`RenderPortrait` approximates the effect from the disparity map and the subject matte; it does not match Photos exactly.
+## Portrait blur and Photos edits
+
+iPhone stores a Portrait photo sharp and blurs the background only on display, and Photos keeps the edits of its
+"Adjust" sliders in its library, so a converted photo has neither. Two approximations fitted to Photos exports bring
+them back:
+
+```csharp
+using Image portrait = document.RenderPortrait(photo);                    // blur from the disparity map and matte
+using Image edited = HeifPhotosEdit.Render(portrait, new HeifPhotosAdjustments { Brightness = 25, Warmth = 10 });
+```
+
+The slider values are not stored in a readable form, so the application supplies them. Neither result matches Photos
+exactly.
 
 ## Support
 
 | | |
 | --- | --- |
-| Read | HEVC Main, Main 10 and Main Still Picture, 4:2:0 and monochrome; grids, alpha, rotation/mirror/crop, ICC and nclx, EXIF/XMP (also compressed), Apple and ISO gain maps, thumbnails, depth with Apple's description, Portrait effect, Live Photo pairing |
+| Read | HEVC Main, Main 10 and Main Still Picture, 4:2:0 and monochrome; grids, alpha, rotation/mirror/crop, ICC and nclx, EXIF/XMP (also compressed), Apple and ISO gain maps, thumbnails, depth with Apple's description, Live Photo pairing |
 | Write | HEVC Main 8-bit 4:2:0, grids, alpha, ICC/EXIF/XMP, thumbnails |
-| Not supported | image sequences, 4:2:2/4:4:4, PQ/HLG, AVIF, writing gain maps or depth, metadata editing, Portrait Lighting, Live Photo export |
+| Render (approximate) | Portrait background blur, the 15 Photos "Adjust" sliders |
+| Not supported | image sequences, 4:2:2/4:4:4, PQ/HLG, AVIF, writing gain maps or depth, metadata editing, Portrait Lighting, Photos filters and crop, Live Photo export |
 
 Limits (`MaxPixels`, `MaxInputBytes`, `MaxMetadataBytes`), cancellation and `TargetSize` work as for built-in formats.
 Decoded pixels match the HM reference decoder and libheif.
@@ -64,7 +75,7 @@ Guides: [decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/de
 [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md) ·
 [container and catalogue](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md)
 
-[0.6.7 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.7.md): better and faster portrait rendering.
+[0.6.8 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.8.md): Photos adjustment sliders.
 
 ## License and patents
 

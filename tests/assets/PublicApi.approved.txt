@@ -212,6 +212,67 @@ PictureSharp.Formats.Heif.HeifItemReference
   System.String Type
   System.String get_Type()
 PictureSharp.Formats.Heif.HeifItemTypes
+PictureSharp.Formats.Heif.HeifPhotosAdjustments
+  Boolean Equals(PictureSharp.Formats.Heif.HeifPhotosAdjustments)
+  Boolean Equals(System.Object)
+  Boolean IsEmpty
+  Boolean get_IsEmpty()
+  Boolean op_Equality(PictureSharp.Formats.Heif.HeifPhotosAdjustments, PictureSharp.Formats.Heif.HeifPhotosAdjustments)
+  Boolean op_Inequality(PictureSharp.Formats.Heif.HeifPhotosAdjustments, PictureSharp.Formats.Heif.HeifPhotosAdjustments)
+  Int32 GetHashCode()
+  Int32 MaxDegreeOfParallelism
+  Int32 get_MaxDegreeOfParallelism()
+  PictureSharp.Formats.Heif.HeifPhotosAdjustments <Clone>$()
+  Single BlackPoint
+  Single Brightness
+  Single Brilliance
+  Single Contrast
+  Single Definition
+  Single Exposure
+  Single Highlights
+  Single NoiseReduction
+  Single Saturation
+  Single Shadows
+  Single Sharpness
+  Single Tint
+  Single Vibrance
+  Single Vignette
+  Single Warmth
+  Single get_BlackPoint()
+  Single get_Brightness()
+  Single get_Brilliance()
+  Single get_Contrast()
+  Single get_Definition()
+  Single get_Exposure()
+  Single get_Highlights()
+  Single get_NoiseReduction()
+  Single get_Saturation()
+  Single get_Shadows()
+  Single get_Sharpness()
+  Single get_Tint()
+  Single get_Vibrance()
+  Single get_Vignette()
+  Single get_Warmth()
+  System.String ToString()
+  Void .ctor()
+  Void set_BlackPoint(Single)
+  Void set_Brightness(Single)
+  Void set_Brilliance(Single)
+  Void set_Contrast(Single)
+  Void set_Definition(Single)
+  Void set_Exposure(Single)
+  Void set_Highlights(Single)
+  Void set_MaxDegreeOfParallelism(Int32)
+  Void set_NoiseReduction(Single)
+  Void set_Saturation(Single)
+  Void set_Shadows(Single)
+  Void set_Sharpness(Single)
+  Void set_Tint(Single)
+  Void set_Vibrance(Single)
+  Void set_Vignette(Single)
+  Void set_Warmth(Single)
+PictureSharp.Formats.Heif.HeifPhotosEdit
+  PictureSharp.Image Render(PictureSharp.Image, PictureSharp.Formats.Heif.HeifPhotosAdjustments, System.Threading.CancellationToken)
 PictureSharp.Formats.Heif.HeifPortrait
   PictureSharp.Image Render(PictureSharp.Image, PictureSharp.Formats.Heif.HeifDepthImage, PictureSharp.Image, PictureSharp.Formats.Heif.HeifPortraitOptions, System.Threading.CancellationToken)
 PictureSharp.Formats.Heif.HeifPortraitOptions

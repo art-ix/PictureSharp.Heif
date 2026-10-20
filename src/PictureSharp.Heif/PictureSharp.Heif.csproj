@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.6.7: portrait rendering calibrated against iPhone Photos exports (15 originals, 66 exports): default focus range, better outlines and hair, less foreground blur, defined point-light and night-lamp bokeh, ISO grain; background +1.07 dB and subject about +4.3 dB PSNR against 0.6.6. Rendering 2.2-3.1x faster on one thread and 2-15x with all threads, bit-identical on x64, Native AOT and ARM64. Public API unchanged. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.7/docs/releases/release-0.6.7.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.8: HeifPhotosEdit re-applies the 15 sliders of the Apple Photos &quot;Adjust&quot; panel (HeifPhotosAdjustments, on the Photos scale) to a decoded photo, fitted to 94 Photos exports of three scenes; warmth, tint, vignette, brightness and contrast close, exposure, sharpness and noise reduction rough. About 0.2 s for 12 MP (1 s with detail filters), independent of the thread count. Adds public API; existing API unchanged. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.8/docs/releases/release-0.6.8.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
