@@ -2,7 +2,7 @@
 
 ## Status and goal
 
-**Current version: 0.6.6, release 2026-10-19; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.7, release 2026-10-20; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
@@ -15,7 +15,8 @@
 
 **Goal for 0.7.0 (scope simplified 2026-10-18):** a catalog of the file contents (photos, thumbnails, auxiliary
 images), reading and generating thumbnails, raw depth samples, Live Photo pair detection and, added 2026-10-18, the
-Apple portrait effect (disparity description and depth-of-field rendering). Delivered in releases 0.6.1–0.6.7,
+Apple portrait effect (disparity description and depth-of-field rendering) and, added 2026-10-19, Photos edits
+from `.AAE` sidecars and Photographic Styles. Delivered in releases 0.6.1–0.6.9,
 followed by the integration release 0.7.0. Writing collections, HEIF animations, depth interpretation beyond Apple
 portrait disparity and Live Photo export are moved out of 0.7.0.
 
@@ -42,7 +43,9 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.4 | Raw depth samples, Live Photo pair detection | 0.7.6 | Released 2026-10-18 |
 | 0.6.5 | Apple portrait effect: disparity description, depth-of-field rendering | 0.7.6 | Released 2026-10-18 |
 | 0.6.6 | Faster HEVC decoder, WPP for single pictures, faster intra search and fewer encoder allocations | 0.7.6 | Release 2026-10-19 |
-| 0.6.7 | Portrait effect calibration on more photos, analysis of Apple's rendering parameters, SIMD | 0.7.6 (assumed) | Planned |
+| 0.6.7 | Portrait focus, edges, bokeh calibration, rendering-parameter analysis, renderer performance (SIMD, memory) | 0.7.6 | Release 2026-10-20 |
+| 0.6.8 | Photos edits from `.AAE` sidecars | 0.7.6 (assumed) | Planned |
+| 0.6.9 | Photographic Styles changed in Photos: `.AAE` style adjustment and the styles item | 0.7.6 (assumed) | Planned |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.7.6 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
 
@@ -254,6 +257,53 @@ See [release notes](docs/releases/release-0.6.6.md).
 
 ### 0.6.7 — Portrait effect calibration and Apple's rendering parameters
 
+E0/E1 completed 2026-10-19: the catalogue and frozen baseline cover 15 originals / 66 exports (13 clean scenes /
+55 pairs, two edited scenes / 11 pairs). The test-only reference preserves the 0.6.6 renderer, identical to the
+0.6.5 portrait model. Native rendering, 1536-pixel measurement long side; fixed private ROI/focus/LUT manifest.
+See `docs/measurements/portrait-0.6.7.md` and `portrait-0.6.7-baseline*` for the protocol and results.
+Refocus points are provisional until E2; five edited refocus pairs have no reliable tone normalization.
+The current model does not meet the focused-subject preservation DoD; calibration and SIMD work remain open.
+E2 measurements now cover 23,232 tiles over all 66 exports; the global fitted radius model is deferred because
+scene-held-out regressions remain. A first E3 correction reduces person-matte foreground blur at wide apertures,
+fading out by f/8: all 66 native pairs pass regional regression checks; clean refocus subject PSNR improves by
+2.745 dB and edges by 2.155 dB, with background essentially unchanged. Full results and limitations:
+`docs/measurements/portrait-0.6.7-calibration.md`. The subsequent capture-focus experiment validated sensor-to-display
+mapping on all 15 scenes, but the SubjectArea-centre policy regressed 14 pairs and was rejected; 29 explicit refocus
+renders stayed byte-identical. See `docs/measurements/portrait-0.6.7-capture-focus.md`. A joint focus/radius
+screening selected a default focus *range* (median to 97.5th percentile under the matte, 90th to 99.5th scene
+percentile without one; explicit `FocusPoint` keeps a single plane), accepted 2026-10-19. By the user's decision the
+three leaf scenes (low-light test shots) form a separate `low-light-test` cohort outside the clean aggregates; every
+pair still passes the −0.5 dB regional gate. Clean cohort (10 scenes / 52 pairs) versus E1: background +0.092 dB
+(the background DoD condition, now asserted by the Local test), subject +2.59, edges +1.11, hair +0.41, focused patch
++4.79 dB; 29 refocus renders byte-identical. See `docs/measurements/portrait-0.6.7-focus-range.md`.
+E4 (matte edges and hair) accepted 2026-10-19: subject/background depth split along the matte outline, unmixing of
+strands from the background behind them and a softened outline at wide apertures. Clean cohort versus E1: background
++0.097, subject +2.61, edges +1.21, hair +0.80, focused patch +4.87 dB. By the user's decisions edge/hair bands at
+f/8–f/16 and `kapiel_2x` f/4.5 edges are reported outside the per-pair gate. Two held-out iPhone 13 Pro scenes
+(`samples/portrait-validation/`, own frozen baseline, 12 pairs) pass the gate. See
+`docs/measurements/portrait-0.6.7-edges.md`.
+E5 (bokeh and texture) closed 2026-10-19: ISO-scaled grain, hard discs for point lights, less blur for scenery in
+front of the focus outside the matte at wide apertures, a radius knee for the 2× crop lens, and in night shots
+(ISO × exposure time) clipped lamps scattered as cat's-eye discs after Apple's highlight-recovery patent. Clean cohort
+versus E1: background +1.07, subject +3.82, edges +1.67, hair +1.36, focused patch +5.17 dB; highlight PSNR
+22.68 → 24.71; subject worse than unblurred 11 → 8 region-pairs. The gate passes with E4's exceptions only;
+validation passes. See `docs/measurements/portrait-0.6.7-bokeh.md`. Open: subject worse than unblurred in 8
+region-pairs (later reduced to 6), strands behind the head. No publication yet.
+DoD follow-up 2026-10-19: in object portraits a no-blur zone in front of the focus (5 px at f/4.5) fixes słupek
+refocus f/8–f/16; subject worse than unblurred 8 → 6 region-pairs (leżak, słupek f/16, basen, rynek −0.01 dB).
+E6/E7 completed 2026-10-20: parallel light detection and scatter, SIMD disc rows and layer convolution, pooled buffers;
+a render is 2.2–3.1× faster on one thread and 2–15× with all threads (48 MP f/1.4: 32.1 → 2.2 s), allocation mostly
+−30…60 %, peak −3…+7 % (night scene +11–19 %). `φ·√φ` replaces `MathF.Pow`; `Vector3/4.Lerp`, which fuse to FMA on
+some CPUs, were replaced by separately rounded operations (metrics move ≤ 3.4·10⁻⁵ dB). Renders are bit-identical for
+any thread count, SIMD and scalar, x64 with and without FMA, Native AOT and ARM64 (136/136). Tests: x64 731 passed /
+10 skipped (opt-in tools), Local 12/12 (66-pair gate, validation), ARM64 719 passed / 21 skipped (Oracle tools absent
+there: reported gap); NuGet consumer with Native AOT linux-x64 without warnings. See
+`docs/measurements/portrait-0.6.7-engineering.md`. New basen exports deferred to 0.6.8 (`samples/portrait-0.6.8/`).
+**Release decision (2026-10-20):** the user requested the release of 0.6.7 on GitHub and NuGet. The DoD condition
+"subject not worse than the unblurred photo" (6 region-pairs) and strands behind the head remain open and are
+documented as known limitations; the release is made by the user's decision with these exceptions.
+See [release notes](docs/releases/release-0.6.7.md) and [details](docs/releases/release-0.6.7-details.md).
+
 Planned 2026-10-18 at the user's request. 0.6.5 fitted the blur to four photos from one iPhone (2× and 4× lenses,
 all at f/4.5), so the radius curve, the aperture law and the matte gating rest on little data. The user will add more
 Portrait photos with Photos exports.
@@ -265,6 +315,33 @@ Portrait photos with Photos exports.
   depths, foreground objects in front of the subject, and Portrait photos of pets or objects (no person matte); other
   iPhone models when available. First check whether an export records the changed aperture and focus in its own depth
   XMP; if not, the file name or a sidecar list (`samples/portrait-pairs.tsv`: export, aperture, focus point) names them.
+  Layout agreed 2026-10-19 (the user replaces the portrait samples): one folder per scene and camera,
+  `samples/portrait/<scene>-<1x|2x|4x>/` (`selfie` for the front camera), with a free-text `opis.txt`. Each lens gets its own scenes (the user does not shoot one scene
+  with several lenses); the focal-length factor is fitted across scenes, the disparity carrying the distance. Photos exports HEIF in three forms, used as:
+  the original (`IMG_xxxx.HEIC`, once per photo, iPhone name; with `IMG_xxxx.AAE` when available) — the input; the
+  portrait applied (`IMG_xxxx_<variant>.HEIC`) — the blur reference, lossless of JPEG artefacts and in the container
+  we decode; the final look (`IMG_xxxx_<variant>_final.HEIC`) — the reference for edits and styles, needed only for
+  `e`/`s` variants and once for a `ref` to confirm it equals the portrait-applied form when nothing else is edited.
+  The earlier `_2` files match the portrait-applied form (blur rendered, depthBlurEffect XMP kept); `IMG_6854_2`
+  matches the final look (Clean Up, colours, no depthBlurEffect XMP). Variants: `ref` (no change), `a<f-number>`
+  (aperture only, e.g. `a1.4`, `a16`), `f<n>` (focus point only, described in `opis.txt`), `e<n>` (Photos edits, plus
+  `IMG_xxxx_e<n>.AAE` of that edit state), `s<n>` (style change, 0.6.8); combinations join with `_` (`a2.8_f1`).
+  The variant's settings come from the name and `opis.txt`: checked on the first delivery (`ogrod_4x`, IMG_6011,
+  2026-10-19), the portrait-applied exports at f/2.8, f/4.5 and f/8, with and without refocus, all keep
+  `SimulatedAperture` 4.5, a byte-identical `RenderingParameters` blob and the same disparity (max 0.346); they carry
+  no mattes and no styles item (the original has portrait, hair and other semantic mattes). Folder separators `-` and
+  `_` are both accepted; `refocus`, `refocus<n>` or a named target (`refocus_chlopiec`, `refocus_fontanna`) is accepted for `f<n>`; when the original was taken at the
+  exported aperture, the matching `a<N>` export without refocus serves as `ref`. 1× and 2× come from the main camera (6.765 mm, 2× a
+  crop), 4× from the telephoto (16.891 mm); EXIF (35 mm equivalent 24/48/100) is authoritative, the folder name is for
+  people. Non-portrait samples (iPhone 13 Pro, Live Photo with `.MOV`, gain maps) stay directly in `samples/`, where
+  the other Local tests look (they do not recurse). The Local portrait tests are rewritten for this layout (they
+  currently pair only `IMG_xxxx_2`).
+- **Export brightness (measured 2026-10-19 on all 15 scenes):** even without edits, Photos exports are slightly
+  brighter than the decoded original, almost equally in R, G and B (mean +1 to +11 levels, e.g. basen +1, selfie
+  +10); cause not yet known (export tone rendering, gain map, style). Edited scenes stand out by unequal channels:
+  `wlosy` (filter, +28/+16/+6) and `portret_4x` (slider edits, +7/+10/+12). The comparison therefore fits a
+  per-channel tone curve from original to export on sharp regions before measuring blur, and reports scenes with a
+  filter separately.
 - **Calibration tooling:** a `Category=Local` measurement that fits Apple's blur radius per tile against disparity (as
   done for 0.6.5 with disc kernels) and writes per-photo and pooled results to `docs/measurements/portrait-*.tsv`
   (numbers only, no pixels or locations); the Local comparison (PSNR/SSIM of background, subject and a band along the
@@ -274,25 +351,115 @@ Portrait photos with Photos exports.
   front of the focus; focus selection (median under the matte, the face, or the nearest subject); matte gating and the
   semantic mattes (hair) at edges; behaviour without a person matte; the kernel (disc vs Apple's shape, highlight
   boost of bright bokeh, grain over blurred areas). Each change is kept only when it improves the pooled result.
-- **`depthBlurEffect:RenderingParameters`:** analyse the private blob across all photos. Known so far (four photos,
-  iPhone 17 Pro): a 16-byte header (`REND`, version 7, size, 1) followed by 8-byte entries (u16 key, u16 type 1 =
-  float32 or 2 = int32, 4-byte value), 168 entries; values differ between lens configurations, not between photos of
-  one lens, and keys 400–453 appear only in one photo (possibly face-related). Catalogue keys and values per photo,
-  correlate them with lens, model, scene and the fitted blur parameters, and document what is known and unknown. Use a
-  value in rendering only when the correlation holds on held-out photos; otherwise keep the blob raw. A parsed view in
-  the public API (entries as key/type/value, without meanings) is decided after the analysis. Format inspection of
-  the user's own files only; no Apple code or binaries.
-- **Engineering carried over from 0.6.5:** SIMD (`Vector128`/`Vector256`) for layer building and the per-pixel gather,
+- **Findings on IMG_6854 (2026-10-19, 0.6.6 renderer vs the Photos export):**
+  - *Hair edges:* Photos keeps stray hair strands over the blurred background sharp; 0.6.6 blurs them away
+    (one strand over dark trees: original 26–210, Photos 70–176, ours 50–134 grey levels). The portrait matte covers
+    the strand (174/255 at 1512×2016), but `Protection` fades out once the radius from the bilinearly upsampled
+    576×768 disparity exceeds `matteHigh` (8 px at 4032), and that disparity sees the strand as background. To try: let
+    the matte (and the semantic hair matte, unused so far, also 1512×2016) set the strand's disparity or radius instead
+    of gating on the background radius; upsample the matte edge-aware (guided by the photograph) rather than
+    bilinearly; measure on the matte-edge band.
+  - *Grain:* Photos keeps fine texture in blurred areas; high-pass deviation (7×7 box residual) in flat blurred sky
+    0.72 original / 0.38 Photos / 0.12 ours, blurred trees 2.48 / 0.78 / 0.28 — about 3× smoother than Photos. To try:
+    re-add the photograph's noise (or synthetic grain matched to its level) in proportion to the blur.
+  - *Not a clean reference:* `IMG_6854_2` was also edited with Clean Up (object removed bottom left; XMP
+    `photoshop:Credit=Apple Photos Clean Up`, IPTC `compositeWithTrainedAlgorithmicMedia`) and with filters and
+    manual colour tuning (mean RGB +33/+19/+7; confirmed by the user), and has no depthBlurEffect XMP and a regenerated
+    disparity (max 0.37 vs 0.73). Its global PSNR/SSIM are not comparable: exclude it from pooled numbers (or detect
+    Clean Up / missing `SimulatedAperture` in the export and skip), use it only for local edge and grain checks. This
+    explains the two Local portrait failures noted in 0.6.6.
+- **`depthBlurEffect:RenderingParameters`:** inventory completed on the 15 supplied originals (2026-10-19):
+  1352-byte `REND` version-7 blobs, a 16-byte header and 167 eight-byte entries (u16 key, u16 type, 4-byte payload;
+  observed type 1 float32 and type 2 int32). All 167 keys are present in every original. Every export preserves its
+  original's blob. Values do vary within a lens, particularly keys 400–403 and 450–453, including object-only
+  scenes; the earlier four-photo lens-only/face-only hypotheses are superseded. Inventory and confidence levels
+  are in `docs/decoding.md`. No value is used by the renderer because no meaning or predictive relation has been
+  validated on independent scenes; a parsed public view remains deferred. Own-file format inspection only.
+- **Engineering carried over from 0.6.5 (E6/E7):** SIMD (`Vector128`/`Vector256`) for layer building and the per-pixel gather,
   identical to scalar on x64 and ARM64; `MathF.Pow(φ, 1.5)` replaced by `φ·√φ` for bit-identical results across
   platforms; lower allocation of `RenderPortrait` (0.41–1.1 GiB in 0.6.5); the ARM64 run and the package consumer with
   Native AOT.
-- **Out of scope:** Portrait Lighting, writing the effect or depth back to HEIC, claims of matching Photos.
+- **Out of scope:** Photos edits from `.AAE` (0.6.8), Photographic Styles (0.6.9), Portrait Lighting and Clean Up
+  (generative fill), writing the effect or depth back to HEIC, claims of matching Photos. Edited exports already
+  supplied (`portret_4x`, IMG_8083) are kept for 0.6.8 and used in 0.6.7 only where the edit does not matter.
 - **DoD:** calibration report on at least 15 originals with exports covering at least three lenses and three
   apertures; pooled background PSNR better than the 0.6.5 model, no pair worse by more than 0.5 dB, subject not worse
   than the unblurred photo; aperture law confirmed against exports at several apertures; blob findings in
-  `docs/decoding.md` (or a separate note) with confidence levels; SIMD identical to scalar on x64 and ARM64 and
-  thread-count independence; time and memory on 12/24/48 MP; tests, XML docs, guide, API snapshot (if the API
-  changes). Publication on a separate user decision.
+  `docs/decoding.md` (or a separate note) with confidence levels; thread-count independence; tests, XML docs,
+  guide, API snapshot (if the API changes); SIMD identical to scalar on x64 and ARM64; time, allocation and peak
+  memory on 12/24/48 MP; full Release, Oracle and Local tests, a NuGet consumer with Native AOT and a physical ARM64
+  run (a missing ARM64 run or skipped Oracle is reported as a validation gap, not a pass). Publication on a separate
+  user decision.
+
+### 0.6.8 — Photos edits from `.AAE`
+
+Added 2026-10-19 at the user's request; moved out of 0.6.7 the same day so that 0.6.7 covers only the portrait
+effect. The user wants the edits made in iPhone Photos respected — filters, exposure/brightness, contrast, colour (saturation, warmth, tint), sharpness and
+the other adjustments Photos offers. They are not in the HEIC: the original IMG_6854.HEIC carries only capture-time
+data (Photographic Styles item `uri tag:apple.com,2023:photo:metadata:styles`, a 57 942-byte binary plist with tone
+statistics per region — image, skin, person — and LUT-like blobs, present in every original), while the Photos edits
+live in the library and leave the device as an `.AAE` sidecar (export of the unmodified original with all photo
+data). The user supplies `.AAE` files next to the originals in `samples/`, together with the Photos export of the
+same edit as the reference.
+
+- **Format:** parse the `.AAE` property list (XML plist; `adjustmentFormatIdentifier`, `adjustmentFormatVersion`,
+  `adjustmentData` — expected zlib-compressed binary plist with a list of adjustments, each an identifier and its
+  settings). Confirm the structure on the supplied files before designing anything; catalogue every adjustment
+  identifier and setting seen and document it in `docs/` with confidence levels. Format inspection of the user's own
+  files only; no Apple code or binaries.
+- **API:** a parsed, read-only description (adjustments as identifier + settings, raw values kept) and a rendering
+  entry point that applies the supported adjustments to a decoded photograph, together with the portrait effect when
+  the sidecar changes aperture or focus (the depth adjustment overrides `SimulatedAperture`). Names and shape are
+  decided after the format is confirmed; the plugin reads `.AAE` as plain XML/binary plist with BCL code only.
+- **Rendering:** approximate each supported adjustment (tone: exposure, brilliance, highlights, shadows, contrast,
+  brightness, black point; colour: saturation, vibrance, warmth, tint; sharpness, definition, noise reduction,
+  vignette; filters) and fit its curve against the Photos exports, as for the blur. Order of operations and colour
+  space follow what the data shows. Unknown adjustments are reported (not silently ignored) and skipped; crop and
+  straighten are applied if present. Clean Up (generative fill) and Portrait Lighting are not reproduced — reported
+  as unsupported.
+- **Photographic Styles** changed in Photos after capture are left for 0.6.9; a style adjustment found in an
+  `.AAE` is catalogued and reported as unsupported in 0.6.8.
+- **Reference pairs:** each edit needs the original, its `.AAE` and the Photos export; the coverage list asks for one
+  adjustment at a time at a few strengths (e.g. −100/−50/+50/+100) plus every filter, so each curve can be fitted
+  separately, and combined edits (as IMG_6854) for checking the order.
+- **Samples so far:** `portret_4x` (IMG_8083, 4×) — an export with portrait f/4.5 and slider edits, no `.AAE`;
+  `opis.txt` asks for the slider values and the export form. `.AAE` files come from Share → Options → „Wszystkie
+  dane zdjęć” → Save to Files (e.g. a USB-C drive), or over USB with „Zachowaj oryginały” from `DCIM`.
+- **Out of scope:** Photographic Styles (0.6.9), Portrait Lighting and Clean Up (generative fill), writing edits back
+  to HEIC or `.AAE`, claims of matching Photos.
+- **DoD:** `.AAE` parsed on every supplied sidecar (and on synthetic corrupt input: `ImageFormatException`), every
+  adjustment identifier catalogued, each supported adjustment fitted on single-adjustment pairs and closer to the Photos
+  export than the unedited photo on every edited pair (pooled and per pair), unsupported ones reported; findings in
+  `docs/` with confidence levels; tests, XML docs, guide, API snapshot (if the API changes). Publication on a separate
+  user decision.
+
+### 0.6.9 — Photographic Styles
+
+Planned 2026-10-19 at the user's request (moved out of 0.6.7, renumbered from 0.6.8 when the edits moved). iOS 18
+and later let Photos change a photo's
+Photographic Style (and its tone, colour and palette) after capture; the user suspects a changed style, not slider
+edits, caused the colour shift of IMG_6854. Builds on the `.AAE` parsing and adjustment rendering of 0.6.8.
+
+- **Known so far (2026-10-19, fifteen originals):** the capture-time style setting looks identical in all of them
+  (Apple MakerNote 0x54 the same dictionary; 0x41/0x42 zero), so a later style change, like an edit, is recorded only
+  in the library and leaves the device in the `.AAE`. Every original from iOS 18+ carries a styles item
+  (`uri tag:apple.com,2023:photo:metadata:styles`, about 58 KB binary plist): tone statistics per region (`6`:
+  linear and tone-mapped image, skin, person; percentiles, black/white point), person/skin ratios (`7`), scalars
+  (`0`, `2`, `4`, `5`, `h`, `j`, `k`, `e`, `f`, `g`) and blobs (`1` 51 840 B, `3` 516 B, `c`/`d` 2 048 B — likely
+  curves or LUTs in half floats). Meanings unconfirmed.
+- **Reference set (supplied by the user):** one photo exported several times with only the style changed (every
+  preset, plus tone/colour/palette extremes), each with its `.AAE`; the same style on photos with and without people
+  (skin/person statistics); IMG_6854 with its `.AAE` to separate style from slider edits.
+- **Work:** identify the style adjustment and its values in the `.AAE`; decode the styles item (blob layouts,
+  half-float curves/LUTs, their axes) and document it with confidence levels; render a style change as an
+  approximation fitted to the exports (likely: undo the capture style using the item, apply the new one), in the
+  0.6.8 edit pipeline order the data shows. Format inspection of the user's own files only; no Apple code or binaries.
+- **Out of scope:** applying styles to photos without a styles item (iOS 17 and earlier), writing styles back,
+  claims of matching Photos.
+- **DoD:** styles item parsed on every supplied original (and synthetic corrupt input: `ImageFormatException`);
+  style adjustments in `.AAE` recognised; the rendered style change closer to the Photos export than the unedited
+  photo on every style-only pair (pooled and per pair); findings documented; tests, XML docs, guide, API snapshot (if
+  the API changes). Publication on a separate user decision.
 
 ### 0.7.0 — integration and closing the scope
 
@@ -301,7 +468,7 @@ Portrait photos with Photos exports.
   large files.
 - 0.6.0 API compatibility, architecture, SIMD/scalar and thread-count determinism.
 - Validation of the NuGet package and examples; documentation of capabilities and limitations.
-- **DoD:** the 0.6.1–0.6.7 criteria met, documentation consistent with the package, no regressions. Only then update
+- **DoD:** the 0.6.1–0.6.9 criteria met, documentation consistent with the package, no regressions. Only then update
   VERSION and the status in the plan; publication on a separate user decision.
 
 ### Common assumptions and boundaries
@@ -362,6 +529,7 @@ SPI needs are reported to the core plan; we do not work around them by copying i
 ## Changelog
 
 - [0.6.6](docs/releases/release-0.6.6.md): faster HEVC decoding and encoding (2026-10-19).
+- [0.6.7](docs/releases/release-0.6.7.md): portrait calibration, faster deterministic portrait rendering (2026-10-20).
 
 - [0.6.5](docs/releases/release-0.6.5.md): Apple Portrait effect (`HeifAppleDepthInfo`, `RenderPortrait`, `HeifPortrait`, `HeifDepthImage.ToImage`).
 - [0.6.4](docs/releases/release-0.6.4.md): raw depth samples (`LoadDepth`, `HeifDepthImage`) and Live Photo pairing (`LivePhotoPair`).

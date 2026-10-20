@@ -1,0 +1,90 @@
+{
+ "stage": "E4 matte edges and hair, accepted 2026-10-19",
+ "baseline_commit": "f22ee6ea1672059df7bedb2160b67515c12cf419",
+ "working_source_sha256": {
+  "src/PictureSharp.Heif/Codecs/HeifPortraitRenderer.cs": "8b86a0c454af69b6325a3289b68fc93cf39653aef392f8761d523f304a09ce8a",
+  "src/PictureSharp.Heif/HeifPortrait.cs": "87007b08e3ba2cff424e3e870e10cb6161c0320ae48032c233df1a4f19f635ef"
+ },
+ "report_sha256": {
+  "portrait-0.6.7-edges.tsv": "95bfe28ed86a0054462c763fb3a0e0272e76e37f04423f36989f774795217b97",
+  "portrait-0.6.7-edges-summary.tsv": "b069568b87b05944cd6f730a76e1dd9b7ba53eb113ad2aa65437a96dfd55855b",
+  "portrait-0.6.7-edges-validation.tsv": "1f3f5b2ac9d19f19f74bf087e9dbd56c32a58fdded3c7c72af1140a21c3bf760",
+  "portrait-0.6.7-edges-validation-summary.tsv": "afc239602800aa6b8bb301e364b9d5997d0e5728346dd5ddee52129dc2624137",
+  "portrait-0.6.7-validation-baseline.tsv": "d6246b7509ef17532abb83ba9d69be6a8c4802fe7ea6e105006f8e9b49aafaa6"
+ },
+ "native_pairs": 66,
+ "validation_pairs": 12,
+ "gate": "per pair and region <= -0.5 dB vs E1; exceptions: edge/hair at f/8-f/16, kapiel_2x default f/4.5 edge (user decisions 2026-10-19)",
+ "clean_vs_e1_db": {
+  "background": 0.097,
+  "subject": 2.613,
+  "edge": 1.209,
+  "hair": 0.795,
+  "focus": 4.874
+ },
+ "clean_vs_previous_e3_db": {
+  "background": 0.005,
+  "subject": 0.023,
+  "edge": 0.096,
+  "hair": 0.389,
+  "focus": 0.083
+ },
+ "edited_vs_e1_db": {
+  "background": 0.017,
+  "subject": 0.006,
+  "edge": 0.346,
+  "hair": 0.642,
+  "focus": 0.0
+ },
+ "low_light_test": "unchanged versus E3",
+ "excepted_regressions_vs_e1_db": {
+  "kapiel_2x default f4.5 edge": -0.56,
+  "selfie default f16 edge": -0.92,
+  "rynek_2x refocus_chlopiec f8 hair": -1.04
+ },
+ "worst_gated_regressions_vs_e1_db": {
+  "background": [
+   -0.12,
+   "rynek_2x refocus_fontanna f4.5"
+  ],
+  "subject": [
+   -0.27,
+   "kapiel_2x default f4.5"
+  ],
+  "edge": [
+   -0.28,
+   "ogrod_4x default f1.4"
+  ],
+  "hair": [
+   -0.17,
+   "rynek_2x refocus_fontanna f4.5"
+  ],
+  "focus": [
+   -0.05,
+   "basen_4x default f4.5"
+  ]
+ },
+ "validation_vs_e1_db": {
+  "background": 0.023,
+  "subject": 4.747,
+  "edge": 1.045,
+  "hair": 0.09,
+  "focus": 10.483,
+  "worst_gated": [
+   -0.3,
+   "wlosy3 default f1.4 subject"
+  ]
+ },
+ "validation_protocol": "held-out scenes (iPhone 13 Pro, iOS 17), never used for selecting a variant; run once for the selected variant after v4-v7 had been measured on them for diagnosis",
+ "rejected_variants": [
+  "v1/v3 split variants",
+  "v5/v6 matte-weighted subject depth",
+  "v7 colour-guided joint bilateral upsampling",
+  "v8/v9r1 (outline without unmixing; 1 px softening)"
+ ],
+ "remaining": [
+  "subject/focus worse than unblurred in 11 region-pairs (slupek, lezak, basen, rynek refocus_fontanna)",
+  "strands behind the head take the head's depth (kapiel)",
+  "E5 bokeh/grain, E6 performance, E7 release validation"
+ ]
+}

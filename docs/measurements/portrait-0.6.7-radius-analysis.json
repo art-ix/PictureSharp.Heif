@@ -1,0 +1,56 @@
+{
+  "protocol": "portrait-e2-disc-v1",
+  "long_side": 768,
+  "tile_size": 32,
+  "stride": 4,
+  "radius_grid": [
+    0,
+    0.75,
+    1,
+    1.25,
+    1.5,
+    2,
+    2.5,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    16,
+    20,
+    24
+  ],
+  "disc": "weight=clamp(radius-distance+.5,0,1); linear sRGB; float64 prefix sums; linear16 encode LUT",
+  "tone": "reuse E1 LUT after disc blur; raw if E1 rejects normalization",
+  "filters": "std>=4; disparity q90-q10<=max(.01,.06*range); not radius-limit; uncertainty<=4 grid steps",
+  "focus": "depth median under the fixed E1 sharp ROI; no held-out blur fitted as focus",
+  "fit": "background matte<26 and nonzero blur; robust soft-L1; equal scenes; radii uncertainty weighted",
+  "warning": "equivalent-disc screening fit after downsampling; masked areas are composite proxies; not a native render quality gate",
+  "input_hashes": {
+    "portrait-0.6.7-radius.tsv": "b01cec7e09f277dfc166348dc8fd485de97ebc637d05d52e5af2839cc54496a7",
+    "portrait-0.6.7-focus.tsv": "7ef243a7bfc59e3a5d49c4b58748ea3d4bfb4ca68dc84e2cd61f4cb9bdf41394",
+    "portrait-0.6.7-baseline.json": "7d7f5d0d63057e4a8b5c4a2bedeaf7d9dcee41f15817e6c5f95b84ff88dbfe2c"
+  },
+  "valid_clean_tiles": 14572,
+  "background_model_tiles": 6527,
+  "fitted_parameters": {
+    "fit-scale-zone": [
+      0.005021769533148836,
+      2.478801539347092e-20
+    ],
+    "fit-scale-focal-aperture-zone": [
+      0.004553017957204617,
+      1.8582141292902328,
+      0.8792999880774041,
+      0.007287205587265067
+    ]
+  },
+  "scene_balanced_held_out_radius_mae": {
+    "fit-scale-focal-aperture-zone": 1.0464070511160979,
+    "fit-scale-zone": 1.198924816202916,
+    "legacy-focus": 1.225930392863367,
+    "sharp-roi-focus": 1.1656976233595198
+  }
+}

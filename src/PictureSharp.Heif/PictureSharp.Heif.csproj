@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.6.6: faster HEVC decoding with optimized CABAC, SAO, rotation and parallel WPP for single pictures; decoded pixels unchanged. Faster intra encoding with fewer mode trials and RDOQ for the selected mode: about 29% less single-thread time and 17% fewer allocations on a 12 MP photo. Encoded bytes change; Kodak equal-quality size cost averages +0.95% RGB PSNR / +1.26% luma SSIM. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.6/docs/releases/release-0.6.6.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.7: portrait rendering calibrated against iPhone Photos exports (15 originals, 66 exports): default focus range, better outlines and hair, less foreground blur, defined point-light and night-lamp bokeh, ISO grain; background +1.07 dB and subject about +4.3 dB PSNR against 0.6.6. Rendering 2.2-3.1x faster on one thread and 2-15x with all threads, bit-identical on x64, Native AOT and ARM64. Public API unchanged. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.7/docs/releases/release-0.6.7.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

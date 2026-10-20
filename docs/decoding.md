@@ -87,9 +87,19 @@ using Image refocused = document.RenderPortrait(document.PrimaryImage, new() { F
 ```
 
 - The blur radius grows with the distance from the focus and as the aperture opens (f/1.4–f/16; default: the photo's
-  `SimulatedAperture`). The focus defaults to the subject under the portrait matte.
+  `SimulatedAperture`). The focus defaults to the subject under the portrait matte, from its median depth to its
+  nearest parts (without a matte: the nearest tenth of the scene), so a raised hand or a thin nearest object stays
+  sharp. `FocusPoint` focuses on the single depth plane under that point.
 - The matte keeps people near the focus sharp and their colour out of the background; people far behind the focus are
-  blurred like their surroundings. Pixels in focus are copied unchanged.
+  blurred like their surroundings. Foreground people under the matte receive less blur at wide apertures when
+  focusing behind them; the correction fades out by f/8. Along the matte's outline the subject and the background
+  each keep their own depth, background seen between single hairs is replaced by the hair's colour, and the outline
+  itself is slightly softened at wide apertures. Pixels in focus are copied unchanged.
+- Scenery in front of the focus that is not a person (a table, the ground) is blurred less at wide apertures, as in
+  Photos. Blurred areas get fine grain that grows with the photo's ISO. Small bright points (drops, highlights) become
+  hard-edged discs; in night shots clipped lamps become bright cat's-eye discs, oval towards the picture's edges like
+  a real lens's bokeh. Night is told by ISO × exposure time from EXIF; without EXIF the photo is treated as daylight
+  at ISO 64. In portraits of objects (no person matte), what lies just in front of the focus stays sharp.
 - Metadata and alpha are kept; the HDR gain map is not attached to the result. `HeifPortrait.Render` does the same for
   a photo, depth and matte loaded separately.
 - `MaxPixels` limits the working buffers (about twice the photo), and the result does not depend on the thread count.
@@ -166,3 +176,37 @@ streams; other streams retain sequential parsing. Vector and scalar code give th
   same for any thread count.
 - `Category=Local` repeats the checks on private iPhone photos and compares Portrait renderings with Photos exports;
   `Category=Slow` fuzzes the decoder.
+
+
+## Apple portrait rendering parameters: observations from 0.6.7
+
+This section describes the supplied iPhone files; it is not an Apple specification. The inventory is
+[`measurements/portrait-0.6.7-rendering-parameters.tsv`](measurements/portrait-0.6.7-rendering-parameters.tsv).
+The plugin still exposes the raw blob and does not assign meanings to its numeric keys.
+
+| Observation | Evidence | Confidence |
+| --- | --- | --- |
+| The observed layout is little-endian, with a 16-byte `REND` header and 8-byte entries (u16 key, u16 type, 4-byte payload). | All 15 originals have version 7, size field equal to 1352 bytes, final header field 1, and 167 entries. | High for this dataset. |
+| Type 1 behaves as float32 and type 2 as int32. | 149 type-1 and 18 type-2 entries per file; decoded values are finite/plausible; raw hexadecimal payloads are retained. | High for these files, not a guarantee for other versions/types. |
+| All observed keys are present in every original, without duplicates. | Same set of 167 keys in all 15 files. | High. |
+| Exports do not encode the edited aperture/refocus in this blob. | Every one of the 66 exports contains the same blob as its original. | High for the supplied exports. |
+| The blob is not only a lens profile. | Within 1×/2×/4× there are 2/5/4 distinct blobs across 2/6/6 scenes. The front camera has one scene. | High; the cause of the changing fields is unknown. |
+| Keys 400–453 are not evidence of a face-only parameter block. | They occur in every original and vary also on object-only scenes. | High for presence/variation; semantic meaning unknown. |
+
+Across the dataset, 88 keys are constant and 79 change. Keys 400–403 and 450–453 vary within a lens; key 603 also
+varies between the 4× leaf image and other 4× scenes. Other observed differences largely follow camera configuration.
+Several payloads have exact-looking numerical relationships (for example 402 ≈ 48×401); this does not identify
+what they control. No value has been shown to predict a rendering parameter on independent scenes, so none is
+used by the renderer and no parsed public view is added. Earlier four-file hypotheses of 168 entries, no variation
+within a lens, or a face-only 400–453 range are superseded by this larger inventory.
+
+Radius/focus calibration and its limitations are described in
+[`measurements/portrait-0.6.7-calibration.md`](measurements/portrait-0.6.7-calibration.md).
+The [capture-focus experiment](measurements/portrait-0.6.7-capture-focus.md) validated the EXIF-to-display coordinate
+mapping but rejected using the SubjectArea centre as unconditional portrait focus. Default focus still uses the
+portrait-matte estimate or the nearest scene quantiles, now as a depth range (median to 97.5th percentile under the
+matte, 90th to 99.5th percentile of the scene without one); explicit `FocusPoint` retains precedence. Results:
+[`measurements/portrait-0.6.7-focus-range.md`](measurements/portrait-0.6.7-focus-range.md).
+Matte edges, hair and the held-out validation scenes:
+[`measurements/portrait-0.6.7-edges.md`](measurements/portrait-0.6.7-edges.md). Bokeh, grain, foreground and the
+2× lens: [`measurements/portrait-0.6.7-bokeh.md`](measurements/portrait-0.6.7-bokeh.md).

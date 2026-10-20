@@ -12,12 +12,15 @@ using PictureSharp.Processing;
 //   hash <file.heic>... [--threads 1,all]    SHA-256 of the decoded Rgba32 pixels (bit-identity checks)
 //   encodehash <file.heic>... [--quality 50]  SHA-256 of the encoded file (byte-identity checks)
 //   make48 <file.heic> <out-grid.heic>   writes the 2x upscaled photo as a 512x512 grid (the 0.5.0 48 MP input)
+//   portrait <file.heic>... [--runs 3] [--threads 1,all] [--scale 1] [--aperture N]  HeifPortrait.Render time, allocation
+//     and working-set peak above the loaded inputs; --scale resizes the photograph (√2 ≈ 24 MP, 2 ≈ 48 MP from 12 MP)
+//   portraithash <file.heic>... [--threads 1,all] [--scale 1]  SHA-256 of portrait renders (bit-identity checks)
 // Prints one TSV row per measurement: operation, file, threads, best ms, allocated MB per run, output bytes.
 ImageConfiguration.Default = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
 var configuration = ImageConfiguration.Default;
 string mode = args.Length > 0 ? args[0] : "";
 var files = args.Skip(1).TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
-int runs = Option("--runs", mode is "encode" or "quality" ? 2 : 5);
+int runs = Option("--runs", mode is "encode" or "quality" ? 2 : mode is "portrait" ? 3 : 5);
 int quality = Option("--quality", 50);
 string[] threads = (OptionText("--threads") ?? "1,all").Split(',');
 
@@ -95,6 +98,57 @@ switch (mode)
         }
 
         break;
+    case "portrait":
+        Console.WriteLine("operation\tfile\tthreads\tmegapixels\tms\talloc_mb\tpeak_mb");
+        foreach (string file in files)
+        {
+            (Image photo, HeifDepthImage depth, Image? matte) = LoadPortrait(file, Scale());
+            using (photo)
+            using (matte)
+            {
+                foreach (string t in threads)
+                {
+                    var portrait = new HeifPortraitOptions { Aperture = Aperture(), MaxDegreeOfParallelism = Threads(t) };
+                    // The working set high-water mark of the first render above the loaded inputs (Linux: reset by
+                    // clear_refs); later renders reuse pooled buffers, so measure one thread setting per process.
+                    long before = ResetPeak();
+                    HeifPortrait.Render(photo, depth, matte, portrait).Dispose();
+                    double peak = (PeakWorkingSet() - before) / 1048576.0;
+                    (double ms, double mb) = Measure(() => HeifPortrait.Render(photo, depth, matte, portrait).Dispose());
+                    Console.WriteLine(string.Join('\t', "portrait", Path.GetFileName(file), t,
+                        (photo.Width * (double)photo.Height / 1e6).ToString("F1", CultureInfo.InvariantCulture),
+                        ms.ToString("F0", CultureInfo.InvariantCulture), mb.ToString("F1", CultureInfo.InvariantCulture),
+                        peak.ToString("F0", CultureInfo.InvariantCulture)));
+                }
+            }
+        }
+
+        break;
+    case "portraithash":
+        // Default focus at f/1.4, f/4.5 and f/16, and the picture centre at f/2.8.
+        foreach (string file in files)
+        {
+            (Image photo, HeifDepthImage depth, Image? matte) = LoadPortrait(file, Scale());
+            using (photo)
+            using (matte)
+            {
+                foreach (HeifPortraitOptions variant in (HeifPortraitOptions[])[new() { Aperture = 1.4f }, new() { Aperture = 4.5f },
+                    new() { Aperture = 16f }, new() { Aperture = 2.8f, FocusPoint = new System.Drawing.Point(photo.Width / 2, photo.Height / 2) }])
+                {
+                    foreach (string t in threads)
+                    {
+                        using Image rendered = HeifPortrait.Render(photo, depth, matte, variant with { MaxDegreeOfParallelism = Threads(t) });
+                        var pixels = new Rgba32[rendered.Width * rendered.Height];
+                        rendered.CopyPixelDataTo(pixels);
+                        byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pixels.AsSpan()));
+                        string focus = variant.FocusPoint is null ? "default" : "centre";
+                        Console.WriteLine(FormattableString.Invariant($"{Path.GetFileName(file)}\tf{variant.Aperture}\t{focus}\t{t}\t{Convert.ToHexStringLower(hash)}"));
+                    }
+                }
+            }
+        }
+
+        break;
     case "make48":
     {
         using Image image = Image.Load(File.ReadAllBytes(files[0]).AsSpan(), new DecoderOptions { Configuration = configuration });
@@ -140,6 +194,47 @@ return 0;
 void Row(string operation, string file, string t, double ms, double mb, int bytes) =>
     Console.WriteLine(string.Join('\t', operation, Path.GetFileName(file), t, ms.ToString("F0", CultureInfo.InvariantCulture),
         mb.ToString("F1", CultureInfo.InvariantCulture), bytes.ToString(CultureInfo.InvariantCulture)));
+
+// The photograph (resized by scale, depth and matte kept: the renderer resamples them), depth and matte of a portrait.
+(Image Photo, HeifDepthImage Depth, Image? Matte) LoadPortrait(string file, double scale)
+{
+    HeifDocument document = HeifDocument.Open(file);
+    HeifItemInfo item = document.PrimaryImage;
+    HeifDepthImage depth = document.LoadDepth(item.FindDepthImage() ?? throw new ArgumentException($"{file} has no depth image."));
+    Image photo = document.LoadImage(item);
+    Image? matte = item.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte) is { IsSupported: true } matteItem
+        ? document.LoadImage(matteItem)
+        : null;
+    if (scale != 1)
+    {
+        photo.Mutate(x => x.Resize((int)Math.Round(photo.Width * scale), (int)Math.Round(photo.Height * scale)));
+    }
+
+    return (photo, depth, matte);
+}
+
+double Scale() => OptionText("--scale") is { } text ? double.Parse(text, CultureInfo.InvariantCulture) : 1;
+
+float? Aperture() => OptionText("--aperture") is { } text ? float.Parse(text, CultureInfo.InvariantCulture) : null;
+
+static long ResetPeak()
+{
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+    if (OperatingSystem.IsLinux())
+    {
+        File.WriteAllText("/proc/self/clear_refs", "5");
+    }
+
+    return Environment.WorkingSet;
+}
+
+static long PeakWorkingSet()
+{
+    using var process = Process.GetCurrentProcess();
+    return process.PeakWorkingSet64;
+}
 
 static int Threads(string text) => text == "all" ? -1 : int.Parse(text, CultureInfo.InvariantCulture);
 

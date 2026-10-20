@@ -23,6 +23,9 @@
     <!-- The HEVC layer is self-contained; compiling its sources into the tests checks YCbCr output bit for bit without
          InternalsVisibleTo on the plugin. -->
     <Compile Include="../../src/PictureSharp.Heif/Hevc/**/*.cs" Link="Hevc/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Likewise the portrait renderer, so its vector paths can be compared with the scalar ones. -->
+    <Compile Include="../../src/PictureSharp.Heif/Codecs/HeifPortraitRenderer*.cs;../../src/PictureSharp.Heif/Codecs/HeifParallel.cs"
+             Link="Codecs/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

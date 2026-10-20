@@ -18,9 +18,11 @@ public sealed record HeifPortraitOptions
     }
 
     /// <summary>
-    /// The point to focus on, in pixels of the photograph as passed or loaded (after its container transforms). Null
-    /// focuses on the subject: the median disparity under the portrait matte, or the nearest tenth of the scene
-    /// without a matte.
+    /// The point to focus on, in pixels of the photograph as passed or loaded (after its container transforms); only
+    /// the depth plane under it is in focus. Null focuses on the subject over a range of depths: from the median
+    /// disparity under the portrait matte to its nearest parts (the 97.5th percentile), or without a matte from the
+    /// scene's 90th to its 99.5th disparity percentile, so a subject's nearer parts and a thin nearest object stay
+    /// sharp while a few outlying samples do not move the focus.
     /// </summary>
     public Point? FocusPoint { get; init; }
 

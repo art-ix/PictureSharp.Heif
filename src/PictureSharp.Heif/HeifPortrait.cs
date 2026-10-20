@@ -12,7 +12,10 @@ namespace PictureSharp.Formats.Heif;
 /// The approximation was tuned against photographs exported by Apple Photos; Apple's algorithm is private and the
 /// result does not match Photos exactly. Each pixel is blurred with a disc whose radius grows with its disparity
 /// difference from the focus and as the aperture opens; colours are mixed in linear light. The portrait matte keeps
-/// subjects near the focus sharp and stops their colours bleeding into the blurred background. Fully protected pixels
+/// subjects near the focus sharp and stops their colours bleeding into the blurred background. Without a
+/// <see cref="HeifPortraitOptions.FocusPoint"/> the focus spans the subject's depths up to its nearest parts, and only
+/// pixels nearer than that range or farther than its start are blurred. At wide apertures,
+/// foreground people under the matte receive less blur when focusing behind them. Fully protected pixels
 /// and pixels at the focus are copied unchanged. The result does not depend on the thread count.
 /// </remarks>
 public static class HeifPortrait
@@ -43,6 +46,14 @@ public static class HeifPortrait
     public static Image Render(Image photo, HeifDepthImage depth, Image? matte = null, HeifPortraitOptions? options = null,
         CancellationToken cancellationToken = default) =>
         RenderCore(photo, depth, matte, options, fromFile: false, cancellationToken);
+
+    // The exposure's ISO sets the grain level in blurred areas; photographs without it get the level of ISO 64.
+    private static float Iso(Image photo) =>
+        photo.Metadata.ExifProfile.TryGetValue(ExifTag.IsoSpeed, out var iso) && iso > 0 ? iso : 64;
+
+    // Exposure time in seconds; 0 when unknown. ISO × time tells night shots, where lamps are clipped, from daylight.
+    private static float ExposureTime(Image photo) =>
+        photo.Metadata.ExifProfile.TryGetValue(ExifTag.ExposureTime, out ExifRational time) && time.Denominator != 0 ? (float)time.ToDouble() : 0;
 
     // Inconsistent depth or matte from a file is corrupt data; from a caller it is an argument error.
     internal static Image RenderCore(Image photo, HeifDepthImage depth, Image? matte, HeifPortraitOptions? options, bool fromFile,
@@ -75,15 +86,21 @@ public static class HeifPortrait
         cancellationToken.ThrowIfCancellationRequested();
         float[] disparity = Disparity(depth, description);
         byte[]? matteSamples = matte is null ? null : Red(matte);
-        float focus = options.FocusPoint is { } focusPoint
-            ? FocusAt(disparity, depth.Width, depth.Height, focusPoint, width, height)
-            : SubjectFocus(disparity, depth.Width, depth.Height, matteSamples, matte?.Width ?? 0, matte?.Height ?? 0);
+        float focus, nearFocus;
+        if (options.FocusPoint is { } focusPoint)
+        {
+            focus = nearFocus = FocusAt(disparity, depth.Width, depth.Height, focusPoint, width, height);
+        }
+        else
+        {
+            (focus, nearFocus) = SubjectFocus(disparity, depth.Width, depth.Height, matteSamples, matte?.Width ?? 0, matte?.Height ?? 0);
+        }
         float aperture = options.Aperture
             ?? (description.SimulatedAperture is { } stored && stored >= HeifPortraitOptions.MinimumAperture && stored <= HeifPortraitOptions.MaximumAperture
                 ? stored : HeifPortraitRenderer.ReferenceAperture);
         var renderer = new HeifPortraitRenderer(width, height, disparity, depth.Width, depth.Height, matteSamples,
-            matte?.Width ?? 0, matte?.Height ?? 0, focus, aperture, FocalRatio(description), options.MaxDegreeOfParallelism,
-            cancellationToken);
+            matte?.Width ?? 0, matte?.Height ?? 0, focus, nearFocus, aperture, FocalRatio(description), options.MaxDegreeOfParallelism,
+            cancellationToken, Iso(photo), Iso(photo) * ExposureTime(photo));
         long working = renderer.WorkingPixels();
         if (working > options.MaxPixels)
         {
@@ -156,8 +173,10 @@ public static class HeifPortrait
         return Quantile(values, 0.5);
     }
 
-    // The median disparity under the matte, or the 90th percentile of the scene (its nearest part) without one.
-    private static float SubjectFocus(float[] disparity, int depthWidth, int depthHeight, byte[]? matte, int matteWidth, int matteHeight)
+    // The focus range from its far end to its near end: the median disparity under the matte to 95 % of the way from
+    // there to the nearest sample (the 97.5th percentile), or the scene's 90th to 99.5th percentile without a matte.
+    // The maximum is never used, so a few outlying samples cannot widen the range.
+    private static (float Far, float Near) SubjectFocus(float[] disparity, int depthWidth, int depthHeight, byte[]? matte, int matteWidth, int matteHeight)
     {
         if (matte is not null)
         {
@@ -177,11 +196,18 @@ public static class HeifPortrait
 
             if (subject.Count >= Math.Max(16, disparity.Length / 1000))
             {
-                return Quantile(subject, 0.5);
+                return Range(subject, 0.5);
             }
         }
 
-        return Quantile([.. disparity], 0.9);
+        return Range([.. disparity], 0.9);
+
+        static (float Far, float Near) Range(List<float> values, double start)
+        {
+            values.Sort();
+            float At(double q) => values[(int)Math.Min(values.Count - 1, Math.Round(q * (values.Count - 1)))];
+            return (At(start), At(start + 0.95 * (1 - start)));
+        }
     }
 
     private static float Quantile(List<float> values, double quantile)

@@ -1,0 +1,16 @@
+{
+  "tag": "v0.6.6",
+  "commit": "f22ee6ea1672059df7bedb2160b67515c12cf419",
+  "originalSha256": {
+    "src/PictureSharp.Heif/HeifPortrait.cs": "2c3086582461a4fcb9cf2cf645b5302c21c96340447fbd85036eb84d4b582ee3",
+    "src/PictureSharp.Heif/HeifPortraitOptions.cs": "cb2e03670d12c05ca2a3f6e68c44e0da4558915388242d6fc3546776c6679379",
+    "src/PictureSharp.Heif/Codecs/HeifPortraitRenderer.cs": "15aaab78f381c3d6423de4e43fe04df9b55ac5f3857ecfdc689707c8a19e7a7b",
+    "src/PictureSharp.Heif/Codecs/HeifParallel.cs": "e3c82a9c5b4dc38b64a20ac5a7c0bf186021d4a9c40150dad89995a0c1b3121a"
+  },
+  "frozenSha256": {
+    "HeifParallel.cs": "c55498db799fb1ab7905f8b6129a9f6f885ae765eee00ce62b1e2dc01ed9d9fa",
+    "HeifPortrait.cs": "8f909b47ebe791fb6df1d260e61eb5509ab159a6dc161df8fe3eea33998c7963",
+    "HeifPortraitOptions.cs": "5871df10abcbfc9330d6d686ffc07282564c56af526acfc3b67a63b80de029d7",
+    "HeifPortraitRenderer.cs": "4adee716a0db2c02a8e0bcbdbc149cd600b3b1b0e3a1523a8c977b9982bbc1c2"
+  }
+}

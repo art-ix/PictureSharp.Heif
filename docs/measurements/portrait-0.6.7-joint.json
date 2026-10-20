@@ -1,0 +1,71 @@
+{
+  "protocol": "portrait-joint-v1",
+  "tiles": 9524,
+  "clean_scenes": 13,
+  "held_groups": 11,
+  "filters": "E2 status ok, valid frozen tone LUT, matte<26; include zero-radius tiles",
+  "split": "leave one whole scene out; liscie_1x/2x/4x held out together as one related family",
+  "training": "soft-L1 .75; equal scenes; uncertainty weight 1/sqrt(1+high-low); no held-out sharp ROI/export used to select focus",
+  "parameter_order": [
+    "scale",
+    "focal_power",
+    "aperture_power",
+    "zone",
+    "capture_blend_if_used"
+  ],
+  "interval": "far=legacy; near=quantile(start+.95*(1-start)), start=.5 for a valid matte else .9; explicit refocus uses one plane",
+  "interval_extensions": [
+    0,
+    0.25,
+    0.5,
+    0.75,
+    0.9,
+    0.95
+  ],
+  "full_fit": {
+    "legacy": [
+      0.0053431114970982595,
+      1.7766712152608295,
+      0.8621515049487753,
+      0.025778299228158674
+    ],
+    "capture": [
+      0.004536333757086819,
+      1.8578832003354813,
+      0.8841410477608336,
+      0.009577396431040941
+    ],
+    "blend": [
+      0.005442460134149794,
+      1.7451259649031297,
+      0.8234789170328265,
+      0.020752414651619096,
+      0.42474015035691876
+    ],
+    "near-blend": [
+      0.004719361156163371,
+      1.8579513339553673,
+      0.8732818507190523,
+      0.027918307409042532,
+      0.8720178258519853
+    ],
+    "near-interval": {
+      "extension": 0.95,
+      "scale": 0.0055,
+      "focal_power": 1.5,
+      "aperture_power": 1,
+      "zone": 0.02
+    }
+  },
+  "limitations": "Screening after downsampling, not native image quality. Model-family selection is exploratory; no untouched test set. Only one front-camera scene.",
+  "source_sha256": "416722c851e7769be2ae3ce524431709af3030869d72ce03744b9318574ca6b4",
+  "input_sha256": {
+    "portrait-0.6.7-radius.tsv": "b01cec7e09f277dfc166348dc8fd485de97ebc637d05d52e5af2839cc54496a7",
+    "portrait-0.6.7-focus-distribution.tsv": "ee0d50c0cfbc60e20ed3d73d2818f7d3b854cad8b16904fc0617fc83d41bf38d",
+    "portrait-0.6.7-capture-disparity.tsv": "62c75d355c86023b05fa463235449588e3c6f3cca3918b3fdd055be0762ee5f0"
+  },
+  "report_sha256": {
+    "portrait-0.6.7-joint-holdout.tsv": "e14701f6ce2393301fff02142b30b1a95a5302d85deba179dadeb5cbf48285c5",
+    "portrait-0.6.7-joint-summary.tsv": "52d74a1ad5ae010736eadc15e151fae91066e8135ac98d847c3d38dbe073a4b0"
+  }
+}

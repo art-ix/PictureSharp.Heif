@@ -49,8 +49,11 @@ public sealed class HeifGainMapLocalTests
                 string mapPng = Path.Combine(work, "base-urn_com_apple_photo_2020_aux_hdrgainmap.png");
                 if (!File.Exists(mapPng))
                 {
-                    await Assert.That(image.Hdr).IsNull().Because(name);
-                    Console.WriteLine($"Local HDR: {name} has no gain map.");
+                    // heif-dec writes only Apple's auxiliary map; an ISO 21496-1 map without it has no oracle here.
+                    await Assert.That(image.Hdr is null || (image.Hdr.Detected & HdrGainMapKinds.Apple) == 0).IsTrue().Because(name);
+                    Console.WriteLine(image.Hdr is null
+                        ? $"Local HDR: {name} has no gain map."
+                        : $"Local HDR: {name} not compared: {image.Hdr.Detected} only, {image.Hdr.UnsupportedReason ?? "decodable"}");
                     continue;
                 }
 
@@ -60,6 +63,18 @@ public sealed class HeifGainMapLocalTests
                     // output); there is no oracle for this photo, which is reported, not counted as a comparison.
                     await Assert.That(image.Hdr).IsNotNull().Because(name);
                     Console.WriteLine($"Local HDR: {name} not compared: heif-dec could not write the gain map.");
+                    continue;
+                }
+
+                if (!image.Hdr!.CanDecode)
+                {
+                    // An Apple map without the MakerNote headroom (iPhone 13 Pro): the plugin reports it as unsupported,
+                    // and the test-only parser must reject the same metadata.
+                    await Assert.That(image.Hdr.UnsupportedReason).IsNotNull().Because(name);
+                    await Assert.That(() => GainMapMetadata.ParseApple(Tiff(items.First(item => item.Type == "Exif").Data),
+                        items.First(item => item.Type == "mime" && Encoding.UTF8.GetString(item.Data).Contains("HDRGainMapVersion")).Data))
+                        .Throws<ImageFormatException>().Because(name);
+                    Console.WriteLine($"Local HDR: {name} not compared: {image.Hdr.UnsupportedReason}");
                     continue;
                 }
 

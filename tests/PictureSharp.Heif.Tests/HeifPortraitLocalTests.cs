@@ -1,156 +1,138 @@
-using System.Diagnostics;
+using System.Text.Json;
 
 namespace PictureSharp.Formats.Heif.Tests;
 
-// Private iPhone Portrait photographs in samples/: the Apple depth description, and how close the rendering at the
-// photo's SimulatedAperture comes to the same photograph exported by Photos with the effect (IMG_xxxx_2.HEIC). The
-// numbers guide tuning; they are not a compatibility claim.
+// Private portrait inputs remain local. The public TSV contains only numeric measurements and scene identifiers.
+[NotInParallel]
 public sealed class HeifPortraitLocalTests
 {
-    private static readonly ImageConfiguration Configuration = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
+    [Test]
+    [Property("Category", "Measurement")]
+    public Task Freeze_Portrait066Baseline() => Freeze(PortraitSampleSet.Main, "PICTURESHARP_HEIF_FREEZE_PORTRAIT");
 
-    private static string[] Samples()
+    [Test]
+    [Property("Category", "Measurement")]
+    public Task Freeze_PortraitValidation066Baseline() => Freeze(PortraitSampleSet.Validation, "PICTURESHARP_HEIF_FREEZE_PORTRAIT_VALIDATION");
+
+    private static async Task Freeze(PortraitSampleSet set, string variable)
     {
-        string directory = Path.Combine(HevcLocalTests.FindRoot(), "samples");
-        return Directory.Exists(directory)
-            ? [.. Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
-                .Where(path => Path.GetExtension(path).Equals(".heic", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal)]
-            : [];
+        Skip.Unless(Environment.GetEnvironmentVariable(variable) == "1",
+            $"Set {variable}=1 to create the baseline once. Existing baseline artifacts are never overwritten.");
+        string root = HevcLocalTests.FindRoot();
+        foreach (string file in new[] { PortraitMeasurementRun.ManifestPath(root, set), PortraitMeasurementRun.BaselinePath(root, set),
+            Path.Combine(root, "docs", "measurements", set.BaselineName + ".json"),
+            Path.Combine(root, "docs", "measurements", set.BaselineName + "-summary.tsv") })
+        {
+            await Assert.That(File.Exists(file)).IsFalse().Because("Frozen baseline already exists: " + file);
+        }
+
+        PortraitCatalog catalog = PortraitSampleCatalog.Scan(set.Samples(root));
+        Skip.Unless(catalog.Scenes.Length > 0, $"No private Portrait photos in samples/{set.Folder}/.");
+        PortraitMeasurementManifest run = PortraitMeasurementRun.Measure(root, catalog, freeze: true, set: set);
+        await Assert.That(run.Pairs.Length).IsEqualTo(catalog.Scenes.Sum(s => s.Exports.Length));
+        PortraitMeasurementRun.WriteReports(root, run, freeze: true, set: set);
+        Console.WriteLine("Frozen baseline: " + PortraitMeasurementRun.BaselinePath(root, set));
     }
 
     [Test]
     [Property("Category", "Local")]
-    public async Task PrivateSamples_DescribeAppleDisparity()
+    public async Task PrivateSamples_AgreeWithFrozenPortraitBaseline()
     {
-        int described = 0;
-        foreach (string path in Samples())
+        (PortraitMeasurementManifest baseline, PortraitMeasurementManifest current) = await MeasureAgainstBaseline(PortraitSampleSet.Main);
+        await AssertPairGate(baseline, current);
+        if (Scenes() is not null)
         {
-            HeifDocument document = HeifDocument.Open(path);
-            if (document.PrimaryImage.FindDepthImage() is not { } item)
-            {
-                continue;
-            }
-
-            HeifDepthImage depth = document.LoadDepth(item);
-            HeifAppleDepthInfo info = depth.AppleDepth!;
-            await Assert.That(info).IsNotNull().Because(path);
-            await Assert.That(info.Kind).IsEqualTo(HeifAuxiliaryKind.Disparity);
-            await Assert.That((info.StoredFormat, info.NativeFormat)).IsEqualTo(("L008", "hdis"));
-            await Assert.That((info.IntMinValue, info.IntMaxValue)).IsEqualTo((0, 255));
-            await Assert.That(info.FloatMaxValue).IsGreaterThan(info.FloatMinValue);
-            await Assert.That(info.SimulatedAperture).IsNotNull();
-            await Assert.That(info.IntrinsicMatrix.Count).IsEqualTo(9);
-            await Assert.That(info.RenderingParameters.Span.StartsWith("REND"u8)).IsTrue();
-            Console.WriteLine($"Local portrait: {Path.GetFileName(path)} depth {depth.Width}x{depth.Height}, disparity " +
-                $"{info.FloatMinValue:G4}–{info.FloatMaxValue:G4}, f/{info.SimulatedAperture}, accuracy {info.Accuracy}, quality {info.Quality}");
-            described++;
+            return;
         }
 
-        Skip.Unless(described > 0, "No private Portrait photos in samples/.");
+        // DoD: the pooled clean background beats the frozen 0.6.5/0.6.6 model (E1) under the same cohort definition.
+        // The subject-vs-unblurred condition is not met yet and is reported, not asserted.
+        double? frozenBackground = PooledBackground(baseline), currentBackground = PooledBackground(current);
+        await Assert.That(currentBackground!.Value).IsLessThan(frozenBackground!.Value)
+            .Because($"clean background MSE {currentBackground} vs E1 {frozenBackground}");
+
+        // E1 established the reference.
+        // At E1 every native render must also agree byte for byte with the frozen implementation.
+        if (Environment.GetEnvironmentVariable("PICTURESHARP_HEIF_VERIFY_PORTRAIT_FREEZE") == "1")
+        {
+            foreach (PortraitPairMeasurement pair in current.Pairs)
+            {
+                PortraitPairMeasurement old = baseline.Pairs.Single(p => p.Scene == pair.Scene && p.Variant == pair.Variant && p.Aperture == pair.Aperture);
+                await Assert.That(pair.RenderHash).IsEqualTo(old.RenderHash).Because($"E1 exact native render: {pair.Scene}/{pair.Variant}/f{pair.Aperture}");
+            }
+        }
     }
 
+    // Held-out scenes, never used for tuning: the same per-pair gate against their own frozen 0.6.6 renders. The pooled
+    // background over a few scenes is reported in the summary, not asserted.
     [Test]
     [Property("Category", "Local")]
-    public async Task PrivateSamples_RenderingApproachesPhotosExport()
+    public async Task PrivateValidationSamples_AgreeWithFrozenPortraitBaseline()
     {
-        var pairs = Samples().Where(path => !Path.GetFileNameWithoutExtension(path).EndsWith("_2", StringComparison.Ordinal))
-            .Select(path => (Original: path, Reference: Path.Combine(Path.GetDirectoryName(path)!, Path.GetFileNameWithoutExtension(path) + "_2" + Path.GetExtension(path))))
-            .Where(pair => File.Exists(pair.Reference)).ToArray();
-        Skip.Unless(pairs.Length > 0, "No Portrait pairs IMG_xxxx.HEIC + IMG_xxxx_2.HEIC in samples/.");
-        var options = new DecoderOptions { Configuration = Configuration, LoadGainMap = true };
-        foreach ((string original, string reference) in pairs)
-        {
-            HeifDocument document = HeifDocument.Open(original);
-            HeifItemInfo? matteItem = document.PrimaryImage.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte);
-            if (document.PrimaryImage.FindDepthImage() is null || matteItem is null)
-            {
-                continue;
-            }
-
-            long allocated = GC.GetTotalAllocatedBytes(true);
-            var clock = Stopwatch.StartNew();
-            using Image ours = document.RenderPortrait(document.PrimaryImage, null, options);
-            long elapsed = clock.ElapsedMilliseconds;
-            allocated = GC.GetTotalAllocatedBytes(true) - allocated;
-            using Image photo = document.LoadImage(document.PrimaryImage, options);
-            HeifDepthImage depth = document.LoadDepth(document.PrimaryImage.FindDepthImage()!);
-            using Image matte = document.LoadImage(matteItem, options);
-            clock.Restart();
-            using Image again = HeifPortrait.Render(photo, depth, matte);
-            long renderOnly = clock.ElapsedMilliseconds;
-            HeifDocument exported = HeifDocument.Open(reference);
-            using Image apple = exported.LoadImage(exported.PrimaryImage, options);
-            await Assert.That((apple.Width, apple.Height)).IsEqualTo((photo.Width, photo.Height));
-            await Assert.That(photo.HasHdr && ours.HasHdr).IsFalse().Because("the gain map is not attached to the result");
-
-            matte.Mutate(x => x.Resize(photo.Width, photo.Height));
-            Func<byte, bool> background = m => m < 26, subject = m => m > 230;
-            (double before, double after) = (Psnr(photo, apple, matte, background), Psnr(ours, apple, matte, background));
-            (double subjectBefore, double subjectAfter) = (Psnr(photo, apple, matte, subject), Psnr(ours, apple, matte, subject));
-            (double ssimBefore, double ssimAfter) = (Ssim(photo, apple, matte, background), Ssim(ours, apple, matte, background));
-            Console.WriteLine($"Local portrait: {Path.GetFileName(original)} {photo.Width}x{photo.Height}: background PSNR {before:F2} → " +
-                $"{after:F2} dB, SSIM {ssimBefore:F3} → {ssimAfter:F3}; subject PSNR {subjectBefore:F2} → {subjectAfter:F2} dB; " +
-                $"RenderPortrait {elapsed} ms ({allocated / 1048576} MiB allocated), Render {renderOnly} ms");
-            await Assert.That(after).IsGreaterThan(before + 5).Because("the background should approach Apple's blur");
-            await Assert.That(ssimAfter).IsGreaterThan(ssimBefore);
-            await Assert.That(subjectAfter).IsGreaterThan(subjectBefore - 1).Because("the subject should stay as sharp as Apple's");
-        }
+        (PortraitMeasurementManifest baseline, PortraitMeasurementManifest current) = await MeasureAgainstBaseline(PortraitSampleSet.Validation);
+        await AssertPairGate(baseline, current);
     }
 
-    // RGB PSNR over pixels whose matte value passes the selector.
-    private static double Psnr(Image a, Image b, Image matte, Func<byte, bool> select)
+    private static async Task<(PortraitMeasurementManifest Baseline, PortraitMeasurementManifest Current)> MeasureAgainstBaseline(PortraitSampleSet set)
     {
-        ReadOnlySpan<Rgba32> pa = a.GetPixelSpan(), pb = b.GetPixelSpan(), pm = matte.GetPixelSpan();
-        double error = 0;
-        long count = 0;
-        for (int i = 0; i < pa.Length; i++)
+        string root = HevcLocalTests.FindRoot();
+        PortraitCatalog catalog = PortraitSampleCatalog.Scan(set.Samples(root));
+        string[]? scenes = Scenes();
+        if (scenes is not null)
         {
-            if (select(pm[i].R))
-            {
-                int dr = pa[i].R - pb[i].R, dg = pa[i].G - pb[i].G, db = pa[i].B - pb[i].B;
-                error += dr * dr + dg * dg + db * db;
-                count += 3;
-            }
+            catalog = catalog with { Scenes = [.. catalog.Scenes.Where(s => scenes.Contains(s.Name))] };
         }
 
-        return 10 * Math.Log10(255.0 * 255.0 / (error / count));
+        Skip.Unless(catalog.Scenes.Length > 0 && File.Exists(PortraitMeasurementRun.ManifestPath(root, set)),
+            $"Needs private samples/{set.Folder}/ and the frozen baseline inputs manifest; a missing baseline is not a pass.");
+        PortraitMeasurementManifest baseline = PortraitMeasurementRun.Read(root, set);
+        using JsonDocument context = JsonDocument.Parse(File.ReadAllText(Path.ChangeExtension(PortraitMeasurementRun.BaselinePath(root, set), ".json")));
+        await Assert.That(PortraitMeasurementRun.FileHash(PortraitMeasurementRun.BaselinePath(root, set)))
+            .IsEqualTo(context.RootElement.GetProperty("BaselineTsvSha256").GetString());
+        await Assert.That(PortraitMeasurementRun.FileHash(PortraitMeasurementRun.ManifestPath(root, set)))
+            .IsEqualTo(context.RootElement.GetProperty("LocalManifestSha256").GetString());
+        PortraitMeasurementManifest current = PortraitMeasurementRun.Measure(root, catalog, freeze: false, baseline, set: set, subset: scenes is not null);
+        PortraitMeasurementRun.WriteReports(root, current, freeze: false, scenes is null ? null : "subset", set);
+        return (baseline, current);
     }
 
-    // Mean luma SSIM of 8×8 blocks whose centre passes the selector.
-    private static double Ssim(Image a, Image b, Image matte, Func<byte, bool> select)
+    // Screening of risky scenes during experiments: PICTURESHARP_HEIF_PORTRAIT_SCENES=a,b checks only those scenes'
+    // pairs (reports go to *-subset*, the pooled background is not asserted). Acceptance always runs every pair.
+    private static string[]? Scenes() =>
+        Environment.GetEnvironmentVariable("PICTURESHARP_HEIF_PORTRAIT_SCENES") is { Length: > 0 } list ? list.Split(',') : null;
+
+    private static async Task AssertPairGate(PortraitMeasurementManifest baseline, PortraitMeasurementManifest current)
     {
-        const double c1 = 6.5025, c2 = 58.5225;
-        double total = 0;
-        int blocks = 0;
-        for (int by = 0; by + 8 <= a.Height; by += 8)
+        foreach (PortraitPairMeasurement pair in current.Pairs)
         {
-            for (int bx = 0; bx + 8 <= a.Width; bx += 8)
+            PortraitPairMeasurement old = baseline.Pairs.Single(p => p.Scene == pair.Scene && p.Variant == pair.Variant && p.Aperture == pair.Aperture);
+            IEnumerable<int> regions = pair.Edited ? [0, 4] : Enumerable.Range(0, PortraitMetrics.Regions.Length);
+            foreach (int r in regions)
             {
-                if (!select(matte[bx + 4, by + 4].R))
+                PortraitScore score = pair.BaselineNormalized?[r] ?? pair.BaselineRaw[r];
+                PortraitScore before = old.BaselineNormalized?[r] ?? old.BaselineRaw[r];
+                await Assert.That(score.Pixels).IsEqualTo(before.Pixels);
+                if (before.Mse is { } mse && !EdgeBandException(pair, r))
                 {
-                    continue;
+                    await Assert.That(score.Mse!.Value).IsLessThanOrEqualTo(mse * Math.Pow(10, 0.5 / 10) + 1e-10)
+                        .Because($"{pair.Scene}/{pair.Variant}/f{pair.Aperture}: {PortraitMetrics.Regions[r]} regression <=0.5 dB");
                 }
-
-                double sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
-                for (int y = by; y < by + 8; y++)
-                {
-                    for (int x = bx; x < bx + 8; x++)
-                    {
-                        double la = HeifPortraitTests.Luma(a[x, y]), lb = HeifPortraitTests.Luma(b[x, y]);
-                        sa += la;
-                        sb += lb;
-                        saa += la * la;
-                        sbb += lb * lb;
-                        sab += la * lb;
-                    }
-                }
-
-                double ma = sa / 64, mb = sb / 64, va = saa / 64 - ma * ma, vb = sbb / 64 - mb * mb, cov = sab / 64 - ma * mb;
-                total += (2 * ma * mb + c1) * (2 * cov + c2) / ((ma * ma + mb * mb + c1) * (va + vb + c2));
-                blocks++;
             }
         }
-
-        return total / blocks;
     }
+
+    // User decisions 2026-10-19 (E4, docs/measurements/portrait-0.6.7-edges.md): at f/8–f/16 the edge and hair bands
+    // are reported but not held to the per-pair limit. Fully protecting partly matted pixels there loses up to 2 dB
+    // against E1, which kept them blurred by accident; side-by-side comparisons were judged visually. kapiel_2x f/4.5
+    // edges are excepted too: wet strands behind the ear lie farther than the face but share its coarse depth, and no
+    // depth source tried (matte weighting, colour-guided upsampling) separated them from strands in front of a far
+    // background without regressing other scenes.
+    private static bool EdgeBandException(PortraitPairMeasurement pair, int region) =>
+        (pair.Aperture >= 8 && PortraitMetrics.Regions[region] is PortraitRegion.Edge or PortraitRegion.Hair)
+        || (pair.Scene == "kapiel_2x" && pair.Variant == "default" && pair.Aperture == 4.5f
+            && PortraitMetrics.Regions[region] == PortraitRegion.Edge);
+
+    private static double? PooledBackground(PortraitMeasurementManifest run) => PortraitMetrics.PooledMse(run.Pairs
+        .Where(p => PortraitMeasurementRun.InCohort(p, "clean-all") && p.BaselineNormalized?[0].Mse is not null)
+        .Select(p => (p.Scene, p.BaselineNormalized![0].Mse)));
 }

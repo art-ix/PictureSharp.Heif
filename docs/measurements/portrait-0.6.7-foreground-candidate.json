@@ -1,0 +1,57 @@
+{
+  "stage": "0.6.7 E3: foreground matte correction at wide apertures",
+  "baseline_commit": "f22ee6ea1672059df7bedb2160b67515c12cf419",
+  "formula": "radius *= 1 - 0.5*clamp((8-N)/(8-2.8),0,1)*matte*foreground; protection uses original radius",
+  "working_source_sha256": {
+    "src/PictureSharp.Heif/Codecs/HeifPortraitRenderer.cs": "3be2ab97a2386348b7693ba3201d919d59e4845cc2089b6167a1b4a6d4fcbc5d",
+    "src/PictureSharp.Heif/HeifPortrait.cs": "331a7a77b4dd30badc8542a9cd9ee2c1ef99914e653eb6ec0d696496dc07a066"
+  },
+  "report_sha256": {
+    "portrait-0.6.7-foreground-candidate.tsv": "cf79b119565b7c8312b0da96a55c8af68f45f85cc5efc963d0bff656f196a317",
+    "portrait-0.6.7-foreground-candidate-summary.tsv": "d0e4c10cf75e07ab83b1f07209fa5f6b1269125bf26edd20dcb9696c7c5d84cf",
+    "portrait-0.6.7-baseline.tsv": "b797096b1a75eb9a7489eaf9bcb08b7c07d2eddab3664e4764e68d070f9d9f6c"
+  },
+  "native_pairs": 66,
+  "clean_pairs": 55,
+  "worst_clean_region_regressions": {
+    "background": {
+      "delta_db": -0.00012322265117603592,
+      "scene": "basen_4x",
+      "variant": "default",
+      "aperture": 4.5
+    },
+    "subject": {
+      "delta_db": -0.11411136887455342,
+      "scene": "swiatla_2x",
+      "variant": "default",
+      "aperture": 2.799999952316284
+    },
+    "edge": {
+      "delta_db": -0.06565921774877026,
+      "scene": "swiatla_2x",
+      "variant": "default",
+      "aperture": 2.799999952316284
+    },
+    "hair": {
+      "delta_db": -0.02839405455257804,
+      "scene": "selfie",
+      "variant": "default",
+      "aperture": 1.399999976158142
+    },
+    "focus": {
+      "delta_db": 0.0,
+      "scene": "basen_4x",
+      "variant": "default",
+      "aperture": 4.5
+    }
+  },
+  "validation": {
+    "portrait_tests_passed": 29,
+    "portrait_opt_in_skips": 2,
+    "infrastructure_and_calibration_unit_passed": 13,
+    "calibration_opt_in_skips": 3,
+    "architecture_passed": 4,
+    "public_api_snapshot_passed": 1
+  },
+  "remaining": "Default capture focus, global radius model, hair, bokeh/grain, SIMD/memory/AOT/ARM64, final release DoD remain open."
+}

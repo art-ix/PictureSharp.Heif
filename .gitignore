@@ -35,3 +35,7 @@ samples/**/*.[hH][eE][iI][cCfF]
 samples/**/*.[mM][oO][vV]
 samples/**/*.[jJ][pP][gG]
 samples/**/*.[jJ][pP][eE][gG]
+
+# Private portrait calibration inputs (file hashes, ROI, focus coordinates and fixed tone LUTs).
+samples/portrait/portrait-0.6.7-*.json
+samples/portrait-validation/portrait-0.6.7-*.json

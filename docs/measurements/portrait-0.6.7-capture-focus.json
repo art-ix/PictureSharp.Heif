@@ -1,0 +1,33 @@
+{
+  "stage": "0.6.7 E3: capture-focus-only experiment",
+  "decision": "rejected",
+  "policy": "Only null FocusPoint is replaced by the transformed EXIF SubjectArea centre; existing explicit refocus is unchanged.",
+  "pairs": 66,
+  "default_pairs": 37,
+  "native_refocus_byte_identical": 29,
+  "regressed_pairs_vs_frozen": 14,
+  "regressed_pairs_vs_accepted": 14,
+  "regressed_regions_vs_frozen": 33,
+  "working_source_sha256": {
+    "HeifPortrait.cs": "331a7a77b4dd30badc8542a9cd9ee2c1ef99914e653eb6ec0d696496dc07a066",
+    "HeifPortraitOptions.cs": "cb2e03670d12c05ca2a3f6e68c44e0da4558915388242d6fc3546776c6679379",
+    "Codecs/HeifPortraitRenderer.cs": "3be2ab97a2386348b7693ba3201d919d59e4845cc2089b6167a1b4a6d4fcbc5d"
+  },
+  "measurement_source_sha256": {
+    "PortraitMeasurementRun.cs": "77577c0ea40a7c6652f70bf61700f40e32f6987afac510342cce838a4f1625e1",
+    "PortraitCaptureFocus.cs": "af567e67cef9b7f0a7ffef2bc3e700d6d412ab74652f310c0ac15837deeb94ad",
+    "PortraitCalibrationTests.cs": "ba1187f71a7da4518e5d92ef3623f4b44360905ad3065d9e071a2642138881ca"
+  },
+  "input_sha256": {
+    "portrait-0.6.7-baseline.tsv": "b797096b1a75eb9a7489eaf9bcb08b7c07d2eddab3664e4764e68d070f9d9f6c",
+    "portrait-0.6.7-foreground-candidate.tsv": "cf79b119565b7c8312b0da96a55c8af68f45f85cc5efc963d0bff656f196a317",
+    "portrait-0.6.7-capture-focus-candidate.tsv": "b4f4030d9854d64a7befbc96d3d4956ca58eb7c59632ee2d9fe9ad7c38f084f4",
+    "portrait-0.6.7-capture-focus-experiment.json": "f9144c15462a2ed2c45c887e5ca5506e6e985242ebd9bf16b74e10807f4c4ce3"
+  },
+  "verified_private_points_sha256": "707c49977c80b617bac7dd9588fbeaa08fcc1e04a499d0ca8fe6e97d7c8826a7",
+  "analyzer_sha256": "3e36473f80e7e4be41ee861b3248ddb93dc6ba292a29b4b6e0a456bb4dd0607d",
+  "report_sha256": {
+    "portrait-0.6.7-capture-focus.tsv": "1265ea7711b833dc20975bacae4ba5977d4a3416763da9ad389b5502b6640a06",
+    "portrait-0.6.7-capture-focus-summary.tsv": "d803fc24710ec014d32122982b076df9d0ba329a02e43459294dadaf92bc2ce9"
+  }
+}

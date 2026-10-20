@@ -64,6 +64,8 @@ Guides: [decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/de
 [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md) ·
 [container and catalogue](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md)
 
+[0.6.7 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.7.md): portrait focus, hair and bokeh improvements and faster, machine-independent rendering; [details with side-by-side iPhone / 0.6.6 / 0.6.7 comparisons](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.7-details.md).
+
 [0.6.6 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.6.md): faster HEVC decoding and encoding, with measured quality and speed comparisons.
 
 ## License and patents

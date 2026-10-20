@@ -237,15 +237,93 @@ public sealed class HeifPortraitTests
     }
 
     [Test]
+    public async Task Render_DefaultFocus_KeepsTheSubjectsNearerPartSharp()
+    {
+        // The subject's top quarter (a raised hand) is nearer than the rest of it.
+        HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, depthAt: LayeredSubject).Bytes);
+        using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
+        using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f }, Options);
+        await Assert.That(Equal(photo, result, SubjectNear)).IsTrue();
+        await Assert.That(Equal(photo, result, SubjectMain)).IsTrue();
+        await Assert.That(Energy(result, Background)).IsLessThan(Energy(photo, Background) * 0.5);
+    }
+
+    [Test]
+    public async Task Render_FocusPoint_SelectsOneDepthPlaneOfTheSubject()
+    {
+        HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, depthAt: LayeredSubject).Bytes);
+        using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
+        using Image main = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = new Point(80, 160) }, Options);
+        await Assert.That(Equal(photo, main, SubjectMain)).IsTrue();
+        await Assert.That(Equal(photo, main, SubjectNear)).IsFalse().Because("the nearer part lies in front of the focus");
+        await Assert.That(Energy(main, SubjectNear)).IsLessThan(Energy(photo, SubjectNear) * 0.9);
+
+        using Image near = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = new Point(80, 20) }, Options);
+        await Assert.That(Equal(photo, near, SubjectNear)).IsTrue();
+        await Assert.That(Energy(near, SubjectMain)).IsLessThan(Energy(photo, SubjectMain) * 0.5).Because("the rest lies behind the focus");
+    }
+
+    [Test]
+    public async Task Render_WithoutMatte_KeepsTheNearestObjectAndTheFocusedDepthsSharp()
+    {
+        HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, matteSize: Size.Empty, depthAt: ThinNearObject).Bytes);
+        using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
+        foreach (float aperture in new[] { 1.4f, 4.5f, 16f })
+        {
+            using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = aperture }, Options);
+            await Assert.That(Equal(photo, result, ThinObject)).IsTrue().Because($"f/{aperture}");
+            await Assert.That(Equal(photo, result, MiddleGround)).IsTrue().Because($"f/{aperture}");
+            if (aperture <= 4.5f)
+            {
+                await Assert.That(Energy(result, FarGround)).IsLessThan(Energy(photo, FarGround) * 0.5).Because($"f/{aperture}");
+            }
+        }
+
+        // A matte too small to describe a subject is ignored when choosing the focus.
+        HeifDocument speck = HeifDocument.Open(Scene.Build(320, 240, depthAt: ThinNearObject,
+            matteAt: (x, y) => x is >= 0.8 and < 0.82 && y is >= 0.8 and < 0.83 ? (byte)255 : (byte)0).Bytes);
+        using Image speckResult = speck.RenderPortrait(speck.PrimaryImage, null, Options);
+        await Assert.That(Equal(photo, speckResult, ThinObject)).IsTrue();
+        await Assert.That(Equal(photo, speckResult, MiddleGround)).IsTrue();
+    }
+
+    [Test]
+    public async Task Render_WithoutMatte_ASmallNearerSpeckDoesNotMoveTheFocus()
+    {
+        // 12 of 4800 depth samples (0.25 %) are nearer than the thin object; they do not define the focus range.
+        HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, matteSize: Size.Empty,
+            depthAt: (x, y) => x is >= 0.75 and < 0.8 && y is >= 0.5 and < 0.55 ? (byte)255 : ThinNearObject(x, y)).Bytes);
+        using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
+        using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f }, Options);
+        await Assert.That(Equal(photo, result, ThinObject)).IsTrue();
+        await Assert.That(Energy(result, Speck)).IsLessThan(Energy(photo, Speck) * 0.5);
+    }
+
+    [Test]
+    public async Task RenderPortrait_WithTargetSize_KeepsTheFocusRange()
+    {
+        HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, matteSize: Size.Empty, depthAt: ThinNearObject).Bytes);
+        var small = new DecoderOptions { Configuration = Configuration, TargetSize = new Size(160, 120) };
+        using Image photo = doc.LoadImage(doc.PrimaryImage, small);
+        using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f }, small);
+        await Assert.That(Equal(photo, result, Half(ThinObject))).IsTrue();
+        await Assert.That(Equal(photo, result, Half(MiddleGround))).IsTrue();
+        await Assert.That(Energy(result, Half(FarGround))).IsLessThan(Energy(photo, Half(FarGround)) * 0.5);
+    }
+
+    [Test]
     [Property("Category", "Slow")]
     public async Task Render_DoesNotDependOnTheThreadCount()
     {
-        HeifDocument doc = HeifDocument.Open(Scene.Build(704, 512).Bytes);
-        using Image single = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { MaxDegreeOfParallelism = 1, Aperture = 2 }, Options);
-        foreach (int threads in new[] { 2, 3, -1 })
+        foreach (Scene scene in new[] { Scene.Build(704, 512), Scene.Build(704, 512, matteSize: Size.Empty, depthAt: ThinNearObject) })
         {
-            using Image parallel = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { MaxDegreeOfParallelism = threads, Aperture = 2 }, Options);
-            await Assert.That(Equal(single, parallel, new Rectangle(0, 0, 704, 512))).IsTrue().Because($"{threads} threads");
+            HeifDocument doc = HeifDocument.Open(scene.Bytes);
+            using Image single = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { MaxDegreeOfParallelism = 1, Aperture = 2 }, Options);
+            foreach (int threads in new[] { 2, 3, -1 })
+            {
+                using Image parallel = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { MaxDegreeOfParallelism = threads, Aperture = 2 }, Options);
+                await Assert.That(Equal(single, parallel, new Rectangle(0, 0, 704, 512))).IsTrue().Because($"{threads} threads");
+            }
         }
     }
 
@@ -316,6 +394,24 @@ public sealed class HeifPortraitTests
 
     private static readonly Rectangle Background = new(176, 8, 136, 224);
 
+    // The subject (left half, under the matte) at disparity sample 190 with its top quarter nearer, at 215; the
+    // background (right half) at 40. Rectangles stay clear of the bilinear transitions in a 320×240 photograph.
+    private static byte LayeredSubject(double x, double y) => x >= 0.5 ? (byte)40 : y < 0.25 ? (byte)215 : (byte)190;
+
+    private static readonly Rectangle SubjectNear = new(8, 8, 140, 44);
+    private static readonly Rectangle SubjectMain = new(8, 76, 140, 156);
+
+    // Without a person: a far ground (sample 40, 55.5 %), a middle ground across the top (120, 37 %) and a thin near
+    // object (200, a vertical bar of 7.5 %), so the scene's 90th disparity percentile lies on the middle ground.
+    private static byte ThinNearObject(double x, double y) => x is >= 0.4 and < 0.475 ? (byte)200 : y < 0.4 ? (byte)120 : (byte)40;
+
+    private static readonly Rectangle ThinObject = new(132, 8, 16, 224);
+    private static readonly Rectangle MiddleGround = new(176, 8, 136, 80);
+    private static readonly Rectangle FarGround = new(176, 112, 136, 120);
+    private static readonly Rectangle Speck = new(244, 124, 8, 6);
+
+    private static Rectangle Half(Rectangle area) => new(area.X / 2, area.Y / 2, area.Width / 2, area.Height / 2);
+
     private static bool Equal(Image a, Image b, Rectangle area)
     {
         for (int y = area.Top; y < area.Bottom; y++)
@@ -350,13 +446,15 @@ public sealed class HeifPortraitTests
     internal static double Luma(Rgba32 p) => 0.299 * p.R + 0.587 * p.G + 0.114 * p.B;
 
     // A photograph whose left half is the subject: near disparity (sample 200), matte 255; the right half is far
-    // (sample 40). The depth is a quarter and the matte half of the photograph's size, as in iPhone files.
-    private sealed record Scene(byte[] Bytes)
+    // (sample 40). The depth is a quarter and the matte half of the photograph's size, as in iPhone files. Other
+    // layouts give the disparity sample and the matte value at a relative position (0–1 on both axes).
+    internal sealed record Scene(byte[] Bytes)
     {
-        public static Scene Build(int width, int height, string? xmp = "", Size? matteSize = null)
+        public static Scene Build(int width, int height, string? xmp = "", Size? matteSize = null,
+            Func<double, double, byte>? depthAt = null, Func<double, double, byte>? matteAt = null)
         {
             using Image photo = Texture(width, height);
-            using Image depth = Halves(width / 4, height / 4, 200, 40);
+            using Image depth = Map(width / 4, height / 4, depthAt ?? ((x, _) => x < 0.5 ? (byte)200 : (byte)40));
             Size matteDimensions = matteSize ?? new Size(width / 2, height / 2);
             var items = new List<Item>
             {
@@ -370,7 +468,7 @@ public sealed class HeifPortraitTests
 
             if (!matteDimensions.IsEmpty)
             {
-                using Image matte = Halves(matteDimensions.Width, matteDimensions.Height, 255, 0);
+                using Image matte = Map(matteDimensions.Width, matteDimensions.Height, matteAt ?? ((x, _) => x < 0.5 ? (byte)255 : (byte)0));
                 items.Add(Coded(4, matte, [Auxiliary(HeifAppleAuxiliaryTypes.PortraitEffectsMatte)], [("auxl", [1])], hidden: true));
             }
 
@@ -402,7 +500,8 @@ public sealed class HeifPortraitTests
             return image;
         }
 
-        private static Image Halves(int width, int height, byte left, byte right)
+        // Values at pixel centres, so the halves split exactly at width / 2 for even widths.
+        private static Image Map(int width, int height, Func<double, double, byte> valueAt)
         {
             var image = new Image(width, height);
             for (int y = 0; y < height; y++)
@@ -410,7 +509,7 @@ public sealed class HeifPortraitTests
                 Span<Rgba32> row = image.GetRowSpan(y);
                 for (int x = 0; x < width; x++)
                 {
-                    byte v = x < width / 2 ? left : right;
+                    byte v = valueAt((x + 0.5) / width, (y + 0.5) / height);
                     row[x] = new Rgba32(v, v, v);
                 }
             }

@@ -1,0 +1,21 @@
+{
+  "Schema": 1,
+  "Metrics": "portrait-e1-v1",
+  "SourceCommit": "f22ee6ea1672059df7bedb2160b67515c12cf419",
+  "SourceHash": "0f37229f631438a73983de3b14fc87f76cd19607b7ac7d6a74a69411d963dd51",
+  "RoiDefinitionHash": "2038a07b83cdc8223e4fa874d96d79907ac37509d64b5c8a5ab18b1d6f08aeca",
+  "Runtime": ".NET 10.0.12",
+  "Architecture": "X64",
+  "Experiment": null,
+  "PictureSharp": "0.7.6.0",
+  "Decoder": "HeifFormat; ApplyExifOrientation=true; LoadGainMap=false; native size; default colour conversion",
+  "Render": "native size; MaxDegreeOfParallelism=1; explicit aperture; default or manual provisional FocusPoint",
+  "Measurement": "long side \u003C= 1536; PictureSharp default Resize; RGB8 MSE; BT.601 luma SSIM 8x8 stride 8, wholly inside ROI; edge L1 distance 2..24 at long side 4032; high-pass 7x7 wholly background",
+  "Tone": "per-channel affine least squares in fixed manual sharp ROI; source/reference values 4..251; \u003E=256 samples/channel; variance\u003E=16; slope[0.5,2]; |offset|\u003C=64; RMSE\u003C=5; otherwise normalized metrics N/A; LUT applied equally to original and render",
+  "Aggregate": "equal pair MSE within scene, equal scenes, then PSNR; edited and low-light test scenes (leaves, user decision 2026-10-19) separately; provisional refocus separately",
+  "Originals": 2,
+  "Exports": 12,
+  "BaselineTsvSha256": "d6246b7509ef17532abb83ba9d69be6a8c4802fe7ea6e105006f8e9b49aafaa6",
+  "SummarySha256": "28d5c2a74ef98de72dbe9591399fb240e7953b4465c1ab5e05cfa34af6e15618",
+  "LocalManifestSha256": "ac7f25ada59fdbb80802032cb2846be502565f826e84192cdbcf8ccb62738b40"
+}

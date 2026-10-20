@@ -1,0 +1,99 @@
+{
+  "stage": "0.6.7 E3: default focus range (accepted 2026-10-19)",
+  "baseline_commit": "f22ee6ea1672059df7bedb2160b67515c12cf419",
+  "formula": "FocusPoint=null: [Df,Dn] = [q0.5, q0.975] of disparity under matte>=128, else [q0.9, q0.995] of the scene; explicit FocusPoint: Df=Dn=5x5 median; delta = D>Df ? max(0,D-Dn) : Df-D; radius law and foreground correction unchanged",
+  "working_source_sha256": {
+    "src/PictureSharp.Heif/Codecs/HeifPortraitRenderer.cs": "9293e2cf93cc2c6d7e051d91629454a8354a2372c03f416e0246c6b61f89e9f7",
+    "src/PictureSharp.Heif/HeifPortrait.cs": "87007b08e3ba2cff424e3e870e10cb6161c0320ae48032c233df1a4f19f635ef"
+  },
+  "report_sha256": {
+    "portrait-0.6.7-focus-range.tsv": "14e428a761ca3436d5683fdcac66d4c6920471a9c74286bd8e650134e97eda7e",
+    "portrait-0.6.7-focus-range-summary.tsv": "7f60e20b5a95ec4bc273e8364610416a71b475ad23840a4d24d75c763df5ad8b",
+    "portrait-0.6.7-baseline.tsv": "b797096b1a75eb9a7489eaf9bcb08b7c07d2eddab3664e4764e68d070f9d9f6c"
+  },
+  "native_pairs": 66,
+  "clean_pairs": 52,
+  "low_light_test_pairs": 3,
+  "edited_pairs": 11,
+  "cohort_revision": "2026-10-19, user decision after the candidate's results: liscie_1x/2x/4x (low-light test shots) form a separate low-light-test cohort outside the clean aggregates; every pair still passes the per-pair -0.5 dB regional gate",
+  "clean_vs_e1_db": {
+    "background": [
+      30.449052,
+      30.541165
+    ],
+    "subject": [
+      32.204119,
+      34.794094
+    ],
+    "edge": [
+      28.091975,
+      29.204454
+    ],
+    "hair": [
+      28.238679,
+      28.644807
+    ],
+    "focus": [
+      37.308082,
+      42.098674
+    ]
+  },
+  "low_light_test_vs_e1_db": {
+    "background": [
+      21.661491,
+      21.586153
+    ],
+    "subject": [
+      24.717718,
+      41.454542
+    ],
+    "focus": [
+      24.255593,
+      42.883979
+    ]
+  },
+  "previous_cohort_definition_background_db": {
+    "e1": 26.444039,
+    "accepted": 26.419239
+  },
+  "worst_clean_and_low_light_region_regressions_vs_e1": {
+    "background": {
+      "delta_db": -0.0862257303933632,
+      "scene": "liscie_2x",
+      "variant": "default",
+      "aperture": 4.5
+    },
+    "subject": {
+      "delta_db": -0.26301395789593357,
+      "scene": "swiatla_2x",
+      "variant": "default",
+      "aperture": 2.799999952316284
+    },
+    "edge": {
+      "delta_db": -0.07858145665924214,
+      "scene": "basen_4x",
+      "variant": "default",
+      "aperture": 4.5
+    },
+    "hair": {
+      "delta_db": -0.1943208270785837,
+      "scene": "basen_4x",
+      "variant": "default",
+      "aperture": 4.5
+    },
+    "focus": {
+      "delta_db": -0.0403247541379942,
+      "scene": "liscie_4x",
+      "variant": "default",
+      "aperture": 4.5
+    }
+  },
+  "explicit_refocus_renders_identical_to_previous_e3": 29,
+  "validation": {
+    "local_gate_passed": 1,
+    "non_local_tests_passed": 724,
+    "non_local_skipped": 9,
+    "synthetic_focus_range_tests_failing_on_previous_e3": 4
+  },
+  "remaining": "Subject not worse than unblurred fails on 6 clean pairs (lezak, slupek, stadion); false/absent masks (liscie_2x), hair, bokeh highlights and disc shape, grain, SIMD/memory/AOT/ARM64 and release DoD remain open."
+}

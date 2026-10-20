@@ -1,0 +1,126 @@
+{
+ "stage": "E5 bokeh and texture, closed 2026-10-19",
+ "baseline_commit": "f22ee6ea1672059df7bedb2160b67515c12cf419",
+ "working_source_sha256": {
+  "src/PictureSharp.Heif/Codecs/HeifPortraitRenderer.cs": "892f5c3dd51141f2073dd289d8853ad23b4169225c4b87cab3d089b9fb59185c",
+  "src/PictureSharp.Heif/Codecs/HeifPortraitRenderer.Bokeh.cs": "b28b460be98145ddd53759bed269d45e53b1923c7ec62133872f172e041c9a01",
+  "src/PictureSharp.Heif/HeifPortrait.cs": "8c30594364c13065917188f48360e799ca940511a122f7af80e44da22bd051ba"
+ },
+ "report_sha256": {
+  "portrait-0.6.7-bokeh.tsv": "4668fba96e0f895529b4d1eff5d37d51124adb6756ec924d9a85074e78ccb0af",
+  "portrait-0.6.7-bokeh-summary.tsv": "34d1345b46b13ff9337e6d3b513e817e44f2735deb47183776c1b035000f5c42",
+  "portrait-0.6.7-bokeh-validation.tsv": "6889ef9a60f1bb37a026857ec274acbff09d473dd9bdf156fed6d8a6f0e7f49f",
+  "portrait-0.6.7-bokeh-validation-summary.tsv": "8f0e7c3999015c716ac13f8003e920bd3dc112a7d98da40de5e5cf5cb24e7e66"
+ },
+ "native_pairs": 66,
+ "validation_pairs": 12,
+ "gate": "unchanged: per pair and region <= -0.5 dB vs E1; exceptions from E4 only (edge/hair f/8-f/16, kapiel_2x f/4.5 edge)",
+ "clean_vs_e1_db": {
+  "background": 1.066,
+  "subject": 3.821,
+  "edge": 1.665,
+  "hair": 1.359,
+  "focus": 5.17
+ },
+ "clean_vs_e4_db": {
+  "background": 0.969,
+  "subject": 1.208,
+  "edge": 0.456,
+  "hair": 0.564,
+  "focus": 0.297
+ },
+ "e5_metrics_clean": {
+  "highlight_psnr": [
+   22.676,
+   24.707
+  ],
+  "abs_log2_tail": [
+   0.089,
+   0.071
+  ],
+  "abs_log2_grain": [
+   0.471,
+   0.263
+  ],
+  "note": "E4 -> E5; grain metric partly measures HEVC artifacts of the exports"
+ },
+ "worse_than_unblurred_region_pairs": {
+  "E4": 11,
+  "E5": 8
+ },
+ "validation_vs_e1_db": {
+  "background": 0.763,
+  "subject": 4.69,
+  "edge": 0.885,
+  "hair": 0.097,
+  "focus": 10.483,
+  "worst_gated": [
+   -0.41,
+   "wlosy3 default f1.4 subject"
+  ]
+ },
+ "steps_clean_db": {
+  "E4": [
+   30.546,
+   34.817,
+   29.301,
+   29.034,
+   42.182
+  ],
+  "grain": [
+   30.534,
+   34.805,
+   29.296,
+   29.028,
+   42.174
+  ],
+  "points": [
+   30.589,
+   34.8,
+   29.431,
+   29.28,
+   42.245
+  ],
+  "point_gain": [
+   30.896,
+   34.813,
+   29.439,
+   29.329,
+   42.245
+  ],
+  "foreground": [
+   31.284,
+   35.78,
+   29.662,
+   29.548,
+   42.478
+  ],
+  "knee_2x": [
+   31.499,
+   36.035,
+   29.809,
+   29.663,
+   42.478
+  ],
+  "night_lamps": [
+   31.515,
+   36.025,
+   29.757,
+   29.598,
+   42.478
+  ],
+  "order": "background, subject, edge, hair, focus"
+ },
+ "rejected": [
+  "global highlight boost (-5..-15 dB)",
+  "harder disc for all layers (foliage -0.6..-1.5 dB)",
+  "point gain for all detected points (56 region-pairs)",
+  "foreground scale everywhere / under the matte (people in front -2..-8 dB)",
+  "patent boost without night gate or size test (day -5..-15 dB, umbrella, leaves)"
+ ],
+ "remaining": [
+  "subject/focus worse than unblurred in 8 region-pairs (slupek f8-f16, lezak, basen)",
+  "strands behind the head (kapiel)",
+  "2x knee recognises the lens only by focal ratio 1.2-1.6"
+ ]
+}

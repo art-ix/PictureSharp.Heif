@@ -1,0 +1,20 @@
+{
+  "Schema": 1,
+  "Metrics": "portrait-e1-v1",
+  "SourceCommit": "f22ee6ea1672059df7bedb2160b67515c12cf419",
+  "SourceHash": "0f37229f631438a73983de3b14fc87f76cd19607b7ac7d6a74a69411d963dd51",
+  "RoiDefinitionHash": "ed6b1def1be7a834395cd1e2b61d124d42663f9fb047c1b47d82eebef8a3d801",
+  "Runtime": ".NET 10.0.12",
+  "Architecture": "X64",
+  "PictureSharp": "0.7.6.0",
+  "Decoder": "HeifFormat; ApplyExifOrientation=true; LoadGainMap=false; native size; default colour conversion",
+  "Render": "native size; MaxDegreeOfParallelism=1; explicit aperture; default or manual provisional FocusPoint",
+  "Measurement": "long side \u003C= 1536; PictureSharp default Resize; RGB8 MSE; BT.601 luma SSIM 8x8 stride 8, wholly inside ROI; edge L1 distance 2..24 at long side 4032; high-pass 7x7 wholly background",
+  "Tone": "per-channel affine least squares in fixed manual sharp ROI; source/reference values 4..251; \u003E=256 samples/channel; variance\u003E=16; slope[0.5,2]; |offset|\u003C=64; RMSE\u003C=5; otherwise normalized metrics N/A; LUT applied equally to original and render",
+  "Aggregate": "equal pair MSE within scene, equal scenes, then PSNR; edited scenes separately; provisional refocus separately",
+  "Originals": 15,
+  "Exports": 66,
+  "BaselineTsvSha256": "b797096b1a75eb9a7489eaf9bcb08b7c07d2eddab3664e4764e68d070f9d9f6c",
+  "SummarySha256": "e438da9f6d50c70bddfd80518add028eeca5511f41674b3b7e1c8fa36a0e560f",
+  "LocalManifestSha256": "57497a9761e8e0798a180986956d504ab18ee1940d46fb7859c461e566e39cc6"
+}
