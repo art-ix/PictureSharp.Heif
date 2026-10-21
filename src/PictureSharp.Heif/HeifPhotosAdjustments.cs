@@ -1,7 +1,7 @@
 namespace PictureSharp.Formats.Heif;
 
 /// <summary>
-/// Slider positions of the Apple Photos "Adjust" panel for <see cref="HeifPhotosEdit.Render"/>, as shown in Photos:
+/// Slider positions of the Apple Photos "Adjust" panel for <see cref="HeifEdits.Adjustments"/>, as shown in Photos:
 /// −100 to 100, or 0 to 100 for <see cref="Sharpness"/>, <see cref="Definition"/> and <see cref="NoiseReduction"/>.
 /// 0 (the default) leaves an adjustment off.
 /// </summary>
@@ -10,7 +10,12 @@ namespace PictureSharp.Formats.Heif;
 /// effect), so the values come from the caller. Each adjustment is an approximation fitted to photographs exported
 /// by Photos with that slider alone; how well it matches depends on the slider, see
 /// <see href="https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/measurements/photos-edits-0.6.8-fit.md">the
-/// measurements</see>.
+/// measurements</see>. Warmth, tint, vignette, brightness and contrast are the closest; saturation, vibrance, black
+/// point, shadows, highlights, brilliance and definition are approximate; exposure, sharpness and noise reduction are
+/// rough and will be refined. Values between the measured slider positions are interpolated linearly. Sliders combine
+/// in a fixed order: tone curves per channel (warmth, tint, exposure, brightness, highlights, shadows, black point,
+/// brilliance, definition, sharpness, noise reduction), band filters (sharpness, definition, noise reduction,
+/// brilliance, shadows), contrast, saturation, vibrance and vignette last.
 /// </remarks>
 public sealed record HeifPhotosAdjustments
 {
@@ -73,14 +78,6 @@ public sealed record HeifPhotosAdjustments
     /// <summary>Vignette: positive values darken the corners, negative ones brighten them; the centre is kept.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The value lies outside −100–100.</exception>
     public float Vignette { get; init => field = Signed(value, nameof(Vignette)); }
-
-    /// <summary>The largest number of threads; -1 (the default) uses all processors. The result does not depend on it.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The value is 0 or below -1.</exception>
-    public int MaxDegreeOfParallelism
-    {
-        get;
-        init => field = value is -1 or > 0 ? value : throw new ArgumentOutOfRangeException(nameof(MaxDegreeOfParallelism), value, "Use -1 or a positive value.");
-    } = -1;
 
     /// <summary>Whether every slider is 0, so rendering returns an unchanged copy.</summary>
     public bool IsEmpty => Exposure == 0 && Brilliance == 0 && Highlights == 0 && Shadows == 0 && Contrast == 0 && Brightness == 0

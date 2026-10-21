@@ -102,7 +102,7 @@ public sealed class PortraitBokehTests
     }
 
     private static Image Render(Image photo, HeifDepthImage depth, Image matte, int threads) =>
-        HeifPortrait.Render(photo, depth, matte, new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = Focus, MaxDegreeOfParallelism = threads });
+        TestRender.Portrait(photo, depth, matte, new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = Focus }, threads);
 
     private static Image Flat(byte value)
     {

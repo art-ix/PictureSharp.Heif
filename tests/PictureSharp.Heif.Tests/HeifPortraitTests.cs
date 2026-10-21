@@ -196,7 +196,7 @@ public sealed class HeifPortraitTests
         Scene scene = Scene.Build(320, 240);
         HeifDocument doc = HeifDocument.Open(scene.Bytes);
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
-        using Image result = doc.RenderPortrait(doc.PrimaryImage, null, Options);
+        using Image result = doc.Render(doc.PrimaryImage, Blur(), Options);
         await Assert.That((result.Width, result.Height)).IsEqualTo((photo.Width, photo.Height));
         // Inside the subject (matte 255, disparity at the focus) every pixel is copied bit for bit.
         await Assert.That(Equal(photo, result, new Rectangle(8, 8, 140, 224))).IsTrue();
@@ -205,7 +205,8 @@ public sealed class HeifPortraitTests
 
         // Without the matte the subject still stays: its disparity equals the focus.
         HeifDepthImage depth = doc.LoadDepth(doc.PrimaryImage.FindDepthImage()!);
-        using Image noMatte = HeifPortrait.Render(photo, depth);
+        using var depthOnly = new HeifPortraitMaps(depth);
+        using Image noMatte = photo.ApplyHeifEdits(Blur(), depthOnly);
         await Assert.That(Equal(photo, noMatte, new Rectangle(8, 8, 140, 224))).IsTrue();
         using Image copy = doc.LoadImage(doc.PrimaryImage, Options);
         await Assert.That(Equal(photo, copy, new Rectangle(0, 0, 320, 240))).IsTrue().Because("the photograph is not changed");
@@ -218,7 +219,7 @@ public sealed class HeifPortraitTests
         double previous = double.MaxValue;
         foreach (float aperture in new[] { 16f, 8f, 4f, 2.8f, 1.4f })
         {
-            using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = aperture }, Options);
+            using Image result = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = aperture }), Options);
             double energy = Energy(result, Background);
             await Assert.That(energy).IsLessThan(previous).Because($"f/{aperture}");
             previous = energy;
@@ -230,7 +231,7 @@ public sealed class HeifPortraitTests
     {
         HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240).Bytes);
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
-        using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { FocusPoint = new Point(260, 120) }, Options);
+        using Image result = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { FocusPoint = new Point(260, 120) }), Options);
         await Assert.That(Equal(photo, result, new Rectangle(172, 8, 140, 224))).IsTrue();
         // The subject is now far from the focus, so the matte no longer protects it.
         await Assert.That(Energy(result, new Rectangle(8, 8, 140, 224))).IsLessThan(Energy(photo, new Rectangle(8, 8, 140, 224)) * 0.5);
@@ -242,7 +243,7 @@ public sealed class HeifPortraitTests
         // The subject's top quarter (a raised hand) is nearer than the rest of it.
         HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, depthAt: LayeredSubject).Bytes);
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
-        using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f }, Options);
+        using Image result = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = 1.4f }), Options);
         await Assert.That(Equal(photo, result, SubjectNear)).IsTrue();
         await Assert.That(Equal(photo, result, SubjectMain)).IsTrue();
         await Assert.That(Energy(result, Background)).IsLessThan(Energy(photo, Background) * 0.5);
@@ -253,12 +254,12 @@ public sealed class HeifPortraitTests
     {
         HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, depthAt: LayeredSubject).Bytes);
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
-        using Image main = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = new Point(80, 160) }, Options);
+        using Image main = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = new Point(80, 160) }), Options);
         await Assert.That(Equal(photo, main, SubjectMain)).IsTrue();
         await Assert.That(Equal(photo, main, SubjectNear)).IsFalse().Because("the nearer part lies in front of the focus");
         await Assert.That(Energy(main, SubjectNear)).IsLessThan(Energy(photo, SubjectNear) * 0.9);
 
-        using Image near = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = new Point(80, 20) }, Options);
+        using Image near = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = new Point(80, 20) }), Options);
         await Assert.That(Equal(photo, near, SubjectNear)).IsTrue();
         await Assert.That(Energy(near, SubjectMain)).IsLessThan(Energy(photo, SubjectMain) * 0.5).Because("the rest lies behind the focus");
     }
@@ -270,7 +271,7 @@ public sealed class HeifPortraitTests
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
         foreach (float aperture in new[] { 1.4f, 4.5f, 16f })
         {
-            using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = aperture }, Options);
+            using Image result = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = aperture }), Options);
             await Assert.That(Equal(photo, result, ThinObject)).IsTrue().Because($"f/{aperture}");
             await Assert.That(Equal(photo, result, MiddleGround)).IsTrue().Because($"f/{aperture}");
             if (aperture <= 4.5f)
@@ -282,7 +283,7 @@ public sealed class HeifPortraitTests
         // A matte too small to describe a subject is ignored when choosing the focus.
         HeifDocument speck = HeifDocument.Open(Scene.Build(320, 240, depthAt: ThinNearObject,
             matteAt: (x, y) => x is >= 0.8 and < 0.82 && y is >= 0.8 and < 0.83 ? (byte)255 : (byte)0).Bytes);
-        using Image speckResult = speck.RenderPortrait(speck.PrimaryImage, null, Options);
+        using Image speckResult = speck.Render(speck.PrimaryImage, Blur(), Options);
         await Assert.That(Equal(photo, speckResult, ThinObject)).IsTrue();
         await Assert.That(Equal(photo, speckResult, MiddleGround)).IsTrue();
     }
@@ -294,18 +295,18 @@ public sealed class HeifPortraitTests
         HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, matteSize: Size.Empty,
             depthAt: (x, y) => x is >= 0.75 and < 0.8 && y is >= 0.5 and < 0.55 ? (byte)255 : ThinNearObject(x, y)).Bytes);
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
-        using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f }, Options);
+        using Image result = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = 1.4f }), Options);
         await Assert.That(Equal(photo, result, ThinObject)).IsTrue();
         await Assert.That(Energy(result, Speck)).IsLessThan(Energy(photo, Speck) * 0.5);
     }
 
     [Test]
-    public async Task RenderPortrait_WithTargetSize_KeepsTheFocusRange()
+    public async Task Render_WithTargetSize_KeepsTheFocusRange()
     {
         HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240, matteSize: Size.Empty, depthAt: ThinNearObject).Bytes);
         var small = new DecoderOptions { Configuration = Configuration, TargetSize = new Size(160, 120) };
         using Image photo = doc.LoadImage(doc.PrimaryImage, small);
-        using Image result = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { Aperture = 1.4f }, small);
+        using Image result = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = 1.4f }), small);
         await Assert.That(Equal(photo, result, Half(ThinObject))).IsTrue();
         await Assert.That(Equal(photo, result, Half(MiddleGround))).IsTrue();
         await Assert.That(Energy(result, Half(FarGround))).IsLessThan(Energy(photo, Half(FarGround)) * 0.5);
@@ -318,10 +319,10 @@ public sealed class HeifPortraitTests
         foreach (Scene scene in new[] { Scene.Build(704, 512), Scene.Build(704, 512, matteSize: Size.Empty, depthAt: ThinNearObject) })
         {
             HeifDocument doc = HeifDocument.Open(scene.Bytes);
-            using Image single = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { MaxDegreeOfParallelism = 1, Aperture = 2 }, Options);
+            using Image single = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = 2 }) with { MaxDegreeOfParallelism = 1 }, Options);
             foreach (int threads in new[] { 2, 3, -1 })
             {
-                using Image parallel = doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { MaxDegreeOfParallelism = threads, Aperture = 2 }, Options);
+                using Image parallel = doc.Render(doc.PrimaryImage, Blur(new HeifPortraitOptions { Aperture = 2 }) with { MaxDegreeOfParallelism = threads }, Options);
                 await Assert.That(Equal(single, parallel, new Rectangle(0, 0, 704, 512))).IsTrue().Because($"{threads} threads");
             }
         }
@@ -331,14 +332,14 @@ public sealed class HeifPortraitTests
     public async Task Render_ChecksLimitsAndCancellation()
     {
         HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240).Bytes);
-        await Assert.That(() => doc.RenderPortrait(doc.PrimaryImage, new HeifPortraitOptions { MaxPixels = 320 * 240 }, Options))
+        await Assert.That(() => doc.Render(doc.PrimaryImage, Blur() with { MaxPixels = 320 * 240 }, Options))
             .Throws<ImageFormatException>();
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-        await Assert.That(() => doc.RenderPortrait(doc.PrimaryImage, null, Options, cancellation.Token)).Throws<OperationCanceledException>();
+        await Assert.That(() => doc.Render(doc.PrimaryImage, Blur(), Options, cancellation.Token)).Throws<OperationCanceledException>();
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
-        HeifDepthImage depth = doc.LoadDepth(doc.GetItem(2));
-        await Assert.That(() => HeifPortrait.Render(photo, depth, null, null, cancellation.Token)).Throws<OperationCanceledException>();
+        using HeifPortraitMaps maps = doc.LoadPortraitMaps(doc.PrimaryImage, Options);
+        await Assert.That(() => photo.ApplyHeifEdits(Blur(), maps, cancellation.Token)).Throws<OperationCanceledException>();
     }
 
     [Test]
@@ -347,50 +348,57 @@ public sealed class HeifPortraitTests
         HeifDocument doc = HeifDocument.Open(Scene.Build(160, 120).Bytes);
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
         HeifDepthImage depth = doc.LoadDepth(doc.GetItem(2));
+        using var maps = new HeifPortraitMaps(depth);
         foreach (float aperture in new[] { 1f, 17f, float.NaN })
         {
-            await Assert.That(() => HeifPortrait.Render(photo, depth, null, new HeifPortraitOptions { Aperture = aperture }))
-                .Throws<ArgumentOutOfRangeException>();
+            await Assert.That(() => new HeifPortraitOptions { Aperture = aperture }).Throws<ArgumentOutOfRangeException>();
         }
 
-        await Assert.That(() => HeifPortrait.Render(photo, depth, null, new HeifPortraitOptions { FocusPoint = new Point(160, 0) }))
+        await Assert.That(() => photo.ApplyHeifEdits(Blur(new HeifPortraitOptions { FocusPoint = new Point(160, 0) }), maps))
             .Throws<ArgumentOutOfRangeException>();
-        await Assert.That(() => HeifPortrait.Render(photo, depth, null, new HeifPortraitOptions { MaxDegreeOfParallelism = 0 }))
-            .Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => new HeifEdits { MaxDegreeOfParallelism = 0 }).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => new HeifEdits { MaxPixels = 0 }).Throws<ArgumentOutOfRangeException>();
         using var square = new Image(60, 60);
-        await Assert.That(() => HeifPortrait.Render(photo, depth, square)).Throws<ArgumentException>();
-        await Assert.That(() => HeifPortrait.Render(square, depth)).Throws<ArgumentException>();
-        await Assert.That(() => HeifPortrait.Render(photo, doc.LoadDepth(doc.GetItem(2), new DecoderOptions { IgnoreMetadata = true })))
-            .Throws<ArgumentException>();
-        await Assert.That(() => HeifPortrait.Render(null!, depth)).Throws<ArgumentNullException>();
-        await Assert.That(() => doc.RenderPortrait(doc.GetItem(4), null, Options)).Throws<ArgumentException>()
+        using var squareMatte = new HeifPortraitMaps(depth, square.Clone());
+        await Assert.That(() => photo.ApplyHeifEdits(Blur(), squareMatte)).Throws<ArgumentException>();
+        await Assert.That(() => square.ApplyHeifEdits(Blur(), maps)).Throws<ArgumentException>();
+        using var noDescription = new HeifPortraitMaps(doc.LoadDepth(doc.GetItem(2), new DecoderOptions { IgnoreMetadata = true }));
+        await Assert.That(() => photo.ApplyHeifEdits(Blur(), noDescription)).Throws<ArgumentException>();
+        await Assert.That(() => photo.ApplyHeifEdits(Blur())).Throws<ArgumentException>().Because("a portrait needs maps");
+        await Assert.That(() => ((Image)null!).ApplyHeifEdits(Blur(), maps)).Throws<ArgumentNullException>();
+        await Assert.That(() => photo.ApplyHeifEdits(null!, maps)).Throws<ArgumentNullException>();
+        await Assert.That(() => new HeifPortraitMaps(null!)).Throws<ArgumentNullException>();
+        await Assert.That(() => doc.Render(doc.GetItem(4), Blur(), Options)).Throws<ArgumentException>()
             .Because("the matte has no depth image");
+        await Assert.That(() => doc.LoadPortraitMaps(doc.GetItem(4), Options)).Throws<ArgumentException>();
     }
 
     [Test]
-    public async Task RenderPortrait_ReportsMissingDescription_AndInconsistentItems()
+    public async Task Render_ReportsMissingDescription_AndInconsistentItems()
     {
         HeifDocument noXmp = HeifDocument.Open(Scene.Build(160, 120, xmp: null).Bytes);
-        await Assert.That(() => noXmp.RenderPortrait(noXmp.PrimaryImage, null, Options)).Throws<NotSupportedException>();
+        await Assert.That(() => noXmp.Render(noXmp.PrimaryImage, Blur(), Options)).Throws<NotSupportedException>();
         HeifDocument narrowRange = HeifDocument.Open(Scene.Build(160, 120, xmp: AppleXmp(intMax: "100")).Bytes);
-        await Assert.That(() => narrowRange.RenderPortrait(narrowRange.PrimaryImage, null, Options)).Throws<ImageFormatException>();
+        await Assert.That(() => narrowRange.Render(narrowRange.PrimaryImage, Blur(), Options)).Throws<ImageFormatException>();
         HeifDocument squareMatte = HeifDocument.Open(Scene.Build(160, 120, matteSize: new Size(64, 64)).Bytes);
-        await Assert.That(() => squareMatte.RenderPortrait(squareMatte.PrimaryImage, null, Options)).Throws<ImageFormatException>();
+        await Assert.That(() => squareMatte.Render(squareMatte.PrimaryImage, Blur(), Options)).Throws<ImageFormatException>();
         HeifDocument depthOnly = HeifDocument.Open(Scene.Build(160, 120, matteSize: Size.Empty).Bytes);
-        using Image rendered = depthOnly.RenderPortrait(depthOnly.PrimaryImage, null, Options);
+        using Image rendered = depthOnly.Render(depthOnly.PrimaryImage, Blur(), Options);
         await Assert.That(rendered.Width).IsEqualTo(160);
     }
 
     [Test]
-    public async Task RenderPortrait_WithTargetSize_ResamplesDepthAndMatte()
+    public async Task Render_WithTargetSize_ResamplesDepthAndMatte()
     {
         HeifDocument doc = HeifDocument.Open(Scene.Build(320, 240).Bytes);
         var small = new DecoderOptions { Configuration = Configuration, TargetSize = new Size(160, 120) };
         using Image photo = doc.LoadImage(doc.PrimaryImage, small);
-        using Image result = doc.RenderPortrait(doc.PrimaryImage, null, small);
+        using Image result = doc.Render(doc.PrimaryImage, Blur(), small);
         await Assert.That((result.Width, result.Height)).IsEqualTo((photo.Width, photo.Height));
         await Assert.That(Equal(photo, result, new Rectangle(4, 4, 70, 112))).IsTrue();
     }
+
+    private static HeifEdits Blur(HeifPortraitOptions? portrait = null) => new() { Portrait = portrait ?? new() };
 
     private static readonly Rectangle Background = new(176, 8, 136, 224);
 

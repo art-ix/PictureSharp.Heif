@@ -2,7 +2,7 @@
 
 ## Status and goal
 
-**Current version: 0.6.8, release 2026-10-20; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.9, release 2026-10-21; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
@@ -16,7 +16,7 @@
 **Goal for 0.7.0 (scope simplified 2026-10-18):** a catalog of the file contents (photos, thumbnails, auxiliary
 images), reading and generating thumbnails, raw depth samples, Live Photo pair detection and, added 2026-10-18, the
 Apple portrait effect (disparity description and depth-of-field rendering) and, added 2026-10-19, Photos edits
-described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.9,
+described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.10,
 followed by the integration release 0.7.0. Writing collections, HEIF animations, depth interpretation beyond Apple
 portrait disparity and Live Photo export are moved out of 0.7.0.
 
@@ -45,7 +45,8 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.6 | Faster HEVC decoder, WPP for single pictures, faster intra search and fewer encoder allocations | 0.7.6 | Release 2026-10-19 |
 | 0.6.7 | Portrait focus, edges, bokeh calibration, rendering-parameter analysis, renderer performance (SIMD, memory) | 0.7.6 | Release 2026-10-20 |
 | 0.6.8 | Photos edits annotated by hand (`edits.tsv`) and fitted from pairs; `HeifPhotosEdit` with all sliders | 0.7.6 | Release 2026-10-20 |
-| 0.6.9 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.7.6 (assumed) | Planned |
+| 0.6.9 | Rendering API: `HeifEdits` (sliders, then Portrait blur) in one call; replaces `HeifPortrait`, `HeifPhotosEdit`, `RenderPortrait` (incompatible with 0.6.8) | 0.7.6 | Release 2026-10-21 |
+| 0.6.10 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.7.6 (assumed) | Planned |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.7.6 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
 
@@ -379,7 +380,7 @@ Portrait photos with Photos exports.
   identical to scalar on x64 and ARM64; `MathF.Pow(φ, 1.5)` replaced by `φ·√φ` for bit-identical results across
   platforms; lower allocation of `RenderPortrait` (0.41–1.1 GiB in 0.6.5); the ARM64 run and the package consumer with
   Native AOT.
-- **Out of scope:** Photos edits (0.6.8), Photographic Styles (0.6.9), Portrait Lighting and Clean Up
+- **Out of scope:** Photos edits (0.6.8), Photographic Styles (0.6.10), Portrait Lighting and Clean Up
   (generative fill), writing the effect or depth back to HEIC, claims of matching Photos. Edited exports already
   supplied (`portret_4x`, IMG_8083) are kept for 0.6.8 and used in 0.6.7 only where the edit does not matter.
 - **DoD:** calibration report on at least 15 originals with exports covering at least three lenses and three
@@ -460,14 +461,38 @@ saturated) that no sidecar records. Edits made in Photos also produced no `.AAE`
   response (perla); order of operations from combined edits; ±25/±100 for the ±50-only sliders; SIMD for the band
   filters; Photos filters, crop and straighten. The DoD point "closer than unedited on every pair" holds for the
   closest five sliders only; the rest are documented as rough.
-- **Out of scope:** reading edits from `.AAE`, Photographic Styles (0.6.9), Portrait Lighting and Clean Up
+- **Out of scope:** reading edits from `.AAE`, Photographic Styles (0.6.10), Portrait Lighting and Clean Up
   (generative fill), writing edits back to HEIC or `.AAE`, claims of matching Photos.
 - **DoD:** every supplied pair annotated in `edits.tsv`; each supported adjustment fitted on single-adjustment pairs
   and closer to the Photos export than the unedited photo on every edited pair (pooled and per pair); unsupported
   ones listed; findings in `docs/` with confidence levels; tests, XML docs, guide, API snapshot (if the API changes).
   Publication on a separate user decision.
 
-### 0.6.9 — Photographic Styles
+### 0.6.9 — rendering API
+
+Added 2026-10-21 at the user's request: editing before the Portrait blur needed the depth and matte loaded by hand,
+and three separate entry points repeated parallelism and limits. User decisions: break compatibility now (as 0.6.3),
+a fixed order with the sliders before the blur, Styles moved to 0.6.10.
+
+- **API:** `HeifEdits` (`Adjustments`, `Portrait`, `MaxPixels`, `MaxDegreeOfParallelism`), `HeifDocument.Render`,
+  `HeifDocument.LoadPortraitMaps` → `HeifPortraitMaps` (depth + matte, owns the matte), `Image.ApplyHeifEdits`.
+  Removed: `HeifPortrait`, `HeifPhotosEdit`, `HeifDocument.RenderPortrait`, `MaxPixels`/`MaxDegreeOfParallelism` in
+  `HeifPortraitOptions` and `HeifPhotosAdjustments`. Internal `Codecs/HeifEditPipeline` (order, budget of both
+  stages) and `Codecs/HeifPortraitSetup` (code moved unchanged from `HeifPortrait`).
+- **Order check:** compare sliders→blur with blur→sliders on `portrait/portret_4x` (IMG_8083, Photos export with
+  portrait and slider edits) once the slider values are annotated (`opis.txt` still lacks them).
+- **DoD:** pixels of each stage identical to 0.6.8 (SHA-256 of six cases before/after the change); pipeline tests
+  (order, reused maps, empty edits, no depth, budget, threads, cancellation); API snapshot; guide, README, release
+  notes with a migration table. Publication on a separate user decision.
+- **Status 2026-10-21:** implemented; Release build 0 warnings; hashes identical in all six cases; targeted tests
+  (`HeifEditsTests`, `HeifPortraitTests`, `HeifPhotosEditTests`, `PublicApiTests`) 53/53. Full suite not run (user
+  decision: no rendering changes; the release workflow runs it). Released 2026-10-21 on the user's instruction with the
+  order check on `portret_4x` still open (slider values missing).
+
+### 0.6.10 — Photographic Styles
+
+Renumbered from 0.6.9 on 2026-10-21 (the rendering API took 0.6.9). A style change becomes `HeifEdits.Style`, a stage
+between the sliders and the Portrait blur.
 
 Planned 2026-10-19 at the user's request (moved out of 0.6.7, renumbered from 0.6.8 when the edits moved). iOS 18
 and later let Photos change a photo's
@@ -502,7 +527,7 @@ edits, caused the colour shift of IMG_6854. Builds on the adjustment rendering a
   large files.
 - 0.6.0 API compatibility, architecture, SIMD/scalar and thread-count determinism.
 - Validation of the NuGet package and examples; documentation of capabilities and limitations.
-- **DoD:** the 0.6.1–0.6.9 criteria met, documentation consistent with the package, no regressions. Only then update
+- **DoD:** the 0.6.1–0.6.10 criteria met, documentation consistent with the package, no regressions. Only then update
   VERSION and the status in the plan; publication on a separate user decision.
 
 ### Common assumptions and boundaries

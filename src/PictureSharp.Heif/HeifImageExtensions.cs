@@ -1,6 +1,8 @@
+using PictureSharp.Formats.Heif.Codecs;
+
 namespace PictureSharp.Formats.Heif;
 
-/// <summary>HEIC shortcuts for <see cref="Image"/>; require <see cref="HeifFormat"/> to be registered.</summary>
+/// <summary>HEIC shortcuts for <see cref="Image"/>; saving requires <see cref="HeifFormat"/> to be registered.</summary>
 public static class HeifImageExtensions
 {
     extension(Image image)
@@ -21,5 +23,29 @@ public static class HeifImageExtensions
 
         /// <summary>Encodes the image as HEIC; null options mean the defaults.</summary>
         public byte[] ToHeic(HeifEncoderOptions? options = null) => image.Encode(options ?? new());
+
+        /// <summary>
+        /// Renders Photos sliders and the Portrait blur into a copy of the image (its first and only frame), in the
+        /// order of <see cref="HeifEdits"/>: sliders first, then the blur. Metadata and alpha are kept; the image is not
+        /// changed. An attached HDR gain map is not edited and is removed from the result. Empty edits return an
+        /// unchanged copy.
+        /// </summary>
+        /// <param name="edits">The stages to apply, their limits and parallelism.</param>
+        /// <param name="maps">
+        /// The photograph's depth and matte, from <see cref="HeifDocument.LoadPortraitMaps"/> or built by the caller;
+        /// required when <see cref="HeifEdits.Portrait"/> is set, ignored otherwise.
+        /// </param>
+        /// <param name="cancellationToken">Checked between row bands of every stage.</param>
+        /// <remarks>The image must be in display orientation (as loaded, after its container transforms).</remarks>
+        /// <exception cref="ArgumentException">
+        /// The image has several frames; a portrait is requested without maps; the depth has no Apple description;
+        /// or the depth or matte proportions differ from the image's.
+        /// </exception>
+        /// <exception cref="ArgumentOutOfRangeException"><see cref="HeifPortraitOptions.FocusPoint"/> lies outside the image.</exception>
+        /// <exception cref="ImageFormatException">
+        /// Depth samples lie outside the described range, or the working pixels exceed <see cref="HeifEdits.MaxPixels"/>.
+        /// </exception>
+        public Image ApplyHeifEdits(HeifEdits edits, HeifPortraitMaps? maps = null, CancellationToken cancellationToken = default) =>
+            HeifEditPipeline.Apply(image, edits, maps, fromFile: false, cancellationToken);
     }
 }

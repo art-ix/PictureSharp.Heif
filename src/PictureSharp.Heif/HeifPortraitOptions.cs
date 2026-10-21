@@ -2,7 +2,21 @@ using System.Drawing;
 
 namespace PictureSharp.Formats.Heif;
 
-/// <summary>Settings of <see cref="HeifPortrait.Render"/> and <see cref="HeifDocument.RenderPortrait"/>.</summary>
+/// <summary>
+/// The Portrait depth-of-field (background blur) of <see cref="HeifEdits.Portrait"/>, rendered from the photograph's
+/// disparity map. iPhone stores the main image sharp and applies the blur only when displaying it, so a converted
+/// photograph loses the effect; this stage approximates it.
+/// </summary>
+/// <remarks>
+/// The approximation was tuned against photographs exported by Apple Photos; Apple's algorithm is private and the
+/// result does not match Photos exactly. Each pixel is blurred with a disc whose radius grows with its disparity
+/// difference from the focus and as the aperture opens; colours are mixed in linear light. The portrait matte keeps
+/// subjects near the focus sharp and stops their colours bleeding into the blurred background. Without a
+/// <see cref="FocusPoint"/> the focus spans the subject's depths up to its nearest parts, and only pixels nearer than
+/// that range or farther than its start are blurred. At wide apertures, foreground people under the matte receive
+/// less blur when focusing behind them. Fully protected pixels and pixels at the focus are copied unchanged. The
+/// exposure's ISO and time from EXIF set the grain added to blurred areas.
+/// </remarks>
 public sealed record HeifPortraitOptions
 {
     /// <summary>
@@ -25,26 +39,6 @@ public sealed record HeifPortraitOptions
     /// sharp while a few outlying samples do not move the focus.
     /// </summary>
     public Point? FocusPoint { get; init; }
-
-    /// <summary>
-    /// The largest number of working pixels: the result plus the blur pyramid and layers (at most about twice the
-    /// photograph's pixels). Exceeding it throws <see cref="ImageFormatException"/> before they are allocated.
-    /// Defaults to <see cref="DecoderOptions.MaxPixels"/> of the default options.
-    /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The value is not positive.</exception>
-    public long MaxPixels
-    {
-        get;
-        init => field = value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(MaxPixels), value, "Use a positive value.");
-    } = DecoderOptions.Default.MaxPixels;
-
-    /// <summary>The largest number of threads; -1 (the default) uses all processors. The result does not depend on it.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The value is 0 or below -1.</exception>
-    public int MaxDegreeOfParallelism
-    {
-        get;
-        init => field = value is -1 or > 0 ? value : throw new ArgumentOutOfRangeException(nameof(MaxDegreeOfParallelism), value, "Use -1 or a positive value.");
-    } = -1;
 
     internal const float MinimumAperture = 1.4f, MaximumAperture = 16f;
 }

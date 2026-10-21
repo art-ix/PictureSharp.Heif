@@ -34,14 +34,14 @@ public sealed class HeifPhotosEditLocalTests
             {
                 using Image original = Image.Load(Path.Combine(scene, group.Key), Options);
                 var clock = System.Diagnostics.Stopwatch.StartNew();
-                HeifPhotosEdit.Render(original, All).Dispose();
+                TestRender.Adjust(original, All).Dispose();
                 Console.WriteLine($"# {group.Key}: {original.Width}x{original.Height}, all sliders {clock.Elapsed.TotalSeconds:F2} s; "
                     + $"tones only {Time(original, All with { Sharpness = 0, Definition = 0, NoiseReduction = 0, Brilliance = 0, Shadows = 0 }):F2} s");
                 foreach (string[] row in group)
                 {
                     using Image export = Image.Load(Path.Combine(scene, row[0]), Options);
                     float value = float.Parse(row[3], CultureInfo.InvariantCulture);
-                    using Image rendered = HeifPhotosEdit.Render(original, Adjust(row[2], value));
+                    using Image rendered = TestRender.Adjust(original, Adjust(row[2], value));
                     double baseline = Rms8(original, export), error = Rms8(rendered, export);
                     Console.WriteLine($"{Path.GetFileName(scene)}\t{row[0]}\t{row[2]}\t{row[3]}\t{baseline:F3}\t{error:F3}");
                     if (Determined.Contains(row[2]) && error >= baseline)
@@ -65,7 +65,7 @@ public sealed class HeifPhotosEditLocalTests
     private static double Time(Image photo, HeifPhotosAdjustments adjustments)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        HeifPhotosEdit.Render(photo, adjustments).Dispose();
+        TestRender.Adjust(photo, adjustments).Dispose();
         return clock.Elapsed.TotalSeconds;
     }
 

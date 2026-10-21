@@ -40,7 +40,7 @@ HeifItemInfo? matte = primary.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.Portrai
   `FindDepthImage` pick one auxiliary image.
 - `Auxiliary` gives the role (alpha, depth, disparity, gain map or other) from the aux type alone, with the original
   `Type` and raw `Subtype`.
-- `LoadImage`, `LoadPreview`, `Identify`, `ReadMetadata`, `LoadDepth` and `RenderPortrait` take an item of this
+- `LoadImage`, `LoadPreview`, `Identify`, `ReadMetadata`, `LoadDepth`, `LoadPortraitMaps` and `Render` take an item of this
   document and their own `DecoderOptions`. An item of another document or a non-image throws `ArgumentException`;
   `GetItem` throws for an unknown ID, `TryGetItem` returns false.
 - `Open` takes a path, stream or memory, `OpenAsync` a path or stream. The input is copied (up to

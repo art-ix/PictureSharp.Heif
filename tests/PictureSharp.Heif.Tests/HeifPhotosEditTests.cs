@@ -7,7 +7,7 @@ public sealed class HeifPhotosEditTests
     public async Task Render_WithoutAdjustments_ReturnsUnchangedCopy()
     {
         using Image photo = Texture(64, 48);
-        using Image result = HeifPhotosEdit.Render(photo, new HeifPhotosAdjustments());
+        using Image result = Adjust(photo, new HeifPhotosAdjustments());
         await Assert.That(new HeifPhotosAdjustments().IsEmpty).IsTrue();
         await Assert.That(result.GetPixelSpan().ToArray()).IsEquivalentTo(photo.GetPixelSpan().ToArray(), CollectionOrdering.Matching);
     }
@@ -19,7 +19,6 @@ public sealed class HeifPhotosEditTests
         await Assert.That(() => new HeifPhotosAdjustments { Vignette = -100.5f }).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => new HeifPhotosAdjustments { Sharpness = -1 }).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => new HeifPhotosAdjustments { NoiseReduction = float.NaN }).Throws<ArgumentOutOfRangeException>();
-        await Assert.That(() => new HeifPhotosAdjustments { MaxDegreeOfParallelism = 0 }).Throws<ArgumentOutOfRangeException>();
         await Assert.That(new HeifPhotosAdjustments { Definition = 100, Brightness = -100 }.IsEmpty).IsFalse();
     }
 
@@ -56,7 +55,7 @@ public sealed class HeifPhotosEditTests
     public async Task SaturationMinus100_GivesGrey()
     {
         using Image photo = Texture(40, 30);
-        using Image result = HeifPhotosEdit.Render(photo, new HeifPhotosAdjustments { Saturation = -100 });
+        using Image result = Adjust(photo, new HeifPhotosAdjustments { Saturation = -100 });
         int spread = 0;
         foreach (Rgba32 p in result.GetPixelSpan())
         {
@@ -70,8 +69,8 @@ public sealed class HeifPhotosEditTests
     public async Task Vignette_ChangesCornersAndKeepsTheCentre()
     {
         using Image grey = Solid(150, 150, 150, 120, 90);
-        using Image darker = HeifPhotosEdit.Render(grey, new HeifPhotosAdjustments { Vignette = 50 });
-        using Image lighter = HeifPhotosEdit.Render(grey, new HeifPhotosAdjustments { Vignette = -50 });
+        using Image darker = Adjust(grey, new HeifPhotosAdjustments { Vignette = 50 });
+        using Image lighter = Adjust(grey, new HeifPhotosAdjustments { Vignette = -50 });
         await Assert.That(darker.GetRowSpan(45)[60].G).IsEqualTo((byte)150);
         await Assert.That(darker.GetRowSpan(0)[0].G < 100).IsTrue();
         await Assert.That(lighter.GetRowSpan(89)[119].G > 170).IsTrue();
@@ -87,8 +86,8 @@ public sealed class HeifPhotosEditTests
             Exposure = 30, Brilliance = 40, Shadows = 60, Saturation = 20, Vibrance = -30, Warmth = 10, Contrast = 15,
             Sharpness = 50, Definition = 70, NoiseReduction = 20, Vignette = 40,
         };
-        using Image single = HeifPhotosEdit.Render(photo, adjustments with { MaxDegreeOfParallelism = 1 });
-        using Image parallel = HeifPhotosEdit.Render(photo, adjustments);
+        using Image single = Adjust(photo, adjustments, threads: 1);
+        using Image parallel = Adjust(photo, adjustments);
         await Assert.That(parallel.GetPixelSpan().ToArray()).IsEquivalentTo(single.GetPixelSpan().ToArray(), CollectionOrdering.Matching);
         await Assert.That(single.GetRowSpan(7)[9].A).IsEqualTo((byte)77);
         await Assert.That(single.GetPixelSpan().ToArray()).IsNotEquivalentTo(photo.GetPixelSpan().ToArray(), CollectionOrdering.Matching);
@@ -98,8 +97,8 @@ public sealed class HeifPhotosEditTests
     public async Task Sharpness_RaisesLocalContrast_And_NoiseReductionLowersIt()
     {
         using Image photo = Texture(96, 96);
-        using Image sharp = HeifPhotosEdit.Render(photo, new HeifPhotosAdjustments { Sharpness = 100 });
-        using Image smooth = HeifPhotosEdit.Render(photo, new HeifPhotosAdjustments { NoiseReduction = 100 });
+        using Image sharp = Adjust(photo, new HeifPhotosAdjustments { Sharpness = 100 });
+        using Image smooth = Adjust(photo, new HeifPhotosAdjustments { NoiseReduction = 100 });
         await Assert.That(Detail(sharp) > Detail(photo)).IsTrue();
         await Assert.That(Detail(smooth) < Detail(photo)).IsTrue();
     }
@@ -110,13 +109,16 @@ public sealed class HeifPhotosEditTests
         using Image photo = Texture(32, 32);
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
-        await Assert.That(() => HeifPhotosEdit.Render(photo, new HeifPhotosAdjustments { Exposure = 10 }, cancelled.Token))
+        await Assert.That(() => Adjust(photo, new HeifPhotosAdjustments { Exposure = 10 }, cancelled.Token))
             .Throws<OperationCanceledException>();
     }
 
+    private static Image Adjust(Image photo, HeifPhotosAdjustments adjustments, CancellationToken cancellationToken = default, int threads = -1) =>
+        photo.ApplyHeifEdits(new HeifEdits { Adjustments = adjustments, MaxDegreeOfParallelism = threads }, null, cancellationToken);
+
     private static Rgba32 Centre(Image photo, HeifPhotosAdjustments adjustments)
     {
-        using Image result = HeifPhotosEdit.Render(photo, adjustments);
+        using Image result = Adjust(photo, adjustments);
         return result.GetRowSpan(result.Height / 2)[result.Width / 2];
     }
 

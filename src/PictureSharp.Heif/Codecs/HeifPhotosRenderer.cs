@@ -24,11 +24,11 @@ internal sealed partial class HeifPhotosRenderer
     private readonly bool hasBands;
     private readonly float[]? contrast, saturation, vibrance, vignette;
 
-    public HeifPhotosRenderer(int width, int height, HeifPhotosAdjustments adjustments, CancellationToken cancellationToken)
+    public HeifPhotosRenderer(int width, int height, HeifPhotosAdjustments adjustments, int maxDegreeOfParallelism, CancellationToken cancellationToken)
     {
         this.width = width;
         this.height = height;
-        parallel = new ParallelOptions { MaxDegreeOfParallelism = adjustments.MaxDegreeOfParallelism, CancellationToken = cancellationToken };
+        parallel = new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism, CancellationToken = cancellationToken };
         identity = adjustments.IsEmpty;
 
         // Order of the per-channel curves; contrast, saturation, vibrance and vignette are separate stages.

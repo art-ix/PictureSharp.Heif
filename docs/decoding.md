@@ -76,16 +76,48 @@ float? centre = depth.AppleDepth?.ToFloat(depth.Samples.Span[depth.Samples.Lengt
   teeth, glasses and sky) and load with `LoadImage` as greyscale images at half size.
 - Limits are checked before allocating; other items throw `ArgumentException`.
 
-## Portrait effect
+## Rendering edits
 
-iPhone keeps a Portrait photo sharp and blurs the background only when Photos displays it, so `Image.Load` and
-conversion to JPEG give the photo without the blur. `RenderPortrait` approximates the effect and returns a new image:
+Two approximations fitted to Photos exports restore what a converted photo loses: the Portrait background blur and
+the sliders of Photos' "Adjust" panel. `HeifEdits` describes both, and one call loads the photo (with its depth and
+matte when a blur is requested) and renders them into a new image:
 
 ```csharp
-using Image portrait = document.RenderPortrait(document.PrimaryImage);                        // photo's own f-number
-using Image wide = document.RenderPortrait(document.PrimaryImage, new() { Aperture = 1.4f }); // stronger blur
-using Image refocused = document.RenderPortrait(document.PrimaryImage, new() { FocusPoint = new(400, 900) });
+HeifDocument document = HeifDocument.Open("IMG_8083.HEIC");
+using Image result = document.Render(document.PrimaryImage, new HeifEdits
+{
+    Adjustments = new HeifPhotosAdjustments { Brightness = 25, Warmth = 10 },
+    Portrait = new HeifPortraitOptions { Aperture = 2.8f },       // null: no blur
+});
 ```
+
+- **Order.** The sliders run first and the blur second, on the edited pixels, so the blurred background mixes the
+  edited colours. For the opposite order, render the stages in two calls.
+- **Several variants.** `LoadPortraitMaps` reads the depth and matte once; `ApplyHeifEdits` renders any loaded
+  `Image` with them, so variants do not decode the file again:
+
+  ```csharp
+  using Image photo = document.LoadImage(document.PrimaryImage);
+  using HeifPortraitMaps maps = document.LoadPortraitMaps(document.PrimaryImage);
+  using Image wide = photo.ApplyHeifEdits(new HeifEdits { Portrait = new() { Aperture = 1.4f } }, maps);
+  using Image refocused = photo.ApplyHeifEdits(new HeifEdits { Portrait = new() { FocusPoint = new(400, 900) } }, maps);
+  using Image edited = photo.ApplyHeifEdits(new HeifEdits { Adjustments = new() { Saturation = -100 } }); // no maps needed
+  ```
+
+  `new HeifPortraitMaps(depth, matte)` wraps a depth image and matte obtained otherwise; the maps dispose the matte.
+- **Input and output.** The photo must have one frame and be in display orientation, as loaded. Metadata and alpha
+  are kept; an attached HDR gain map is removed. Empty edits return an unchanged copy. `MaxPixels` limits the
+  working buffers (the result, an intermediate image when both stages run, and the blur's buffers of about twice
+  the photo) before they are allocated. The result does not depend on `MaxDegreeOfParallelism`; the token is
+  checked between row bands.
+- **Errors.** A blur requested for a photo without depth, or `ApplyHeifEdits` with a blur and no maps, throws
+  `ArgumentException`. A depth or matte from the file that does not fit the photo throws `ImageFormatException`;
+  the same from the caller throws `ArgumentException`.
+
+### Portrait effect
+
+iPhone keeps a Portrait photo sharp and blurs the background only when Photos displays it, so `Image.Load` and
+conversion to JPEG give the photo without the blur. `HeifEdits.Portrait` approximates the effect:
 
 - **Aperture and focus.** The blur grows with the distance from the focus and as the aperture opens (f/1.4–f/16;
   default: the photo's `SimulatedAperture`). By default the focus covers the subject under the portrait matte, from
@@ -101,9 +133,6 @@ using Image refocused = document.RenderPortrait(document.PrimaryImage, new() { F
   sharp. Blurred areas get fine grain that grows with ISO. Small bright points become hard-edged discs; in night
   shots (ISO × exposure time from EXIF; without EXIF: daylight at ISO 64) clipped lamps become bright cat's-eye
   discs, oval towards the edges like a real lens's bokeh.
-- **Result.** Metadata and alpha are kept; the HDR gain map is not attached. `MaxPixels` limits the working buffers
-  (about twice the photo), and the result does not depend on the thread count. `HeifPortrait.Render` does the same
-  for a photo, depth and matte loaded separately.
 
 Apple's algorithm is private, so this is an approximation calibrated in 0.6.7 against 66 Photos exports of 15
 portraits (f/1.4–f/16, three lenses); against 0.6.6 the background improved by 1.07 dB PSNR and the subject by about
@@ -112,19 +141,20 @@ one) and a 48 MP photo in 2.2 s (i5-12500H). Measurements: [calibration](measure
 [focus range](measurements/portrait-0.6.7-focus-range.md), [edges and hair](measurements/portrait-0.6.7-edges.md),
 [bokeh and grain](measurements/portrait-0.6.7-bokeh.md).
 
-## Photos adjustments
+### Photos adjustments
 
 Edits made with the sliders of Photos' "Adjust" panel stay in the Photos library: the original HEIC holds no slider
-values, and the iOS 27 `.AAE` sidecar holds only the portrait effect. `HeifPhotosEdit.Render` re-applies slider
-values that the application supplies, on the scale shown in Photos, and returns a new image:
+values, and the iOS 27 `.AAE` sidecar holds only the portrait effect. `HeifEdits.Adjustments` re-applies slider
+values that the application supplies, on the scale shown in Photos. Any loaded image can be edited, not only HEIC:
 
 ```csharp
 using Image photo = Image.Load("IMG_8113.HEIC");
-using Image edited = HeifPhotosEdit.Render(photo, new HeifPhotosAdjustments { Brightness = 25, Warmth = 10, Vignette = 30 });
+using Image edited = photo.ApplyHeifEdits(new HeifEdits { Adjustments = new() { Brightness = 25, Warmth = 10, Vignette = 30 } });
 
 // Records are immutable: derive variants of a recipe with `with`.
 var recipe = new HeifPhotosAdjustments { Warmth = 40, Vibrance = 30, Contrast = 20 };
-using Image mono = HeifPhotosEdit.Render(photo, recipe with { Saturation = -100, MaxDegreeOfParallelism = 2 }, cancellationToken);
+using Image mono = photo.ApplyHeifEdits(new HeifEdits { Adjustments = recipe with { Saturation = -100 }, MaxDegreeOfParallelism = 2 },
+    cancellationToken: cancellationToken);
 ```
 
 | Slider | Range | Positive values (negative values do the opposite) | Match with Photos |
@@ -145,17 +175,14 @@ using Image mono = HeifPhotosEdit.Render(photo, recipe with { Saturation = -100,
 | `Sharpness` | 0…100 | sharper edges | rough: Photos is edge-adaptive |
 | `NoiseReduction` | 0…100 | smoother fine detail | rough: Photos is edge-adaptive |
 
-- **Values.** 0 leaves a slider off; when all are 0 (`IsEmpty`), `Render` returns an unchanged copy. Values outside
-  the range throw `ArgumentOutOfRangeException`.
+- **Values.** 0 leaves a slider off; when all are 0 (`IsEmpty`), the colours are unchanged. Values outside the range
+  throw `ArgumentOutOfRangeException`.
 - **Fit.** Each slider was fitted to Photos exports of three iPhone photographs (sunset, night, daylight) edited with
   that slider alone, at ±25, ±50 and ±100 (25, 50 and 100 for the 0…100 sliders); values in between are
   interpolated. Exposure can end up farther from Photos than the unedited photo.
 - **Combining sliders.** They are applied in a fixed order: per-channel tone curves, band filters computed from the
   original (sharpness, definition, noise reduction, brilliance, shadows), contrast, saturation, vibrance, vignette.
   Whether Photos uses the same order has not been measured.
-- **Input and output.** The photo must have one frame and be in display orientation, as loaded. Metadata and alpha
-  are kept; an attached HDR gain map is removed. The result does not depend on `MaxDegreeOfParallelism`; the token
-  is checked between row bands.
 - **Cost.** About 0.2 s for 12 MP with tone and colour sliders, about 1 s when a band filter is used (i5-12500H). The
   band filters need about 24 bytes of working memory per pixel.
 

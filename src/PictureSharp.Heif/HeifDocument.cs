@@ -248,16 +248,15 @@ public sealed class HeifDocument
     }
 
     /// <summary>
-    /// Loads the photograph, its depth (<see cref="HeifItemInfo.FindDepthImage"/>) and its portrait matte when present
-    /// (<see cref="HeifAppleAuxiliaryTypes.PortraitEffectsMatte"/>), and renders the depth-of-field effect with
-    /// <see cref="HeifPortrait.Render"/>. Each item is read with <paramref name="options"/> except TargetSize, which
-    /// applies to the photograph only; the depth and matte are resampled to it.
+    /// Loads the depth (<see cref="HeifItemInfo.FindDepthImage"/>) and, when present, the portrait matte
+    /// (<see cref="HeifAppleAuxiliaryTypes.PortraitEffectsMatte"/>) of a photograph, for
+    /// <see cref="HeifImageExtensions.ApplyHeifEdits"/>. Both are read with <paramref name="options"/> without
+    /// TargetSize; rendering resamples them to the photograph.
     /// </summary>
     /// <exception cref="ArgumentException">The item is not an image of this document, or has no depth or disparity image.</exception>
     /// <exception cref="NotSupportedException">The depth item has no Apple depth description, or an item uses unsupported coding.</exception>
-    /// <exception cref="ImageFormatException">An item is corrupt, the depth or matte is inconsistent with the photograph, or a limit is exceeded.</exception>
-    public Image RenderPortrait(HeifItemInfo photo, HeifPortraitOptions? portrait = null, DecoderOptions? options = null,
-        CancellationToken cancellationToken = default)
+    /// <exception cref="ImageFormatException">An item is corrupt or a limit is exceeded.</exception>
+    public HeifPortraitMaps LoadPortraitMaps(HeifItemInfo photo, DecoderOptions? options = null, CancellationToken cancellationToken = default)
     {
         CheckImage(photo);
         HeifItemInfo depthItem = photo.FindDepthImage()
@@ -269,11 +268,31 @@ public sealed class HeifDocument
         }
 
         DecoderOptions auxiliary = (options ?? DecoderOptions.Default) with { TargetSize = null };
-        using Image image = LoadImage(photo, options, cancellationToken);
-        using Image? matte = photo.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte) is { IsSupported: true } matteItem
+        Image? matte = photo.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte) is { IsSupported: true } matteItem
             ? LoadImage(matteItem, auxiliary, cancellationToken)
             : null;
-        return HeifPortrait.RenderCore(image, depth, matte, portrait, fromFile: true, cancellationToken);
+        return new HeifPortraitMaps(depth, matte);
+    }
+
+    /// <summary>
+    /// Loads a photograph and renders <paramref name="edits"/> into it: Photos sliders first, then, when
+    /// <see cref="HeifEdits.Portrait"/> is set, the Portrait blur from the depth and matte
+    /// (<see cref="LoadPortraitMaps"/>). The photograph is read with <paramref name="options"/>, including TargetSize;
+    /// the depth and matte are resampled to it. See <see cref="HeifImageExtensions.ApplyHeifEdits"/> for the result.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// The item is not an image of this document, or a portrait is requested and it has no depth or disparity image.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException"><see cref="HeifPortraitOptions.FocusPoint"/> lies outside the photograph.</exception>
+    /// <exception cref="NotSupportedException">The depth item has no Apple depth description, or an item uses unsupported coding.</exception>
+    /// <exception cref="ImageFormatException">An item is corrupt, the depth or matte is inconsistent with the photograph, or a limit is exceeded.</exception>
+    public Image Render(HeifItemInfo photo, HeifEdits edits, DecoderOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        CheckImage(photo);
+        ArgumentNullException.ThrowIfNull(edits);
+        using HeifPortraitMaps? maps = edits.Portrait is null ? null : LoadPortraitMaps(photo, options, cancellationToken);
+        using Image image = LoadImage(photo, options, cancellationToken);
+        return HeifEditPipeline.Apply(image, edits, maps, fromFile: true, cancellationToken);
     }
 
     private DecoderOptions ReadOptions(HeifItemInfo image, DecoderOptions? options)

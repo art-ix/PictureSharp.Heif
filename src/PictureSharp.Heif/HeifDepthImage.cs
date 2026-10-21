@@ -58,7 +58,7 @@ public sealed class HeifDepthImage
 
     /// <summary>
     /// Apple's description of the samples read from <see cref="Xmp"/> (declared kind, value range, simulated aperture),
-    /// or null when the XMP is absent, malformed or not Apple's. Required by <see cref="HeifPortrait.Render"/>.
+    /// or null when the XMP is absent, malformed or not Apple's. Required by <see cref="HeifEdits.Portrait"/>.
     /// </summary>
     public HeifAppleDepthInfo? AppleDepth { get; }
 

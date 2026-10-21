@@ -24,7 +24,7 @@ public sealed class PortraitCalibrationTests
         PortraitMeasurementManifest run = PortraitMeasurementRun.Measure(root, catalog, freeze: false, PortraitMeasurementRun.Read(root), capture);
         await Assert.That(run.Pairs.Length).IsEqualTo(catalog.Scenes.Sum(s => s.Exports.Length));
         PortraitMeasurementRun.WriteReports(root, run, freeze: false, experiment: "capture-focus-candidate");
-        string[] sources = ["HeifPortrait.cs", "HeifPortraitOptions.cs", "Codecs/HeifPortraitRenderer.cs"];
+        string[] sources = ["Codecs/HeifPortraitSetup.cs", "HeifPortraitOptions.cs", "Codecs/HeifPortraitRenderer.cs"];
         File.WriteAllText(Path.Combine(root, "artifacts", "portrait-0.6.7-capture-focus-experiment.json"), JsonSerializer.Serialize(new
         {
             Policy = "Only null FocusPoint is replaced by the transformed EXIF SubjectArea centre; existing explicit refocus is unchanged.",
@@ -124,10 +124,10 @@ public sealed class PortraitCalibrationTests
         HeifDepthImage depth = doc.LoadDepth(doc.PrimaryImage.FindDepthImage()!, HeifPortraitAuditTests.Decode);
         using Image matte = doc.LoadImage(doc.PrimaryImage.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte)!, HeifPortraitAuditTests.Decode);
         var focus = new System.Drawing.Point(240, 120);
-        var options = new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = focus, MaxDegreeOfParallelism = 1 };
+        var options = new HeifPortraitOptions { Aperture = 1.4f, FocusPoint = focus };
         var oldOptions = new BaselineV066.HeifPortraitOptions { Aperture = 1.4f, FocusPoint = focus, MaxDegreeOfParallelism = 1 };
         using Image old = BaselineV066.HeifPortrait.Render(photo, depth, matte, oldOptions);
-        using Image current = HeifPortrait.Render(photo, depth, matte, options);
+        using Image current = TestRender.Portrait(photo, depth, matte, options, 1);
         var foreground = new System.Drawing.Rectangle(16, 16, 128, 208);
         await Assert.That(HeifPortraitTests.Energy(current, foreground)).IsGreaterThan(HeifPortraitTests.Energy(old, foreground));
         bool focused = true;
@@ -137,7 +137,7 @@ public sealed class PortraitCalibrationTests
         }
         await Assert.That(focused).IsTrue();
         using Image unmaskedOld = BaselineV066.HeifPortrait.Render(photo, depth, null, oldOptions);
-        using Image unmaskedNew = HeifPortrait.Render(photo, depth, null, options);
+        using Image unmaskedNew = TestRender.Portrait(photo, depth, null, options, 1);
         // E5: without a matte the near half is scenery in front of the focus, which Photos blurs less; behind the
         // focus the render stays as before (within grain).
         await Assert.That(HeifPortraitTests.Energy(unmaskedNew, foreground)).IsGreaterThan(HeifPortraitTests.Energy(unmaskedOld, foreground));
@@ -153,7 +153,7 @@ public sealed class PortraitCalibrationTests
         foreach (float aperture in new[] { 8f, 16f })
         {
             using Image narrowOld = BaselineV066.HeifPortrait.Render(photo, depth, matte, oldOptions with { Aperture = aperture });
-            using Image narrowNew = HeifPortrait.Render(photo, depth, matte, options with { Aperture = aperture });
+            using Image narrowNew = TestRender.Portrait(photo, depth, matte, options with { Aperture = aperture }, 1);
             bool away = true;
             for (int y = 0; y < 240; y++)
             {
@@ -163,7 +163,7 @@ public sealed class PortraitCalibrationTests
 
             await Assert.That(away).IsTrue().Because($"f/{aperture} away from the outline");
         }
-        using Image parallel = HeifPortrait.Render(photo, depth, matte, options with { MaxDegreeOfParallelism = 4 });
+        using Image parallel = TestRender.Portrait(photo, depth, matte, options, 4);
         await Assert.That(current.GetPixelSpan().SequenceEqual(parallel.GetPixelSpan())).IsTrue();
     }
 

@@ -154,10 +154,7 @@ internal static class PortraitMeasurementRun
                     {
                         Aperture = export.Aperture, FocusPoint = focusPoint, MaxDegreeOfParallelism = 1,
                     })
-                    : HeifPortrait.Render(native, depth, matte, new HeifPortraitOptions
-                    {
-                        Aperture = export.Aperture, FocusPoint = focusPoint, MaxDegreeOfParallelism = 1,
-                    });
+                    : TestRender.Portrait(native, depth, matte, new HeifPortraitOptions { Aperture = export.Aperture, FocusPoint = focusPoint }, 1);
                 long elapsed = clock.ElapsedMilliseconds, bytes = GC.GetTotalAllocatedBytes(true) - allocated;
                 using Image reduced = PortraitMeasurementInputs.Reduce(rendered);
                 Dump(scene.Name, export, reduced, apple, regions, tone);

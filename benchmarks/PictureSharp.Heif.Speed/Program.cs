@@ -12,7 +12,7 @@ using PictureSharp.Processing;
 //   hash <file.heic>... [--threads 1,all]    SHA-256 of the decoded Rgba32 pixels (bit-identity checks)
 //   encodehash <file.heic>... [--quality 50]  SHA-256 of the encoded file (byte-identity checks)
 //   make48 <file.heic> <out-grid.heic>   writes the 2x upscaled photo as a 512x512 grid (the 0.5.0 48 MP input)
-//   portrait <file.heic>... [--runs 3] [--threads 1,all] [--scale 1] [--aperture N]  HeifPortrait.Render time, allocation
+//   portrait <file.heic>... [--runs 3] [--threads 1,all] [--scale 1] [--aperture N]  portrait rendering time, allocation
 //     and working-set peak above the loaded inputs; --scale resizes the photograph (√2 ≈ 24 MP, 2 ≈ 48 MP from 12 MP)
 //   portraithash <file.heic>... [--threads 1,all] [--scale 1]  SHA-256 of portrait renders (bit-identity checks)
 // Prints one TSV row per measurement: operation, file, threads, best ms, allocated MB per run, output bytes.
@@ -102,19 +102,19 @@ switch (mode)
         Console.WriteLine("operation\tfile\tthreads\tmegapixels\tms\talloc_mb\tpeak_mb");
         foreach (string file in files)
         {
-            (Image photo, HeifDepthImage depth, Image? matte) = LoadPortrait(file, Scale());
+            (Image photo, HeifPortraitMaps maps) = LoadPortrait(file, Scale());
             using (photo)
-            using (matte)
+            using (maps)
             {
                 foreach (string t in threads)
                 {
-                    var portrait = new HeifPortraitOptions { Aperture = Aperture(), MaxDegreeOfParallelism = Threads(t) };
+                    var portrait = new HeifEdits { Portrait = new() { Aperture = Aperture() }, MaxDegreeOfParallelism = Threads(t) };
                     // The working set high-water mark of the first render above the loaded inputs (Linux: reset by
                     // clear_refs); later renders reuse pooled buffers, so measure one thread setting per process.
                     long before = ResetPeak();
-                    HeifPortrait.Render(photo, depth, matte, portrait).Dispose();
+                    photo.ApplyHeifEdits(portrait, maps).Dispose();
                     double peak = (PeakWorkingSet() - before) / 1048576.0;
-                    (double ms, double mb) = Measure(() => HeifPortrait.Render(photo, depth, matte, portrait).Dispose());
+                    (double ms, double mb) = Measure(() => photo.ApplyHeifEdits(portrait, maps).Dispose());
                     Console.WriteLine(string.Join('\t', "portrait", Path.GetFileName(file), t,
                         (photo.Width * (double)photo.Height / 1e6).ToString("F1", CultureInfo.InvariantCulture),
                         ms.ToString("F0", CultureInfo.InvariantCulture), mb.ToString("F1", CultureInfo.InvariantCulture),
@@ -128,16 +128,16 @@ switch (mode)
         // Default focus at f/1.4, f/4.5 and f/16, and the picture centre at f/2.8.
         foreach (string file in files)
         {
-            (Image photo, HeifDepthImage depth, Image? matte) = LoadPortrait(file, Scale());
+            (Image photo, HeifPortraitMaps maps) = LoadPortrait(file, Scale());
             using (photo)
-            using (matte)
+            using (maps)
             {
                 foreach (HeifPortraitOptions variant in (HeifPortraitOptions[])[new() { Aperture = 1.4f }, new() { Aperture = 4.5f },
                     new() { Aperture = 16f }, new() { Aperture = 2.8f, FocusPoint = new System.Drawing.Point(photo.Width / 2, photo.Height / 2) }])
                 {
                     foreach (string t in threads)
                     {
-                        using Image rendered = HeifPortrait.Render(photo, depth, matte, variant with { MaxDegreeOfParallelism = Threads(t) });
+                        using Image rendered = photo.ApplyHeifEdits(new HeifEdits { Portrait = variant, MaxDegreeOfParallelism = Threads(t) }, maps);
                         var pixels = new Rgba32[rendered.Width * rendered.Height];
                         rendered.CopyPixelDataTo(pixels);
                         byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pixels.AsSpan()));
@@ -196,21 +196,18 @@ void Row(string operation, string file, string t, double ms, double mb, int byte
         mb.ToString("F1", CultureInfo.InvariantCulture), bytes.ToString(CultureInfo.InvariantCulture)));
 
 // The photograph (resized by scale, depth and matte kept: the renderer resamples them), depth and matte of a portrait.
-(Image Photo, HeifDepthImage Depth, Image? Matte) LoadPortrait(string file, double scale)
+(Image Photo, HeifPortraitMaps Maps) LoadPortrait(string file, double scale)
 {
     HeifDocument document = HeifDocument.Open(file);
     HeifItemInfo item = document.PrimaryImage;
-    HeifDepthImage depth = document.LoadDepth(item.FindDepthImage() ?? throw new ArgumentException($"{file} has no depth image."));
+    HeifPortraitMaps maps = document.LoadPortraitMaps(item);
     Image photo = document.LoadImage(item);
-    Image? matte = item.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte) is { IsSupported: true } matteItem
-        ? document.LoadImage(matteItem)
-        : null;
     if (scale != 1)
     {
         photo.Mutate(x => x.Resize((int)Math.Round(photo.Width * scale), (int)Math.Round(photo.Height * scale)));
     }
 
-    return (photo, depth, matte);
+    return (photo, maps);
 }
 
 double Scale() => OptionText("--scale") is { } text ? double.Parse(text, CultureInfo.InvariantCulture) : 1;

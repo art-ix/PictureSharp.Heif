@@ -137,7 +137,7 @@ public sealed class PortraitEngineeringTests
             using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(delay));
             try
             {
-                HeifPortrait.Render(photo, depth, matte, Options(threads: 2), cancellation.Token).Dispose();
+                TestRender.Portrait(photo, depth, matte, Options, 2, cancellation.Token).Dispose();
             }
             catch (OperationCanceledException)
             {
@@ -221,8 +221,8 @@ public sealed class PortraitEngineeringTests
         return (depth, matte);
     }
 
-    private static HeifPortraitOptions Options(int threads) => new() { Aperture = 1.4f, FocusPoint = Focus, MaxDegreeOfParallelism = threads };
+    private static readonly HeifPortraitOptions Options = new() { Aperture = 1.4f, FocusPoint = Focus };
 
     private static Image Render(Image photo, HeifDepthImage depth, Image matte, int threads) =>
-        HeifPortrait.Render(photo, depth, matte, Options(threads));
+        TestRender.Portrait(photo, depth, matte, Options, threads);
 }

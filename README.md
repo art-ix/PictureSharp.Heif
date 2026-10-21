@@ -49,11 +49,14 @@ LivePhotoPair pair = LivePhotoPair.Read("IMG_8113.HEIC", "IMG_8113.MOV"); // mat
 
 iPhone stores a Portrait photo sharp and blurs the background only on display, and Photos keeps the edits of its
 "Adjust" sliders in its library, so a converted photo has neither. Two approximations fitted to Photos exports bring
-them back:
+them back in one call, sliders first and then the blur:
 
 ```csharp
-using Image portrait = document.RenderPortrait(photo);                    // blur from the disparity map and matte
-using Image edited = HeifPhotosEdit.Render(portrait, new HeifPhotosAdjustments { Brightness = 25, Warmth = 10 });
+using Image edited = document.Render(photo, new HeifEdits
+{
+    Adjustments = new HeifPhotosAdjustments { Brightness = 25, Warmth = 10 },
+    Portrait = new HeifPortraitOptions { Aperture = 2.8f },               // blur from the disparity map and matte
+});
 ```
 
 The slider values are not stored in a readable form, so the application supplies them. Neither result matches Photos
@@ -75,7 +78,7 @@ Guides: [decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/de
 [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md) ·
 [container and catalogue](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md)
 
-[0.6.8 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.8.md): Photos adjustment sliders.
+[0.6.9 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.9.md): `HeifEdits`, one call for edits and the Portrait blur (breaking change).
 
 ## License and patents
 
