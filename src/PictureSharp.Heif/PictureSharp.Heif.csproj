@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.6.9: HeifEdits renders the Photos sliders and the Portrait blur in one call (HeifDocument.Render, Image.ApplyHeifEdits), sliders first so edits can precede the blur; HeifDocument.LoadPortraitMaps loads depth and matte once for several variants. Breaking change: HeifPortrait, HeifPhotosEdit and RenderPortrait are removed (migration table in the notes). Rendered pixels are unchanged. Requires PictureSharp 0.7.6. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.9/docs/releases/release-0.6.9.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.10 writes HDR gain maps: HeifEncoderOptions.GainMap (HeifGainMapMode None, Preserve, Require) saves the map attached to the image as an ISO 21496-1 tmap item, as iPhones store it, from HEIC or Ultra HDR JPEG; unedited HEIC maps are copied, others encoded at GainMapQuality. Requires PictureSharp 0.8.0. The default output is unchanged. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.10/docs/releases/release-0.6.10.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

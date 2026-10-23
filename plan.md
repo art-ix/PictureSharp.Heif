@@ -2,7 +2,7 @@
 
 ## Status and goal
 
-**Current version: 0.6.9, release 2026-10-21; minimum PictureSharp 0.7.6.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.10, release 2026-10-23; minimum PictureSharp 0.8.0.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
@@ -10,7 +10,8 @@
   samples (`LoadDepth`), Apple depth description (`AppleDepth`) and Portrait effect rendering (`RenderPortrait`), Live
   Photo pairing with MOV (`LivePhotoPair`). P/B slices, RExt, SCC, PQ/HLG, sequences →
   `NotSupportedException`.
-- Writing: HEVC Main 8-bit 4:2:0, alpha 4:0:0, tile grid, nclx/ICC, Exif/XMP (`SaveAsHeic`, `HeifEncoderOptions`).
+- Writing: HEVC Main 8-bit 4:2:0, alpha 4:0:0, tile grid, nclx/ICC, Exif/XMP (`SaveAsHeic`, `HeifEncoderOptions`),
+  ISO gain maps (`tmap`, `HeifEncoderOptions.GainMap`).
 - SIMD on x64/ARM64 bit-identical to scalar, parallel tiles, result independent of the thread count.
 
 **Goal for 0.7.0 (scope simplified 2026-10-18):** a catalog of the file contents (photos, thumbnails, auxiliary
@@ -46,7 +47,7 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.7 | Portrait focus, edges, bokeh calibration, rendering-parameter analysis, renderer performance (SIMD, memory) | 0.7.6 | Release 2026-10-20 |
 | 0.6.8 | Photos edits annotated by hand (`edits.tsv`) and fitted from pairs; `HeifPhotosEdit` with all sliders | 0.7.6 | Release 2026-10-20 |
 | 0.6.9 | Rendering API: `HeifEdits` (sliders, then Portrait blur) in one call; replaces `HeifPortrait`, `HeifPhotosEdit`, `RenderPortrait` (incompatible with 0.6.8) | 0.7.6 | Release 2026-10-21 |
-| 0.6.10 | Writing HDR gain maps: `tmap` item through the core's `GetGainMap`, `HeifEncoderOptions.GainMap` | 0.8.0 | Implemented locally (2026-10-23); waits for core 0.8.0 on NuGet |
+| 0.6.10 | Writing HDR gain maps: `tmap` item through the core's `GetGainMap`, `HeifEncoderOptions.GainMap` | 0.8.0 | Release 2026-10-23 |
 | 0.6.11 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.8.0 (assumed) | Planned |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.8.0 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
@@ -611,6 +612,7 @@ SPI needs are reported to the core plan; we do not work around them by copying i
 
 ## Changelog
 
+- [0.6.10](docs/releases/release-0.6.10.md): writing HDR gain maps (`HeifEncoderOptions.GainMap`), PictureSharp 0.8.0 (2026-10-23).
 - [0.6.6](docs/releases/release-0.6.6.md): faster HEVC decoding and encoding (2026-10-19).
 - [0.6.7](docs/releases/release-0.6.7.md): portrait calibration, faster deterministic portrait rendering (2026-10-20).
 

@@ -2,7 +2,7 @@
 
 **HEIC/HEIF plugin for [PictureSharp](https://github.com/art-ix/PictureSharp), entirely in C#.**
 
-Reads and writes HEIC on .NET 10+ with PictureSharp 0.7.6+. No native libraries or P/Invoke.
+Reads and writes HEIC on .NET 10+ with PictureSharp 0.8.0+. No native libraries or P/Invoke.
 
 ```bash
 dotnet add package PictureSharp.Heif
@@ -78,7 +78,7 @@ Guides: [decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/de
 [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md) ·
 [container and catalogue](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md)
 
-[0.6.9 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.9.md): `HeifEdits`, one call for edits and the Portrait blur (breaking change).
+[0.6.10 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.10.md): writing HDR gain maps (`HeifEncoderOptions.GainMap`); requires PictureSharp 0.8.0.
 
 ## License and patents
 

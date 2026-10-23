@@ -1,8 +1,8 @@
 # PictureSharp.Heif 0.6.10 — writing HDR gain maps
 
 HEIC files can now be saved with their HDR gain map, so an iPhone photo stays HDR after resizing or cropping, and an
-Ultra HDR JPEG can become an HDR HEIC. Requires PictureSharp 0.8.0 and .NET 10. No breaking changes; with the default
-options the written files are byte for byte those of 0.6.9.
+Ultra HDR JPEG can become an HDR HEIC. Requires PictureSharp 0.8.0 and .NET 10. Release date: 2026-10-23. No breaking
+changes; with the default options the written files are byte for byte those of 0.6.9.
 
 ```csharp
 var load = new DecoderOptions { LoadGainMap = true };
