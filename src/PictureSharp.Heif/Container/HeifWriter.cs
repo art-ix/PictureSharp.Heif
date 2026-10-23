@@ -2,12 +2,20 @@ using System.Buffers.Binary;
 
 namespace PictureSharp.Formats.Heif.Container;
 
-// One HEVC-coded image (a single item or a grid of tiles sharing one configuration).
+// One HEVC-coded image (a single item or a grid of tiles sharing one configuration). Tile payloads are item data:
+// NAL units with the length prefixes the configuration declares.
 internal sealed record HeifCodedImage(int Width, int Height, int TileWidth, int TileHeight, int Columns, int Rows,
     byte[] Configuration, IReadOnlyList<byte[]> TilePayloads, int Channels)
 {
+    public int BitDepth { get; init; } = 8;
+
     public bool IsGrid => TilePayloads.Count > 1 || TileWidth != Width || TileHeight != Height;
 }
+
+// An HDR gain map (ISO 21496-1): the map image with its own colour and transforms, and the tmap item's payload
+// (version byte and metadata), alternate ICC profile and size (the displayed base image's).
+internal sealed record HeifGainMapContent(HeifCodedImage Map, HeifNclx? MapNclx, IReadOnlyList<HeifTransform> MapTransforms,
+    byte[] Metadata, byte[]? AlternateIcc, int Width, int Height);
 
 // Writes a HEIF still image file (ISO/IEC 23008-12, boxes per ISO/IEC 14496-12): ftyp, meta (hdlr, pitm, iinf, iloc,
 // iprp, iref, idat) and mdat. Grids keep their tiles as hidden items, as cameras write them.
@@ -18,6 +26,8 @@ internal static class HeifWriter
         IReadOnlyList<HeifTransform> Transforms, byte[]? Exif, byte[]? Xmp)
     {
         public Content? Thumbnail { get; init; }
+
+        public HeifGainMapContent? GainMap { get; init; }
     }
 
     private sealed class Item(uint id, uint type, bool hidden)
@@ -43,13 +53,13 @@ internal static class HeifWriter
         }
 
         uint nextId = 1;
-        Item AddImage(HeifCodedImage image, int configuration, IEnumerable<(int, bool)> extra, bool alpha)
+        Item AddImage(HeifCodedImage image, int configuration, IEnumerable<(int, bool)> extra, bool alpha, bool hidden = false)
         {
             int full = Property(Ispe(image.Width, image.Height));
-            int pixi = Property(Pixi(image.Channels));
+            int pixi = Property(Pixi(image.Channels, image.BitDepth));
             if (!image.IsGrid)
             {
-                var item = new Item(nextId++, HeifFourCc.Hvc1, hidden: false) { Data = Length(image.TilePayloads[0]) };
+                var item = new Item(nextId++, HeifFourCc.Hvc1, hidden) { Data = image.TilePayloads[0] };
                 item.Properties.Add((configuration, true));
                 item.Properties.Add((full, false));
                 item.Properties.Add((pixi, false));
@@ -58,7 +68,7 @@ internal static class HeifWriter
                 return item;
             }
 
-            var grid = new Item(nextId++, HeifFourCc.Grid, hidden: false) { InItemData = true };
+            var grid = new Item(nextId++, HeifFourCc.Grid, hidden) { InItemData = true };
             grid.Data = GridDescriptor(image);
             grid.Properties.Add((full, false));
             grid.Properties.Add((pixi, false));
@@ -68,7 +78,7 @@ internal static class HeifWriter
             var tiles = new List<uint>();
             foreach (byte[] payload in image.TilePayloads)
             {
-                var tile = new Item(nextId++, HeifFourCc.Hvc1, hidden: true) { Data = Length(payload) };
+                var tile = new Item(nextId++, HeifFourCc.Hvc1, hidden: true) { Data = payload };
                 tile.Properties.Add((configuration, true));
                 tile.Properties.Add((tileExtents, false));
                 if (alpha)
@@ -105,6 +115,26 @@ internal static class HeifWriter
 
         AddAlpha(content, primary);
 
+        // ISO/IEC 23008-12:2024 6.6.2.4: a hidden map and a tmap item deriving from the primary image and the map, the
+        // alternative to the primary image in an altr group, as iPhones write them.
+        Item? toneMap = null;
+        if (content.GainMap is { } gainMap)
+        {
+            int mapConfiguration = Property(Box(HeifFourCc.HvcC, gainMap.Map.Configuration));
+            List<(int, bool)> mapProperties = gainMap.MapNclx is { } mapNclx ? [(Property(Nclx(mapNclx)), false)] : [];
+            mapProperties.AddRange(gainMap.MapTransforms.Select(transform => (Property(Box(transform.Type, transform.Payload())), true)));
+            Item map = AddImage(gainMap.Map, mapConfiguration, mapProperties, alpha: false, hidden: true);
+            toneMap = new Item(nextId++, HeifFourCc.Tmap, hidden: false) { Data = gainMap.Metadata, InItemData = true };
+            toneMap.Properties.Add((Property(Ispe(gainMap.Width, gainMap.Height)), false));
+            if (gainMap.AlternateIcc is { } alternateIcc)
+            {
+                toneMap.Properties.Add((Property(Box(HeifFourCc.Colr, [.. "prof"u8, .. alternateIcc])), false));
+            }
+
+            items.Add(toneMap);
+            references.Add((HeifFourCc.Dimg, toneMap.Id, [primary.Id, map.Id]));
+        }
+
         if (content.Exif is { } exif)
         {
             var item = new Item(nextId++, HeifFourCc.Exif, hidden: false) { Data = [0, 0, 0, 0, .. exif] };
@@ -130,15 +160,18 @@ internal static class HeifWriter
             AddAlpha(thumbnailContent, thumbnail);
         }
 
+        // Entity group identifiers share the item identifier space.
+        byte[] groups = toneMap is null ? [] : Box(HeifFourCc.Grpl,
+            FullBox(HeifFourCc.Altr, 0, 0, [.. U32(nextId++), .. U32(2), .. U32(toneMap.Id), .. U32(primary.Id)]));
         if (nextId > 0xffff)
         {
             throw new NotSupportedException("The image needs more HEIF items than a 16-bit item identifier allows.");
         }
 
-        byte[] ftyp = Box(HeifFourCc.Ftyp, [.. "heic"u8, 0, 0, 0, 0, .. "mif1"u8, .. "heic"u8]);
-        byte[] meta = Meta(items, properties, references, primary.Id, 0);
+        byte[] ftyp = Box(HeifFourCc.Ftyp, [.. "heic"u8, 0, 0, 0, 0, .. "mif1"u8, .. "heic"u8, .. (toneMap is null ? [] : "tmap"u8)]);
+        byte[] meta = Meta(items, properties, references, groups, primary.Id, 0);
         long mdatStart = ftyp.Length + meta.Length + 8;
-        meta = Meta(items, properties, references, primary.Id, mdatStart);
+        meta = Meta(items, properties, references, groups, primary.Id, mdatStart);
         long mdatLength = 8 + items.Where(i => !i.InItemData).Sum(i => (long)i.Data.Length);
         if (mdatStart + mdatLength > uint.MaxValue)
         {
@@ -161,7 +194,7 @@ internal static class HeifWriter
     }
 
     private static byte[] Meta(List<Item> items, List<byte[]> properties, List<(uint Type, uint From, List<uint> To)> references,
-        uint primary, long mdatData)
+        byte[] groups, uint primary, long mdatData)
     {
         var infos = new List<byte>();
         foreach (Item item in items)
@@ -246,6 +279,7 @@ internal static class HeifWriter
             meta.AddRange(FullBox(HeifFourCc.Iref, 0, 0, [.. referenceBoxes]));
         }
 
+        meta.AddRange(groups);
         byte[] itemData = [.. items.Where(i => i.InItemData).SelectMany(i => i.Data)];
         if (itemData.Length > 0)
         {
@@ -264,11 +298,13 @@ internal static class HeifWriter
             : [0, 0, (byte)(image.Rows - 1), (byte)(image.Columns - 1), .. U16((uint)image.Width), .. U16((uint)image.Height)];
     }
 
-    private static byte[] Length(byte[] nal) => [.. U32((uint)nal.Length), .. nal];
+    // A NAL unit with the 4-byte length prefix the encoder's configuration declares.
+    public static byte[] Length(byte[] nal) => [.. U32((uint)nal.Length), .. nal];
 
     private static byte[] Ispe(int width, int height) => FullBox(HeifFourCc.Ispe, 0, 0, [.. U32((uint)width), .. U32((uint)height)]);
 
-    private static byte[] Pixi(int channels) => FullBox(HeifFourCc.Pixi, 0, 0, [(byte)channels, .. Enumerable.Repeat((byte)8, channels)]);
+    private static byte[] Pixi(int channels, int bitDepth) =>
+        FullBox(HeifFourCc.Pixi, 0, 0, [(byte)channels, .. Enumerable.Repeat((byte)bitDepth, channels)]);
 
     private static byte[] Nclx(HeifNclx nclx) =>
         Box(HeifFourCc.Colr, [.. "nclx"u8, .. U16((uint)nclx.Primaries), .. U16((uint)nclx.Transfer), .. U16((uint)nclx.Matrix),

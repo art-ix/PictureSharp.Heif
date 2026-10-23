@@ -67,9 +67,9 @@ exactly.
 | | |
 | --- | --- |
 | Read | HEVC Main, Main 10 and Main Still Picture, 4:2:0 and monochrome; grids, alpha, rotation/mirror/crop, ICC and nclx, EXIF/XMP (also compressed), Apple and ISO gain maps, thumbnails, depth with Apple's description, Live Photo pairing |
-| Write | HEVC Main 8-bit 4:2:0, grids, alpha, ICC/EXIF/XMP, thumbnails |
+| Write | HEVC Main 8-bit 4:2:0, grids, alpha, ICC/EXIF/XMP, thumbnails, ISO gain maps (from HEIC or Ultra HDR JPEG) |
 | Render (approximate) | Portrait background blur, the 15 Photos "Adjust" sliders |
-| Not supported | image sequences, 4:2:2/4:4:4, PQ/HLG, AVIF, writing gain maps or depth, metadata editing, Portrait Lighting, Photos filters and crop, Live Photo export |
+| Not supported | image sequences, 4:2:2/4:4:4, PQ/HLG, AVIF, writing Apple-only gain maps or depth, metadata editing, Portrait Lighting, Photos filters and crop, Live Photo export |
 
 Limits (`MaxPixels`, `MaxInputBytes`, `MaxMetadataBytes`), cancellation and `TargetSize` work as for built-in formats.
 Decoded pixels match the HM reference decoder and libheif.

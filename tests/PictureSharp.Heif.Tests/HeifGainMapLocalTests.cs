@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using PictureSharp.Processing;
 
 namespace PictureSharp.Formats.Heif.Tests;
 
@@ -105,6 +106,71 @@ public sealed class HeifGainMapLocalTests
         }
 
         await Assert.That(compared).IsGreaterThan(0);
+    }
+
+    // Writing back (0.6.10): every private photo with a usable ISO map is saved with HeifGainMapMode.Require. The
+    // unedited map is copied (identical decoded map and metadata); a resized one is encoded again within 4 codes (measured 2–4 at GainMapQuality 90).
+    [Test]
+    [Property("Category", "Local")]
+    public async Task PrivateSamples_GainMapIsWrittenBack()
+    {
+        string root = HevcLocalTests.FindRoot();
+        string sampleDirectory = Path.Combine(root, "samples");
+        string[] samples = Directory.Exists(sampleDirectory)
+            ? [.. Directory.GetFiles(sampleDirectory, "*", SearchOption.AllDirectories)
+                .Where(path => Path.GetExtension(path).Equals(".heic", StringComparison.OrdinalIgnoreCase))
+                .Order(StringComparer.Ordinal)]
+            : [];
+        Skip.Unless(samples.Length > 0, "No private HEIC samples in samples/.");
+        var configuration = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
+        var options = new DecoderOptions { Configuration = configuration, LoadGainMap = true };
+        var encoder = new HeifEncoderOptions { Configuration = configuration, GainMap = HeifGainMapMode.Require };
+        int written = 0;
+        foreach (string path in samples)
+        {
+            string name = Path.GetFileName(path);
+            using Image image = Image.Load(File.ReadAllBytes(path), options);
+            if (image.Hdr is not { CanDecode: true, Selected: HdrGainMapKinds.Iso21496 })
+            {
+                continue;
+            }
+
+            foreach (bool resized in new[] { false, true })
+            {
+                using Image source = Image.Load(File.ReadAllBytes(path), options);
+                if (resized)
+                {
+                    source.Mutate(x => x.Resize(image.Width / 4, image.Height / 4));
+                }
+
+                var stopwatch = Stopwatch.StartNew();
+                byte[] heic = source.Encode(encoder);
+                stopwatch.Stop();
+                using Image reloaded = Image.Load(heic, options);
+                EncodableGainMap expected = source.GetGainMap()!, actual = reloaded.GetGainMap()!;
+                await Assert.That(actual.Metadata.ToIso()).IsEquivalentTo(expected.Metadata.ToIso(), CollectionOrdering.Matching).Because(name);
+                await Assert.That(actual.Metadata.MultiplicationSpace).IsEqualTo(expected.Metadata.MultiplicationSpace).Because(name);
+                using Image before = expected.Map.Decode(-1, default);
+                using Image after = actual.Map.Decode(-1, default);
+                await Assert.That((after.Width, after.Height)).IsEqualTo((before.Width, before.Height)).Because(name);
+                int worst = 0;
+                Span<Rgba32> a = before.GetPixelSpan(), b = after.GetPixelSpan();
+                for (int i = 0; i < a.Length; i++)
+                {
+                    worst = Math.Max(worst, Math.Max(Math.Abs(a[i].R - b[i].R), Math.Max(Math.Abs(a[i].G - b[i].G), Math.Abs(a[i].B - b[i].B))));
+                }
+
+                await Assert.That(worst).IsLessThanOrEqualTo(resized ? 4 : 0).Because(name);
+                using HdrImage hdr = reloaded.ToHdr();
+                await Assert.That((hdr.Width, hdr.Height)).IsEqualTo((source.Width, source.Height)).Because(name);
+                Console.WriteLine($"Local HDR write: {name} {(resized ? "resized" : "copied")}, map {after.Width}x{after.Height}, "
+                    + $"worst {worst}, space {actual.Metadata.MultiplicationSpace?.ToString() ?? "base"}, {heic.Length / 1024} KiB, "
+                    + $"encode {stopwatch.ElapsedMilliseconds} ms.");
+                written++;
+            }
+        }
+
+        await Assert.That(written).IsGreaterThan(0);
     }
 
     private static byte[] Tiff(byte[] exif) => exif[(4 + (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(exif))..];

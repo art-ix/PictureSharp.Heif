@@ -16,7 +16,7 @@
 **Goal for 0.7.0 (scope simplified 2026-10-18):** a catalog of the file contents (photos, thumbnails, auxiliary
 images), reading and generating thumbnails, raw depth samples, Live Photo pair detection and, added 2026-10-18, the
 Apple portrait effect (disparity description and depth-of-field rendering) and, added 2026-10-19, Photos edits
-described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.10,
+described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.11 (0.6.10: gain map writing, added 2026-10-23),
 followed by the integration release 0.7.0. Writing collections, HEIF animations, depth interpretation beyond Apple
 portrait disparity and Live Photo export are moved out of 0.7.0.
 
@@ -46,8 +46,9 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.7 | Portrait focus, edges, bokeh calibration, rendering-parameter analysis, renderer performance (SIMD, memory) | 0.7.6 | Release 2026-10-20 |
 | 0.6.8 | Photos edits annotated by hand (`edits.tsv`) and fitted from pairs; `HeifPhotosEdit` with all sliders | 0.7.6 | Release 2026-10-20 |
 | 0.6.9 | Rendering API: `HeifEdits` (sliders, then Portrait blur) in one call; replaces `HeifPortrait`, `HeifPhotosEdit`, `RenderPortrait` (incompatible with 0.6.8) | 0.7.6 | Release 2026-10-21 |
-| 0.6.10 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.7.6 (assumed) | Planned |
-| 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.7.6 (assumed) | Planned |
+| 0.6.10 | Writing HDR gain maps: `tmap` item through the core's `GetGainMap`, `HeifEncoderOptions.GainMap` | 0.8.0 | Implemented locally (2026-10-23); waits for core 0.8.0 on NuGet |
+| 0.6.11 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.8.0 (assumed) | Planned |
+| 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.8.0 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
 
 The numbers define order, not dates. Each version requires its own DoD (below) and the common quality gate; robustness
@@ -489,10 +490,33 @@ a fixed order with the sliders before the blur, Styles moved to 0.6.10.
   decision: no rendering changes; the release workflow runs it). Released 2026-10-21 on the user's instruction with the
   order check on `portret_4x` still open (slider values missing).
 
-### 0.6.10 — Photographic Styles
+### 0.6.10 — writing HDR gain maps
 
-Renumbered from 0.6.9 on 2026-10-21 (the rendering API took 0.6.9). A style change becomes `HeifEdits.Style`, a stage
-between the sliders and the Portrait blur.
+Added 2026-10-23 at the user's request ("next stage" after core 0.8.0 stage A): the last item of the core 0.8.0 DoD is
+a plugin that writes the attached map through the new SPI. Moved here from "Beyond 0.7.0"; Styles renumbered to
+0.6.11, as on 2026-10-21.
+
+- **API:** `HeifEncoderOptions.GainMap` (`HeifGainMapMode` `None` — the default, output unchanged —, `Preserve`,
+  `Require`, the semantics of `JpegGainMapMode`) and `GainMapQuality` (0–100, the HEVC quality of a re-encoded map).
+- **File layout (as iPhones write it):** the map as a hidden `hvc1` item (4:0:0 for a gray map, otherwise 4:2:0 BT.601
+  full range; `colr` nclx; the base's orientation transforms, `clap` for odd sizes); a `tmap` item in `idat`
+  (version 0 + `GainMapMetadata.ToIso()`, `ispe` of the displayed base, `colr prof` from `ToAlternateIcc()` when the
+  gain is applied in other primaries) deriving from the primary image and the map (`dimg`); an `altr` group
+  (`tmap`, primary) and the `tmap` brand. No map in the embedded thumbnail.
+- **Copying:** when `GetGainMap` returns this plugin's own map (unedited, not reoriented) and the base is written
+  without orientation transforms, the HEVC stream is copied with its own transforms (single image or grid of 8-bit
+  single-slice tiles sharing parameter sets); otherwise the map is decoded and encoded again.
+- **Core need (closed in core 0.8.0 before its release):** `GainMapMetadata.ToAlternateIcc()` — the plugin's reader
+  takes the multiplication primaries from the `tmap` ICC, and `ParseIso` accepts only ICC.
+- **DoD:** HEIC→HEIC (corpus and local iPhone files), JPEG (Ultra HDR)→HEIC and edited/oriented maps reload with
+  identical metadata and a map within a measured budget; copied maps byte for byte; `ToHdr` of the written file;
+  libheif decodes the written files (base) and HM the map stream; modes, corrupt-free robustness of the new path;
+  API snapshot, guide, README, release notes. Requires core 0.8.0 on NuGet before publication.
+
+### 0.6.11 — Photographic Styles
+
+Renumbered from 0.6.9 on 2026-10-21 (the rendering API took 0.6.9) and from 0.6.10 on 2026-10-23 (gain map writing
+took 0.6.10). A style change becomes `HeifEdits.Style`, a stage between the sliders and the Portrait blur.
 
 Planned 2026-10-19 at the user's request (moved out of 0.6.7, renumbered from 0.6.8 when the edits moved). iOS 18
 and later let Photos change a photo's
@@ -527,7 +551,7 @@ edits, caused the colour shift of IMG_6854. Builds on the adjustment rendering a
   large files.
 - 0.6.0 API compatibility, architecture, SIMD/scalar and thread-count determinism.
 - Validation of the NuGet package and examples; documentation of capabilities and limitations.
-- **DoD:** the 0.6.1–0.6.10 criteria met, documentation consistent with the package, no regressions. Only then update
+- **DoD:** the 0.6.1–0.6.11 criteria met, documentation consistent with the package, no regressions. Only then update
   VERSION and the status in the plan; publication on a separate user decision.
 
 ### Common assumptions and boundaries
@@ -546,7 +570,7 @@ edits, caused the colour shift of IMG_6854. Builds on the adjustment rendering a
 - Depth/disparity interpretation beyond the Apple portrait description (other vendors, metric depth, calibration,
   conversions between depth and disparity); portrait lighting effects.
 - Live Photo: exporting/writing pairs, video decoding and editing.
-- Writing HDR gain maps (after the core 0.8.0 SPI), depth and arbitrary auxiliary images; user-supplied thumbnails;
+- Writing depth and arbitrary auxiliary images; user-supplied thumbnails;
   editing without recompression; overlay, groups and regions; lossless mode, 4:4:4 and 10-bit in the encoder.
 - Unscheduled: AVIF, new HEVC profiles, CICP PQ/HLG, files larger than the available buffers.
 
@@ -570,8 +594,8 @@ Technical constraints, licences, patents, ports and oracles are described in [AG
 
 ## Dependencies on the PictureSharp core
 
-Used: 0.7.1 (`AttachGainMap` with `HdrInfo.Detected`), 0.7.6 (`FormatDecoderOptions`). Planned in core 0.8.0: gain map
-in plugin encoders and ISO serialization, possibly `ReportStoredSize` for thumbnails — only once a need is shown. New
+Used: 0.7.1 (`AttachGainMap` with `HdrInfo.Detected`), 0.7.6 (`FormatDecoderOptions`), 0.8.0 (`GetGainMap`,
+`GainMapMetadata.ToIso()`/`ToAlternateIcc()`, used by 0.6.10). Planned in core later: possibly `ReportStoredSize` for thumbnails — only once a need is shown. New
 SPI needs are reported to the core plan; we do not work around them by copying internal code.
 
 ## Common quality gate for every version

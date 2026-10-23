@@ -154,16 +154,20 @@ PictureSharp.Formats.Heif.HeifEncoderOptions
   Boolean Equals(System.Object)
   Boolean op_Equality(PictureSharp.Formats.Heif.HeifEncoderOptions, PictureSharp.Formats.Heif.HeifEncoderOptions)
   Boolean op_Inequality(PictureSharp.Formats.Heif.HeifEncoderOptions, PictureSharp.Formats.Heif.HeifEncoderOptions)
+  Int32 GainMapQuality
   Int32 GetHashCode()
   Int32 MaxDegreeOfParallelism
   Int32 Quality
   Int32 ThumbnailMaxDimension
   Int32 TileSize
+  Int32 get_GainMapQuality()
   Int32 get_MaxDegreeOfParallelism()
   Int32 get_Quality()
   Int32 get_ThumbnailMaxDimension()
   Int32 get_TileSize()
   PictureSharp.Formats.Heif.HeifEncoderOptions <Clone>$()
+  PictureSharp.Formats.Heif.HeifGainMapMode GainMap
+  PictureSharp.Formats.Heif.HeifGainMapMode get_GainMap()
   PictureSharp.ImageFormat Format
   PictureSharp.ImageFormat get_Format()
   Single AdaptiveQuantizationStrength
@@ -174,6 +178,8 @@ PictureSharp.Formats.Heif.HeifEncoderOptions
   Void .ctor()
   Void set_AdaptiveQuantizationStrength(Single)
   Void set_AlphaQuality(System.Nullable`1[System.Int32])
+  Void set_GainMap(PictureSharp.Formats.Heif.HeifGainMapMode)
+  Void set_GainMapQuality(Int32)
   Void set_MaxDegreeOfParallelism(Int32)
   Void set_Quality(Int32)
   Void set_ThumbnailMaxDimension(Int32)
@@ -191,6 +197,10 @@ PictureSharp.Formats.Heif.HeifFormat
   PictureSharp.ImageFormat Format
   PictureSharp.ImageFormat get_Format()
   Void .ctor()
+PictureSharp.Formats.Heif.HeifGainMapMode
+  PictureSharp.Formats.Heif.HeifGainMapMode None = 0
+  PictureSharp.Formats.Heif.HeifGainMapMode Preserve = 1
+  PictureSharp.Formats.Heif.HeifGainMapMode Require = 2
 PictureSharp.Formats.Heif.HeifImageExtensions
   Byte[] ToHeic(PictureSharp.Image, PictureSharp.Formats.Heif.HeifEncoderOptions)
   PictureSharp.Image ApplyHeifEdits(PictureSharp.Image, PictureSharp.Formats.Heif.HeifEdits, PictureSharp.Formats.Heif.HeifPortraitMaps, System.Threading.CancellationToken)

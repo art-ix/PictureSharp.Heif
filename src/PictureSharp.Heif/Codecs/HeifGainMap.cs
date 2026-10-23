@@ -68,7 +68,7 @@ internal sealed class HeifGainMap
         {
             (GainMapMetadata metadata, HeifItem map) = Read();
             (int width, int height) = container.DisplaySize(map);
-            context.AttachGainMap(metadata, new HeifGainMapImage(container.Node(map, detach: true), new Size(width, height)), Detected);
+            context.AttachGainMap(metadata, new HeifGainMapImage(container.Node(map, detach: true), container.StoredImage(map), new Size(width, height)), Detected);
         }
         catch (Exception ex) when (ex is ImageFormatException or NotSupportedException)
         {

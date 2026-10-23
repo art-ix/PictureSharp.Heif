@@ -21,6 +21,8 @@ internal static class HeifFourCc
     public const uint Ipco = 0x6970636f; // ipco
     public const uint Ipma = 0x69706d61; // ipma
     public const uint Idat = 0x69646174; // idat
+    public const uint Grpl = 0x6772706c; // grpl
+    public const uint Altr = 0x616c7472; // altr
 
     // Item types.
     public const uint Hvc1 = 0x68766331; // hvc1

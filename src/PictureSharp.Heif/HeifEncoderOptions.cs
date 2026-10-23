@@ -58,6 +58,24 @@ public sealed record HeifEncoderOptions : EncoderOptions
         init => field = value >= 0 ? value : throw new ArgumentOutOfRangeException(nameof(ThumbnailMaxDimension), value, "Use 0 or a positive dimension.");
     }
 
+    /// <summary>
+    /// Whether the HDR gain map attached by <c>DecoderOptions.LoadGainMap</c> (and kept through geometric edits) is written
+    /// as an ISO 21496-1 <c>tmap</c> item, as iPhones store it. Default: <see cref="HeifGainMapMode.None"/>, an SDR file.
+    /// Maps from HEIC and JPEG (Ultra HDR) are written; an Apple-only map is skipped by
+    /// <see cref="HeifGainMapMode.Preserve"/> and rejected by <see cref="HeifGainMapMode.Require"/> with
+    /// <see cref="NotSupportedException"/>; <see cref="HeifGainMapMode.Require"/> without a map throws
+    /// <see cref="InvalidOperationException"/>. A map loaded from HEIC is copied without re-encoding when neither the image
+    /// was rotated or edited nor its EXIF orientation set; the embedded thumbnail never gets a map.
+    /// </summary>
+    public HeifGainMapMode GainMap
+    {
+        get;
+        init => field = Enum.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(GainMap), value, "Unknown gain map mode.");
+    }
+
+    /// <summary>Quality 0–100 of a gain map that has to be encoded again, mapped to QP as <see cref="Quality"/>. Default: 90.</summary>
+    public int GainMapQuality { get; init => field = InRange(value, 0, 100, nameof(GainMapQuality)); } = 90;
+
     private static int InRange(int value, int minimum, int maximum, string name) =>
         value >= minimum && value <= maximum ? value : throw new ArgumentOutOfRangeException(name, value, $"Use a value from {minimum} to {maximum}.");
 }
