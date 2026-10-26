@@ -32,7 +32,7 @@ public sealed partial class HeifLocalTests
         {
             ImageInfo info = Image.Identify(File.ReadAllBytes(path).AsMemory(), new DecoderOptions { Configuration = configuration });
             descriptions.Add(path, info);
-            Console.WriteLine($"Local HEIC: {Path.GetFileName(path)}: {info.Width}x{info.Height}, {info.BitsPerChannel}-bit, alpha={info.HasAlpha}");
+            Console.WriteLine($"Local HEIC: {Path.GetFileName(path)}: {info.Width}x{info.Height}, {info.Color.BitsPerSample}-bit, alpha={info.Color.HasAlpha}");
         }
 
         foreach (string path in samples)

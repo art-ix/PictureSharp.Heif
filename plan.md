@@ -2,7 +2,7 @@
 
 ## Status and goal
 
-**Current version: 0.6.10, release 2026-10-23; minimum PictureSharp 0.8.0.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
+**Current version: 0.6.11, release 2026-10-26; minimum PictureSharp 0.8.5.** A C# format plugin with no native libraries, with its own HEVC intra decoder and encoder.
 
 - Reading: HEIF container (`heic`/`heix`/`mif1`), HEVC Main/Main 10/Main Still Picture 4:2:0 and 4:0:0, grids, `iden`,
   `irot`/`imir`/`clap`, alpha (`auxl`, `prem`), nclx/ICC, Exif/XMP, Apple/ISO gain maps (`ToHdr`), `ReadMetadata`
@@ -17,7 +17,7 @@
 **Goal for 0.7.0 (scope simplified 2026-10-18):** a catalog of the file contents (photos, thumbnails, auxiliary
 images), reading and generating thumbnails, raw depth samples, Live Photo pair detection and, added 2026-10-18, the
 Apple portrait effect (disparity description and depth-of-field rendering) and, added 2026-10-19, Photos edits
-described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.11 (0.6.10: gain map writing, added 2026-10-23),
+described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.12 (0.6.10: gain map writing, added 2026-10-23; 0.6.11: compatibility with PictureSharp 0.8.5, added 2026-10-26),
 followed by the integration release 0.7.0. Writing collections, HEIF animations, depth interpretation beyond Apple
 portrait disparity and Live Photo export are moved out of 0.7.0.
 
@@ -48,7 +48,8 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.8 | Photos edits annotated by hand (`edits.tsv`) and fitted from pairs; `HeifPhotosEdit` with all sliders | 0.7.6 | Release 2026-10-20 |
 | 0.6.9 | Rendering API: `HeifEdits` (sliders, then Portrait blur) in one call; replaces `HeifPortrait`, `HeifPhotosEdit`, `RenderPortrait` (incompatible with 0.6.8) | 0.7.6 | Release 2026-10-21 |
 | 0.6.10 | Writing HDR gain maps: `tmap` item through the core's `GetGainMap`, `HeifEncoderOptions.GainMap` | 0.8.0 | Release 2026-10-23 |
-| 0.6.11 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.8.0 (assumed) | Planned |
+| 0.6.11 | PictureSharp 0.8.5: colour layout in `Identify`, `GainMapInfo`; Apple-only gain maps written as ISO 21496-1 | 0.8.5 | Release 2026-10-26 |
+| 0.6.12 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.8.5 | Planned |
 | 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.8.0 (assumed) | Planned |
 | later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
 
@@ -596,7 +597,8 @@ Technical constraints, licences, patents, ports and oracles are described in [AG
 ## Dependencies on the PictureSharp core
 
 Used: 0.7.1 (`AttachGainMap` with `HdrInfo.Detected`), 0.7.6 (`FormatDecoderOptions`), 0.8.0 (`GetGainMap`,
-`GainMapMetadata.ToIso()`/`ToAlternateIcc()`, used by 0.6.10). Planned in core later: possibly `ReportStoredSize` for thumbnails — only once a need is shown. New
+`GainMapMetadata.ToIso()`/`ToAlternateIcc()`, used by 0.6.10), 0.8.1 (Apple-only gain maps converted to ISO 21496-1 by
+`GetGainMap`, so `Preserve`/`Require` write them; minimum raised from 0.8.0 on 2026-10-25, tests and docs follow it), 0.8.5 (`ImageInfo.Color`, `Compression`, `GainMapInfo`; 0.8.5 rejects plugins built against older versions, used by 0.6.11). Planned in core later: possibly `ReportStoredSize` for thumbnails — only once a need is shown. New
 SPI needs are reported to the core plan; we do not work around them by copying internal code.
 
 ## Common quality gate for every version

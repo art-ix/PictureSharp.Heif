@@ -51,10 +51,10 @@ public sealed class HeifGainMapLocalTests
                 if (!File.Exists(mapPng))
                 {
                     // heif-dec writes only Apple's auxiliary map; an ISO 21496-1 map without it has no oracle here.
-                    await Assert.That(image.Hdr is null || (image.Hdr.Detected & HdrGainMapKinds.Apple) == 0).IsTrue().Because(name);
-                    Console.WriteLine(image.Hdr is null
+                    await Assert.That(image.GainMap is null || (image.GainMap.Detected & HdrGainMapKinds.Apple) == 0).IsTrue().Because(name);
+                    Console.WriteLine(image.GainMap is null
                         ? $"Local HDR: {name} has no gain map."
-                        : $"Local HDR: {name} not compared: {image.Hdr.Detected} only, {image.Hdr.UnsupportedReason ?? "decodable"}");
+                        : $"Local HDR: {name} not compared: {image.GainMap.Detected} only, {image.GainMap.UnsupportedReason ?? "decodable"}");
                     continue;
                 }
 
@@ -62,20 +62,20 @@ public sealed class HeifGainMapLocalTests
                 {
                     // heif-dec leaves an empty file when libpng rejects the map's ICC profile (a gray profile on RGB
                     // output); there is no oracle for this photo, which is reported, not counted as a comparison.
-                    await Assert.That(image.Hdr).IsNotNull().Because(name);
+                    await Assert.That(image.GainMap).IsNotNull().Because(name);
                     Console.WriteLine($"Local HDR: {name} not compared: heif-dec could not write the gain map.");
                     continue;
                 }
 
-                if (!image.Hdr!.CanDecode)
+                if (!image.GainMap!.CanDecode)
                 {
                     // An Apple map without the MakerNote headroom (iPhone 13 Pro): the plugin reports it as unsupported,
                     // and the test-only parser must reject the same metadata.
-                    await Assert.That(image.Hdr.UnsupportedReason).IsNotNull().Because(name);
+                    await Assert.That(image.GainMap.UnsupportedReason).IsNotNull().Because(name);
                     await Assert.That(() => GainMapMetadata.ParseApple(Tiff(items.First(item => item.Type == "Exif").Data),
                         items.First(item => item.Type == "mime" && Encoding.UTF8.GetString(item.Data).Contains("HDRGainMapVersion")).Data))
                         .Throws<ImageFormatException>().Because(name);
-                    Console.WriteLine($"Local HDR: {name} not compared: {image.Hdr.UnsupportedReason}");
+                    Console.WriteLine($"Local HDR: {name} not compared: {image.GainMap.UnsupportedReason}");
                     continue;
                 }
 
@@ -83,10 +83,10 @@ public sealed class HeifGainMapLocalTests
                     ? GainMapMetadata.ParseIso(tmap.Data.AsSpan(1), 1)
                     : GainMapMetadata.ParseApple(Tiff(items.First(item => item.Type == "Exif").Data),
                         items.First(item => item.Type == "mime" && Encoding.UTF8.GetString(item.Data).Contains("HDRGainMapVersion")).Data);
-                await Assert.That(image.Hdr!.Selected).IsEqualTo(metadata.Kind).Because(name);
+                await Assert.That(image.GainMap!.Selected).IsEqualTo(metadata.Kind).Because(name);
                 // heif-dec found the Apple map; iOS 18 adds the ISO description of the same map.
-                await Assert.That(image.Hdr.Detected).IsEqualTo(HdrGainMapKinds.Apple | (metadata.Kind & HdrGainMapKinds.Iso21496)).Because(name);
-                await Assert.That(image.Hdr.CanDecode).IsTrue().Because(name);
+                await Assert.That(image.GainMap.Detected).IsEqualTo(HdrGainMapKinds.Apple | (metadata.Kind & HdrGainMapKinds.Iso21496)).Because(name);
+                await Assert.That(image.GainMap.CanDecode).IsTrue().Because(name);
 
                 var stopwatch = Stopwatch.StartNew();
                 using HdrImage actual = image.ToHdr();
@@ -130,7 +130,7 @@ public sealed class HeifGainMapLocalTests
         {
             string name = Path.GetFileName(path);
             using Image image = Image.Load(File.ReadAllBytes(path), options);
-            if (image.Hdr is not { CanDecode: true, Selected: HdrGainMapKinds.Iso21496 })
+            if (image.GainMap is not { CanDecode: true, Selected: HdrGainMapKinds.Iso21496 })
             {
                 continue;
             }

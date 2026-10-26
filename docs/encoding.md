@@ -56,8 +56,11 @@ ultraHdr.SaveAsHeic("ultrahdr.heic", new HeifEncoderOptions { GainMap = HeifGain
   a gray map as a monochrome image, an RGB map as 4:2:0. Measured at the default `GainMapQuality`: gray maps within
   4 codes of the attached map (2–4 on 40 iPhone photos resized to a quarter), RGB maps lose chroma detail (up to 14
   codes on a synthetic map with a different colour in every sample, at every quality).
-- **Not written:** Apple-only maps (iOS 14–17, no ISO metadata) — `Preserve` skips them, `Require` throws
-  `NotSupportedException`. The default `None` writes an SDR file, byte for byte as before 0.6.10.
+- **Apple-only maps** (iOS 14–17, no ISO metadata) are written as ISO 21496-1 since PictureSharp 0.8.1: the core
+  converts the Apple description (gain bounds 0 and log2 of the headroom, gamma 1, one channel) and recomputes the map
+  codes, so the file read back renders like Apple's formula. No Apple auxiliary image is written, so the file declares
+  only the ISO model.
+- The default `None` writes an SDR file, byte for byte as before 0.6.10.
 
 ## Embedded thumbnail
 

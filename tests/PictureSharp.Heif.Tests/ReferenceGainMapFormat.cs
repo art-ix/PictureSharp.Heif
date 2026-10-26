@@ -24,7 +24,22 @@ internal sealed class ReferenceGainMapFormat(Image baseImage, GainMapMetadata me
     public IImageFormatEncoder? Encoder => null;
 
     public ImageInfo Identify(ReadOnlyMemory<byte> data, DecoderOptions options) =>
-        new() { Format = Descriptor, Width = baseImage.Width, Height = baseImage.Height };
+        new()
+        {
+            Format = Descriptor,
+            Width = baseImage.Width,
+            Height = baseImage.Height,
+            Color = new()
+            {
+                Model = ImageColorModel.Rgb,
+                ChannelCount = 4,
+                BitsPerSample = 8,
+                SampleFormat = ImageSampleFormat.UnsignedInteger,
+                AlphaMode = ImageAlphaMode.Straight,
+                HasIccProfile = baseImage.Metadata.IccProfile is not null,
+            },
+            Compression = ImageCompression.Lossless,
+        };
 
     public Image Decode(ReadOnlyMemory<byte> data, ImageDecodeContext context)
     {

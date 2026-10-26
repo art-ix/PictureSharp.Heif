@@ -99,13 +99,29 @@ internal sealed partial class HeifContainer(ReadOnlyMemory<byte> data, DecoderOp
             ChargeImageMetadata(item, []);
         }
 
+        (bool icc, HeifNclx? nclx) = DeclaredColour(image);
+        int colourChannels = ChannelCount(image);
         return new ImageInfo
         {
             Format = HeifFormat.Descriptor,
             Width = description.Width,
             Height = description.Height,
-            BitsPerChannel = description.BitsPerChannel,
-            HasAlpha = AlphaItem is not null,
+            Color = new ImageColorInfo
+            {
+                Model = colourChannels == 1 ? ImageColorModel.Gray : ImageColorModel.Rgb,
+                // The alpha item is the image's alpha; depth maps, gain maps and thumbnails are separate items.
+                ChannelCount = colourChannels + (AlphaItem is null ? 0 : 1),
+                BitsPerSample = description.BitsPerChannel,
+                SampleFormat = ImageSampleFormat.UnsignedInteger,
+                AlphaMode = AlphaItem is null ? ImageAlphaMode.None
+                    : PremultipliedAlpha ? ImageAlphaMode.Premultiplied : ImageAlphaMode.Straight,
+                HasIccProfile = icc,
+                Cicp = nclx is { Primaries: <= 255, Transfer: <= 255, Matrix: <= 255 } n
+                    ? new CicpColorDescription(n.Primaries, n.Transfer, n.Matrix, n.FullRange)
+                    : null,
+            },
+            // HEVC can code losslessly (transquant bypass); hvcC does not tell.
+            Compression = ImageCompression.Unknown,
             FrameCount = 1,
             // Every iinf entry (tiles, alpha, thumbnails, metadata), independent of the single-frame FrameCount.
             ContainerItemCount = itemInfoCount,

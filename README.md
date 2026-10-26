@@ -1,7 +1,7 @@
 # PictureSharp.Heif
 
 HEIC/HEIF support for [PictureSharp](https://github.com/art-ix/PictureSharp), written entirely in C# with no native
-libraries. Requires .NET 10+ and PictureSharp 0.8.1+.
+libraries. Requires .NET 10+ and PictureSharp 0.8.5+.
 
 ```bash
 dotnet add package PictureSharp.Heif

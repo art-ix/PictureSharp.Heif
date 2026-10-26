@@ -52,7 +52,7 @@ using Image sdr = hdr.ToneMap();
 
 Both kinds are read: ISO 21496-1 (a `tmap` item) and Apple's (auxiliary image `urn:com:apple:photo:2020:aux:hdrgainmap`
 with the headroom from the MakerNote). When iOS 18+ stores both, ISO wins, as in PictureSharp's JPEG reader. A damaged
-or unsupported map never fails the load: `Image.Hdr.CanDecode` is false and `ToHdr` throws.
+or unsupported map never fails the load: `Image.GainMap.CanDecode` is false and `ToHdr` throws.
 
 ## Depth samples
 

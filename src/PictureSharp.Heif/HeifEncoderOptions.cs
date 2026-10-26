@@ -61,9 +61,10 @@ public sealed record HeifEncoderOptions : EncoderOptions
     /// <summary>
     /// Whether the HDR gain map attached by <c>DecoderOptions.LoadGainMap</c> (and kept through geometric edits) is written
     /// as an ISO 21496-1 <c>tmap</c> item, as iPhones store it. Default: <see cref="HeifGainMapMode.None"/>, an SDR file.
-    /// Maps from HEIC and JPEG (Ultra HDR) are written; an Apple-only map is skipped by
-    /// <see cref="HeifGainMapMode.Preserve"/> and rejected by <see cref="HeifGainMapMode.Require"/> with
-    /// <see cref="NotSupportedException"/>; <see cref="HeifGainMapMode.Require"/> without a map throws
+    /// Maps from HEIC and JPEG (Ultra HDR) are written, an Apple-only map converted to ISO 21496-1 by the core; a map the
+    /// core cannot convert is skipped by <see cref="HeifGainMapMode.Preserve"/> and rejected by
+    /// <see cref="HeifGainMapMode.Require"/> with <see cref="NotSupportedException"/>;
+    /// <see cref="HeifGainMapMode.Require"/> without a map throws
     /// <see cref="InvalidOperationException"/>. A map loaded from HEIC is copied without re-encoding when neither the image
     /// was rotated or edited nor its EXIF orientation set; the embedded thumbnail never gets a map.
     /// </summary>

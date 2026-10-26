@@ -136,7 +136,7 @@ public sealed class HeifDecodeTests
                 _ = Image.Identify(bytes.AsMemory(), options);
                 _ = Image.ReadMetadata(bytes.AsMemory(), options);
                 using Image image = Image.Load(bytes.AsSpan(), options);
-                if (image.Hdr is { CanDecode: true })
+                if (image.GainMap is { CanDecode: true })
                 {
                     using HdrImage hdr = image.ToHdr();
                 }

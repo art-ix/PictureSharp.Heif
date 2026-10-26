@@ -59,8 +59,8 @@ public sealed class HeifGainMapWriteTests
     {
         using Image reloaded = Image.Load(written, Hdr);
         await Assert.That(reloaded.SourceFormat).IsEqualTo(new HeifFormat().Format);
-        await Assert.That(reloaded.Hdr!.CanDecode).IsTrue().Because(reloaded.Hdr.UnsupportedReason ?? name);
-        await Assert.That(reloaded.Hdr.Selected).IsEqualTo(HdrGainMapKinds.Iso21496);
+        await Assert.That(reloaded.GainMap!.CanDecode).IsTrue().Because(reloaded.GainMap.UnsupportedReason ?? name);
+        await Assert.That(reloaded.GainMap.Selected).IsEqualTo(HdrGainMapKinds.Iso21496);
         EncodableGainMap expected = source.GetGainMap()!, actual = reloaded.GetGainMap()!;
         await Assert.That(actual.Metadata.ToIso()).IsEquivalentTo(expected.Metadata.ToIso(), CollectionOrdering.Matching).Because(name);
         await Assert.That(actual.Metadata.MultiplicationSpace).IsEqualTo(expected.Metadata.MultiplicationSpace).Because(name);
@@ -122,7 +122,7 @@ public sealed class HeifGainMapWriteTests
         byte[] map = MapNals(written);
         await Assert.That(map.Length).IsGreaterThan(0);
         using Image reloaded = Image.Load(written, Hdr);
-        await Assert.That(reloaded.Hdr!.Selected).IsEqualTo(HdrGainMapKinds.Iso21496);
+        await Assert.That(reloaded.GainMap!.Selected).IsEqualTo(HdrGainMapKinds.Iso21496);
         await Assert.That(reloaded.GetGainMap()!.Metadata.ChannelCount).IsEqualTo(channels);
     }
 
@@ -167,9 +167,17 @@ public sealed class HeifGainMapWriteTests
         await Assert.That(Items(plain.Encode(Options(HeifGainMapMode.Preserve)), "tmap")).IsEmpty();
         await Assert.That(() => plain.Encode(Options(HeifGainMapMode.Require))).Throws<InvalidOperationException>();
 
+        // Since PictureSharp 0.8.1 GetGainMap converts an Apple-only map to ISO 21496-1, so both modes write it.
         using Image apple = Image.Load(Read("gainmap-apple.heic"), Hdr);
-        await Assert.That(Items(apple.Encode(Options(HeifGainMapMode.Preserve)), "tmap")).IsEmpty();
-        await Assert.That(() => apple.Encode(Options(HeifGainMapMode.Require))).Throws<NotSupportedException>();
+        await Assert.That(apple.GainMap!.Detected).IsEqualTo(HdrGainMapKinds.Apple);
+        byte[] preserved = apple.Encode(Options(HeifGainMapMode.Preserve));
+        await Assert.That(Items(preserved, "tmap").Length).IsEqualTo(1);
+        await Assert.That(apple.Encode(Options(HeifGainMapMode.Require))).IsEquivalentTo(preserved, CollectionOrdering.Matching);
+        await AssertReloads(apple, preserved, GrayBudget, "apple");
+        using (Image reloaded = Image.Load(preserved, Hdr))
+        {
+            await Assert.That(reloaded.GainMap!.Detected).IsEqualTo(HdrGainMapKinds.Iso21496);
+        }
 
         // The default writes an SDR file, byte for byte as without a map.
         using Image hdr = Image.Load(Read("gainmap-iso.heic"), Hdr);

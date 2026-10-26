@@ -19,7 +19,7 @@ public sealed partial class HeifCorpusTests
             byte[] bytes = File.ReadAllBytes(Path.Combine(Corpus, entry.File));
             await Assert.That(Convert.ToHexStringLower(SHA256.HashData(bytes))).IsEqualTo(entry.Sha256);
             ImageInfo info = new HeifFormat().Decoder.Identify(bytes, new DecoderOptions());
-            await Assert.That((info.Width, info.Height, info.BitsPerChannel, info.HasAlpha, info.ContainerItemCount))
+            await Assert.That((info.Width, info.Height, info.Color.BitsPerSample, info.Color.HasAlpha, info.ContainerItemCount))
                 .IsEqualTo((entry.Width, entry.Height, entry.BitsPerChannel, entry.HasAlpha, entry.ItemCount));
         }
     }
@@ -67,8 +67,8 @@ public sealed partial class HeifCorpusTests
             await Assert.That(info.Height).IsEqualTo(int.Parse(dimensions.Groups[2].Value));
             Match bitDepth = BitDepth().Match(output);
             await Assert.That(bitDepth.Success).IsTrue().Because(output);
-            await Assert.That(info.BitsPerChannel).IsEqualTo(int.Parse(bitDepth.Groups[1].Value));
-            await Assert.That(info.HasAlpha).IsEqualTo(output.Contains("alpha channel: yes", StringComparison.Ordinal));
+            await Assert.That(info.Color.BitsPerSample).IsEqualTo(int.Parse(bitDepth.Groups[1].Value));
+            await Assert.That(info.Color.HasAlpha).IsEqualTo(output.Contains("alpha channel: yes", StringComparison.Ordinal));
         }
     }
 

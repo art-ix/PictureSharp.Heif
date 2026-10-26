@@ -168,6 +168,30 @@ internal sealed partial class HeifContainer
         return null;
     }
 
+    // What Identify reports: the colr properties of the item, else of the first coded picture it derives from (grid tiles
+    // carry them when the grid does not). The ICC profile is only detected, so the metadata budget is not charged.
+    private (bool Icc, HeifNclx? Nclx) DeclaredColour(HeifItem item)
+    {
+        bool icc = false;
+        HeifNclx? nclx = null;
+        for (int depth = 0; ; depth++)
+        {
+            foreach (HeifBox property in item.Properties.Select(Property).Where(property => property.Type == HeifFourCc.Colr))
+            {
+                uint type = BinaryPrimitives.ReadUInt32BigEndian(property.Data.Span);
+                icc |= type is HeifFourCc.Prof or HeifFourCc.RIcc;
+            }
+
+            nclx ??= Nclx(item);
+            if (icc || nclx is not null || item.Type == HeifFourCc.Hvc1 || depth >= MaxReferenceDepth || Sources(item) is not [var source, ..])
+            {
+                return (icc, nclx);
+            }
+
+            item = source;
+        }
+    }
+
     // colr prof or rICC (an ICC profile either way).
     public ReadOnlyMemory<byte>? Icc(HeifItem item)
     {

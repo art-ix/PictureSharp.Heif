@@ -18,10 +18,10 @@ public sealed class HeifContainerTests
             association: Ipma(Association(1, 1, 0x82), Association(2, 1, 0x82, 3), Association(4, 4, 0x82)),
             info: Iinf(Infe(1), Infe(2), Infe(3, "Exif"), Infe(4)), locations: Iloc(4),
             references: Full("iref", 0, 0, Reference("auxl", 2, 1), Reference("thmb", 4, 1)));
-        await Assert.That(Identify(bytes).HasAlpha).IsTrue();
+        await Assert.That(Identify(bytes).Color.HasAlpha).IsTrue();
 
         ImageInfo alpha = Identify(bytes, Select(2));
-        await Assert.That((alpha.Width, alpha.Height, alpha.HasAlpha)).IsEqualTo((80, 60, false));
+        await Assert.That((alpha.Width, alpha.Height, alpha.Color.HasAlpha)).IsEqualTo((80, 60, false));
         ImageInfo thumbnail = Identify(bytes, Select(4));
         await Assert.That((thumbnail.Width, thumbnail.Height)).IsEqualTo((40, 30));
         // The item count still covers every item; selecting the primary item explicitly changes nothing.
@@ -43,10 +43,10 @@ public sealed class HeifContainerTests
         ImageInfo info = Identify(File(bits: bits));
         await Assert.That(info.Width).IsEqualTo(80);
         await Assert.That(info.Height).IsEqualTo(60);
-        await Assert.That(info.BitsPerChannel).IsEqualTo(bits);
+        await Assert.That(info.Color.BitsPerSample).IsEqualTo(bits);
         await Assert.That(info.FrameCount).IsEqualTo(1);
         await Assert.That(info.ContainerItemCount).IsEqualTo(1);
-        await Assert.That(info.HasAlpha).IsFalse();
+        await Assert.That(info.Color.HasAlpha).IsFalse();
         await Assert.That(info.Format).IsSameReferenceAs(ImageFormat.Heif);
     }
 
@@ -69,10 +69,10 @@ public sealed class HeifContainerTests
         byte[] props = Box("ipco", Ispe(80, 60), Hvcc(), Full("auxC", 0, 0, Text("urn:mpeg:hevc:2015:auxid:1")));
         byte[] bytes = File(properties: props, association: Ipma(Association(1, 1, 0x82), Association(2, 1, 0x82, 3)),
             info: Iinf(Infe(1), Infe(2)), locations: Iloc(2), references: Full("iref", 0, 0, Reference("auxl", 2, 1), Reference("prem", 1, 2)));
-        await Assert.That(Identify(bytes).HasAlpha).IsTrue();
+        await Assert.That(Identify(bytes).Color.HasAlpha).IsTrue();
         await Assert.That(Identify(bytes).ContainerItemCount).IsEqualTo(2);
         await Assert.That(() => Identify(bytes, new DecoderOptions { MaxPixels = 9599 })).Throws<ImageFormatException>();
-        await Assert.That(Identify(bytes, new DecoderOptions { MaxPixels = 9600 }).HasAlpha).IsTrue();
+        await Assert.That(Identify(bytes, new DecoderOptions { MaxPixels = 9600 }).Color.HasAlpha).IsTrue();
     }
 
     [Test]
@@ -84,7 +84,7 @@ public sealed class HeifContainerTests
         // Tiles are container items, not frames.
         await Assert.That((info.ContainerItemCount, info.FrameCount)).IsEqualTo((3, 1));
         await Assert.That(() => Identify(bytes, new DecoderOptions { MaxPixels = 16799 })).Throws<ImageFormatException>();
-        await Assert.That(Identify(bytes, new DecoderOptions { MaxPixels = 16800 }).BitsPerChannel).IsEqualTo(8);
+        await Assert.That(Identify(bytes, new DecoderOptions { MaxPixels = 16800 }).Color.BitsPerSample).IsEqualTo(8);
     }
 
     private static byte[] Grid() => File(info: Iinf(Infe(1, "grid"), Infe(2), Infe(3)), locations: Iloc(3, 8),
@@ -99,7 +99,7 @@ public sealed class HeifContainerTests
             properties: Box("ipco", Ispe(80, 60), Hvcc(10)),
             association: Ipma(Association(1, 1), Association(2, 1, 0x82)),
             references: Full("iref", 0, 0, Reference("dimg", 1, 2)));
-        await Assert.That(Identify(bytes).BitsPerChannel).IsEqualTo(10);
+        await Assert.That(Identify(bytes).Color.BitsPerSample).IsEqualTo(10);
     }
 
     [Test]

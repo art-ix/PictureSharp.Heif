@@ -42,14 +42,14 @@ public sealed class HeifGainMapTests
     public async Task Identify_DescribesTheGainMap(string file)
     {
         GainMapEntry gainMap = Find(file).GainMap!;
-        HdrInfo? hdr = Image.Identify(Read(file).AsMemory(), Options()).Hdr;
+        GainMapInfo? hdr = Image.Identify(Read(file).AsMemory(), Options()).GainMap;
         await Assert.That(hdr).IsNotNull();
         await Assert.That(hdr!.Selected).IsEqualTo(Enum.Parse<HdrGainMapKinds>(gainMap.Kind));
         await Assert.That(hdr.Detected).IsEqualTo(Enum.Parse<HdrGainMapKinds>(gainMap.Detected));
         await Assert.That(hdr.GainMapSize).IsEqualTo(new Size(gainMap.Width, gainMap.Height));
         await Assert.That(hdr.CanDecode).IsTrue();
         await Assert.That(hdr.Headroom).IsEqualTo(ExpectedMetadata(gainMap).Headroom);
-        await Assert.That(Image.Identify(Read(file).AsMemory(), Options(gainMap: false)).Hdr).IsNull();
+        await Assert.That(Image.Identify(Read(file).AsMemory(), Options(gainMap: false)).GainMap).IsNull();
     }
 
     [Test]
@@ -57,7 +57,7 @@ public sealed class HeifGainMapTests
     public async Task ToHdr_EqualsTheReference(string file)
     {
         using Image image = Image.Load(Read(file).AsSpan(), Options());
-        await Assert.That(image.Hdr).IsEqualTo(Image.Identify(Read(file).AsMemory(), Options()).Hdr);
+        await Assert.That(image.GainMap).IsEqualTo(Image.Identify(Read(file).AsMemory(), Options()).GainMap);
         using HdrImage actual = image.ToHdr();
         using HdrImage expected = Reference(file).ToHdr();
         await Assert.That(actual.GainMapKind).IsEqualTo(Enum.Parse<HdrGainMapKinds>(Find(file).GainMap!.Kind));
@@ -68,7 +68,7 @@ public sealed class HeifGainMapTests
     public async Task Apple_HeadroomComesFromTheMakerNote()
     {
         // MakerNote tags 33 = 1.2 and 48 = 0.5 give 2^(2.303 - 0.303 * 0.5); the map's XMP says 3.5.
-        HdrInfo hdr = Image.Identify(Read("gainmap-apple.heic").AsMemory(), Options()).Hdr!;
+        GainMapInfo hdr = Image.Identify(Read("gainmap-apple.heic").AsMemory(), Options()).GainMap!;
         await Assert.That(hdr.Headroom!.Value).IsEqualTo((float)Math.Pow(2, 2.303 - (0.303 * 0.5))).Within(1e-5f);
     }
 
@@ -77,9 +77,9 @@ public sealed class HeifGainMapTests
     {
         using Image image = Image.Load(Read("gainmap-both-rotated.heic").AsSpan(), Options());
         await Assert.That((image.Width, image.Height)).IsEqualTo((48, 64));
-        await Assert.That(image.Hdr!.Selected).IsEqualTo(HdrGainMapKinds.Iso21496);
-        await Assert.That(image.Hdr.Detected).IsEqualTo(HdrGainMapKinds.Iso21496 | HdrGainMapKinds.Apple);
-        await Assert.That(image.Hdr.GainMapSize).IsEqualTo(new Size(24, 32));
+        await Assert.That(image.GainMap!.Selected).IsEqualTo(HdrGainMapKinds.Iso21496);
+        await Assert.That(image.GainMap.Detected).IsEqualTo(HdrGainMapKinds.Iso21496 | HdrGainMapKinds.Apple);
+        await Assert.That(image.GainMap.GainMapSize).IsEqualTo(new Size(24, 32));
     }
 
     [Test]
@@ -87,14 +87,14 @@ public sealed class HeifGainMapTests
     [Arguments("gainmap-iso-truncated.heic", true)]
     public async Task InvalidMetadata_IsReported_AndTheBaseStillLoads(string file, bool corrupt)
     {
-        HdrInfo hdr = Image.Identify(Read(file).AsMemory(), Options()).Hdr!;
+        GainMapInfo hdr = Image.Identify(Read(file).AsMemory(), Options()).GainMap!;
         await Assert.That(hdr.Detected).IsEqualTo(HdrGainMapKinds.Iso21496);
         await Assert.That(hdr.CanDecode).IsFalse();
         await Assert.That(hdr.UnsupportedReason).IsNotNull();
         using Image image = Image.Load(Read(file).AsSpan(), Options());
         using Image plain = Image.Load(Read(file).AsSpan(), Options(gainMap: false));
         await Assert.That(HeifDecodeTests.RgbaHash(image)).IsEqualTo(HeifDecodeTests.RgbaHash(plain));
-        await Assert.That(image.Hdr!.CanDecode).IsFalse();
+        await Assert.That(image.GainMap!.CanDecode).IsFalse();
         if (corrupt)
         {
             await Assert.That(() => image.ToHdr()).Throws<ImageFormatException>();
@@ -109,7 +109,7 @@ public sealed class HeifGainMapTests
     public async Task WithoutLoadGainMap_TheImageHasNoHdr()
     {
         using Image image = Image.Load(Read("gainmap-iso.heic").AsSpan(), Options(gainMap: false));
-        await Assert.That(image.Hdr).IsNull();
+        await Assert.That(image.GainMap).IsNull();
         await Assert.That(() => image.ToHdr()).Throws<InvalidOperationException>();
     }
 
@@ -136,7 +136,7 @@ public sealed class HeifGainMapTests
 
         using Image edited = Image.Load(Read("gainmap-iso.heic").AsSpan(), Options());
         edited.Mutate(x => x.Resize(32, 24));
-        await Assert.That(edited.Hdr!.CanDecode).IsTrue();
+        await Assert.That(edited.GainMap!.CanDecode).IsTrue();
         using HdrImage resized = edited.ToHdr();
         await Assert.That((resized.Width, resized.Height)).IsEqualTo((32, 24));
     }

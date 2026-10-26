@@ -8,7 +8,7 @@ namespace PictureSharp.Formats.Heif.Codecs;
 // ICC profile in its colr box. Apple (iOS 14 and later): an auxiliary image of type
 // urn:com:apple:photo:2020:aux:hdrgainmap, described by its own XMP and the primary image's EXIF MakerNote. iPhones
 // since iOS 18 store both around one map. ISO wins, as in PictureSharp's JPEG reader, and invalid ISO metadata never
-// falls back to the Apple model; HdrInfo.Detected reports both. The map is rendered with its own transforms, which
+// falls back to the Apple model; GainMapInfo.Detected reports both. The map is rendered with its own transforms, which
 // match the primary image's.
 internal sealed class HeifGainMap
 {
@@ -47,17 +47,17 @@ internal sealed class HeifGainMap
     }
 
     // The description Identify reports; a map that cannot be used is described, never thrown.
-    public HdrInfo Describe()
+    public GainMapInfo Describe()
     {
         try
         {
             (GainMapMetadata metadata, HeifItem map) = Read();
             (int width, int height) = container.DisplaySize(map);
-            return metadata.ToHdrInfo(new Size(width, height)) with { Detected = Detected };
+            return metadata.ToGainMapInfo(new Size(width, height)) with { Detected = Detected };
         }
         catch (Exception ex) when (ex is ImageFormatException or NotSupportedException)
         {
-            return new HdrInfo { Detected = Detected, UnsupportedReason = ex.Message };
+            return new GainMapInfo { Detected = Detected, UnsupportedReason = ex.Message };
         }
     }
 

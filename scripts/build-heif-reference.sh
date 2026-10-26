@@ -24,8 +24,9 @@ export PKG_CONFIG_PATH="$prefix/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 configure() {
   local name=$1 source=$2
   shift 2
+  # Relative to the installed file (bin/ and lib/), so the tools keep working when the repository moves.
   cmake -S "$source" -B "$build/$name" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$prefix" \
-    -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_PREFIX_PATH="$prefix" -DCMAKE_INSTALL_RPATH="$prefix/lib" \
+    -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_PREFIX_PATH="$prefix" -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib;$ORIGIN' \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 "$@"
 }
 install_build() {

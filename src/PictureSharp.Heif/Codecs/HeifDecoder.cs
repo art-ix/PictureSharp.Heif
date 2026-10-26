@@ -10,7 +10,7 @@ internal sealed class HeifDecoder : IImageFormatDecoder
     {
         HeifContainer container = HeifContainer.Open(data, options);
         return options.LoadGainMap && HeifGainMap.Find(container) is { } gainMap
-            ? container.Info with { Hdr = gainMap.Describe() }
+            ? container.Info with { GainMap = gainMap.Describe() }
             : container.Info;
     }
 
