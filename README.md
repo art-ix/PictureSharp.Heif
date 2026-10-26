@@ -1,84 +1,72 @@
 # PictureSharp.Heif
 
-**HEIC/HEIF plugin for [PictureSharp](https://github.com/art-ix/PictureSharp), entirely in C#.**
-
-Reads and writes HEIC on .NET 10+ with PictureSharp 0.8.0+. No native libraries or P/Invoke.
+HEIC/HEIF support for [PictureSharp](https://github.com/art-ix/PictureSharp), written entirely in C# with no native
+libraries. Requires .NET 10+ and PictureSharp 0.8.1+.
 
 ```bash
 dotnet add package PictureSharp.Heif
 ```
 
-## Use
-
-Register the format once; `Image.Load`, `Identify`, `ReadMetadata` and `Save` then handle `.heic`:
+## Quick start
 
 ```csharp
 using PictureSharp;
 using PictureSharp.Formats.Heif;
 
+// Once at startup
 ImageConfiguration.Default = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
 
-using var image = Image.Load("photo.heic");     // rotation, crop, alpha, ICC, EXIF and XMP applied
+using var image = Image.Load("photo.heic");
 image.Mutate(x => x.Resize(1600, 0));
 image.SaveAsHeic("small.heic", new HeifEncoderOptions { Quality = 60 });
 ```
 
-A library can pass its own configuration through `DecoderOptions.Configuration` and `HeifEncoderOptions.Configuration`
-instead of changing the default.
+Rotation, crop, alpha, ICC, EXIF and XMP are applied when loading.
 
-## Inside the file
+## iPhone photos
 
-An iPhone HEIC holds more than one picture: tiles, thumbnails, a depth map, mattes and an HDR gain map. `HeifDocument`
-lists them without decoding pixels:
+An iPhone HEIC also holds a thumbnail, a depth map and an HDR gain map. `HeifDocument` reads them:
 
 ```csharp
 var document = await HeifDocument.OpenAsync("IMG_6655.HEIC");
 HeifItemInfo photo = document.PrimaryImage;
 
-using Image preview = document.LoadPreview(photo, new(320, 240));        // embedded thumbnail when one fits
-HeifDepthImage depth = document.LoadDepth(photo.FindDepthImage()!);       // raw depth or disparity samples
-using Image map = depth.ToImage();                                         // the depth map as a greyscale image
+using Image preview = document.LoadPreview(photo, new(320, 240));
+using Image depth = document.LoadDepth(photo.FindDepthImage()!).ToImage();
 
 using var withMap = Image.Load("IMG_6655.HEIC", new DecoderOptions { LoadGainMap = true });
-using HdrImage hdr = withMap.ToHdr();                                     // HDR from the gain map
+using HdrImage hdr = withMap.ToHdr();
 
-LivePhotoPair pair = LivePhotoPair.Read("IMG_8113.HEIC", "IMG_8113.MOV"); // matched by ContentIdentifier
+LivePhotoPair pair = LivePhotoPair.Read("IMG_8113.HEIC", "IMG_8113.MOV");
 ```
 
-## Portrait blur and Photos edits
-
-iPhone stores a Portrait photo sharp and blurs the background only on display, and Photos keeps the edits of its
-"Adjust" sliders in its library, so a converted photo has neither. Two approximations fitted to Photos exports bring
-them back in one call, sliders first and then the blur:
+The Portrait blur and the Photos "Adjust" edits are not stored in the image itself. `Render` approximates both; you
+supply the slider values:
 
 ```csharp
 using Image edited = document.Render(photo, new HeifEdits
 {
     Adjustments = new HeifPhotosAdjustments { Brightness = 25, Warmth = 10 },
-    Portrait = new HeifPortraitOptions { Aperture = 2.8f },               // blur from the disparity map and matte
+    Portrait = new HeifPortraitOptions { Aperture = 2.8f },
 });
 ```
-
-The slider values are not stored in a readable form, so the application supplies them. Neither result matches Photos
-exactly.
 
 ## Support
 
 | | |
 | --- | --- |
-| Read | HEVC Main, Main 10 and Main Still Picture, 4:2:0 and monochrome; grids, alpha, rotation/mirror/crop, ICC and nclx, EXIF/XMP (also compressed), Apple and ISO gain maps, thumbnails, depth with Apple's description, Live Photo pairing |
-| Write | HEVC Main 8-bit 4:2:0, grids, alpha, ICC/EXIF/XMP, thumbnails, ISO gain maps (from HEIC or Ultra HDR JPEG) |
-| Render (approximate) | Portrait background blur, the 15 Photos "Adjust" sliders |
-| Not supported | image sequences, 4:2:2/4:4:4, PQ/HLG, AVIF, writing Apple-only gain maps or depth, metadata editing, Portrait Lighting, Photos filters and crop, Live Photo export |
+| Read | HEVC Main, Main 10 and Main Still Picture (4:2:0, monochrome); grids, alpha, rotation/mirror/crop, ICC and nclx, EXIF/XMP, Apple and ISO gain maps, thumbnails, depth, Live Photo pairs |
+| Write | HEVC Main 8-bit 4:2:0; grids, alpha, ICC/EXIF/XMP, thumbnails, ISO gain maps |
+| Approximate | Portrait blur, the 15 Photos "Adjust" sliders |
+| Not supported | image sequences, 4:2:2/4:4:4, PQ/HLG, AVIF, writing depth, metadata editing, Portrait Lighting, Photos filters and crop, Live Photo export |
 
-Limits (`MaxPixels`, `MaxInputBytes`, `MaxMetadataBytes`), cancellation and `TargetSize` work as for built-in formats.
-Decoded pixels match the HM reference decoder and libheif.
+Limits, cancellation and `TargetSize` work as for the built-in formats. Decoded pixels match the HM reference decoder
+and libheif.
 
-Guides: [decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/decoding.md) ·
+More: [decoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/decoding.md) ·
 [encoding](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/encoding.md) ·
-[container and catalogue](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md)
-
-[0.6.10 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.10.md): writing HDR gain maps (`HeifEncoderOptions.GainMap`); requires PictureSharp 0.8.0.
+[container](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/container.md) ·
+[0.6.10 release notes](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.6.10.md)
 
 ## License and patents
 
