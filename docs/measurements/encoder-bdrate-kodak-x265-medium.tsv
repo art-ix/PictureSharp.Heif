@@ -1,218 +1,218 @@
 image	encoder	quality	bytes	psnr_rgb	ssim_db
-kodim01	picturesharp	30	27361	28.778	8.794
+kodim01	picturesharp	30	27442	28.745	8.775
 kodim01	x265-medium	30	31275	29.394	9.513
-kodim01	picturesharp	45	72744	34.697	14.861
+kodim01	picturesharp	45	72575	34.618	14.775
 kodim01	x265-medium	45	77128	35.051	15.467
-kodim01	picturesharp	60	135081	40.019	21.286
+kodim01	picturesharp	60	134772	39.966	21.154
 kodim01	x265-medium	60	132584	39.758	21.201
-kodim01	picturesharp	75	204763	43.000	27.036
+kodim01	picturesharp	75	203911	42.920	26.712
 kodim01	x265-medium	75	213993	43.095	27.799
-kodim01	bd-rate			-1.40%	1.26%
-kodim02	picturesharp	30	7410	30.871	7.526
+kodim01	bd-rate			-0.69%	2.22%
+kodim02	picturesharp	30	7655	30.890	7.552
 kodim02	x265-medium	30	14308	32.666	9.081
-kodim02	picturesharp	45	29589	35.096	11.627
+kodim02	picturesharp	45	29597	35.058	11.599
 kodim02	x265-medium	45	47307	36.716	13.828
-kodim02	picturesharp	60	81034	39.033	17.152
+kodim02	picturesharp	60	80864	38.977	17.035
 kodim02	x265-medium	60	103038	39.734	19.053
-kodim02	picturesharp	75	154692	41.115	23.018
+kodim02	picturesharp	75	153719	41.069	22.673
 kodim02	x265-medium	75	195275	41.504	25.381
-kodim02	bd-rate			-4.69%	-0.34%
-kodim03	picturesharp	30	8796	33.138	10.744
+kodim02	bd-rate			-3.55%	1.12%
+kodim03	picturesharp	30	8914	33.129	10.738
 kodim03	x265-medium	30	11595	34.364	11.770
-kodim03	picturesharp	45	23866	37.650	14.741
+kodim03	picturesharp	45	24082	37.618	14.715
 kodim03	x265-medium	45	29487	38.472	15.754
-kodim03	picturesharp	60	53811	40.997	18.556
+kodim03	picturesharp	60	54028	40.963	18.486
 kodim03	x265-medium	60	65641	41.226	19.364
-kodim03	picturesharp	75	122334	42.888	23.520
+kodim03	picturesharp	75	120466	42.842	23.177
 kodim03	x265-medium	75	150804	43.112	25.222
-kodim03	bd-rate			-4.28%	-1.90%
-kodim04	picturesharp	30	10700	31.367	8.594
+kodim03	bd-rate			-2.86%	0.08%
+kodim04	picturesharp	30	10771	31.392	8.592
 kodim04	x265-medium	30	14876	32.495	9.624
-kodim04	picturesharp	45	34668	35.970	12.926
+kodim04	picturesharp	45	34750	35.951	12.881
 kodim04	x265-medium	45	44420	36.824	14.202
-kodim04	picturesharp	60	86607	40.140	18.472
+kodim04	picturesharp	60	86498	40.103	18.358
 kodim04	x265-medium	60	95044	40.332	19.306
-kodim04	picturesharp	75	158871	42.456	24.216
+kodim04	picturesharp	75	157496	42.401	23.890
 kodim04	x265-medium	75	182377	42.666	25.562
-kodim04	bd-rate			-5.02%	0.64%
-kodim05	picturesharp	30	29571	28.437	10.414
+kodim04	bd-rate			-4.41%	2.05%
+kodim05	picturesharp	30	29714	28.422	10.348
 kodim05	x265-medium	30	31206	28.813	10.771
-kodim05	picturesharp	45	68834	33.763	16.305
+kodim05	picturesharp	45	68906	33.701	16.172
 kodim05	x265-medium	45	69727	33.756	16.451
-kodim05	picturesharp	60	129425	38.046	22.221
+kodim05	picturesharp	60	129519	38.003	22.076
 kodim05	x265-medium	60	122179	37.584	21.664
-kodim05	picturesharp	75	204306	40.188	27.701
+kodim05	picturesharp	75	203957	40.145	27.373
 kodim05	x265-medium	75	206984	40.128	27.856
-kodim05	bd-rate			-1.15%	0.44%
-kodim06	picturesharp	30	23155	30.792	9.881
+kodim05	bd-rate			-0.27%	2.15%
+kodim06	picturesharp	30	23246	30.777	9.857
 kodim06	x265-medium	30	24144	30.878	10.170
-kodim06	picturesharp	45	58696	36.131	15.183
+kodim06	picturesharp	45	58620	36.076	15.147
 kodim06	x265-medium	45	60326	36.063	15.467
-kodim06	picturesharp	60	117217	40.880	20.955
+kodim06	picturesharp	60	117028	40.820	20.815
 kodim06	x265-medium	60	113006	40.344	20.837
-kodim06	picturesharp	75	190225	43.566	26.784
+kodim06	picturesharp	75	188671	43.486	26.374
 kodim06	x265-medium	75	197557	43.501	27.319
-kodim06	bd-rate			-3.85%	1.79%
-kodim07	picturesharp	30	11744	31.848	12.000
+kodim06	bd-rate			-3.16%	2.83%
+kodim07	picturesharp	30	11742	31.717	11.936
 kodim07	x265-medium	30	14295	32.943	12.929
-kodim07	picturesharp	45	26761	36.558	15.860
+kodim07	picturesharp	45	26738	36.480	15.808
 kodim07	x265-medium	45	31788	37.336	16.722
-kodim07	picturesharp	60	56124	40.400	19.142
+kodim07	picturesharp	60	56252	40.357	19.079
 kodim07	x265-medium	60	66303	40.557	19.986
-kodim07	picturesharp	75	119946	42.707	23.846
+kodim07	picturesharp	75	119074	42.644	23.527
 kodim07	x265-medium	75	146489	42.992	25.770
-kodim07	bd-rate			-5.19%	0.23%
-kodim08	picturesharp	30	30242	28.732	10.369
+kodim07	bd-rate			-3.85%	1.94%
+kodim08	picturesharp	30	30283	28.696	10.348
 kodim08	x265-medium	30	29813	28.608	10.503
-kodim08	picturesharp	45	70705	34.017	15.113
+kodim08	picturesharp	45	70674	33.975	15.048
 kodim08	x265-medium	45	69123	33.612	15.300
-kodim08	picturesharp	60	138504	38.715	21.791
+kodim08	picturesharp	60	138174	38.653	21.621
 kodim08	x265-medium	60	126029	37.823	20.907
-kodim08	picturesharp	75	216502	41.286	28.228
+kodim08	picturesharp	75	215441	41.238	27.880
 kodim08	x265-medium	75	211678	41.033	28.010
-kodim08	bd-rate			-3.15%	3.19%
-kodim09	picturesharp	30	9491	32.878	10.581
+kodim08	bd-rate			-2.54%	4.32%
+kodim09	picturesharp	30	9500	32.849	10.568
 kodim09	x265-medium	30	11405	33.818	11.175
-kodim09	picturesharp	45	22939	37.110	12.979
+kodim09	picturesharp	45	23068	37.066	12.966
 kodim09	x265-medium	45	32623	37.823	13.914
-kodim09	picturesharp	60	70790	40.909	17.231
+kodim09	picturesharp	60	70703	40.858	17.165
 kodim09	x265-medium	60	86211	41.332	18.839
-kodim09	picturesharp	75	147737	43.714	23.614
+kodim09	picturesharp	75	145908	43.635	23.255
 kodim09	x265-medium	75	178443	44.088	25.506
-kodim09	bd-rate			-10.53%	4.13%
-kodim10	picturesharp	30	10256	32.426	10.007
+kodim09	bd-rate			-9.27%	5.04%
+kodim10	picturesharp	30	10392	32.451	10.004
 kodim10	x265-medium	30	12904	33.444	10.899
-kodim10	picturesharp	45	25618	36.779	13.238
+kodim10	picturesharp	45	25682	36.715	13.208
 kodim10	x265-medium	45	33488	37.557	14.142
-kodim10	picturesharp	60	71975	40.805	17.559
+kodim10	picturesharp	60	71731	40.743	17.446
 kodim10	x265-medium	60	84068	41.116	18.794
-kodim10	picturesharp	75	148475	43.745	24.078
+kodim10	picturesharp	75	147131	43.666	23.723
 kodim10	x265-medium	75	173266	44.050	25.511
-kodim10	bd-rate			-6.95%	2.83%
-kodim11	picturesharp	30	16696	30.467	8.680
+kodim10	bd-rate			-5.57%	4.41%
+kodim11	picturesharp	30	16804	30.448	8.668
 kodim11	x265-medium	30	20685	31.259	9.616
-kodim11	picturesharp	45	46851	35.631	13.739
+kodim11	picturesharp	45	46945	35.579	13.700
 kodim11	x265-medium	45	54166	36.233	14.700
-kodim11	picturesharp	60	101451	40.457	19.554
+kodim11	picturesharp	60	101194	40.382	19.411
 kodim11	x265-medium	60	105913	40.404	19.891
-kodim11	picturesharp	75	173652	43.289	25.199
+kodim11	picturesharp	75	172401	43.210	24.848
 kodim11	x265-medium	75	190807	43.462	26.485
-kodim11	bd-rate			-4.50%	0.22%
-kodim12	picturesharp	30	9050	32.955	9.179
+kodim11	bd-rate			-3.49%	1.46%
+kodim12	picturesharp	30	9060	32.878	9.162
 kodim12	x265-medium	30	12407	34.048	10.126
-kodim12	picturesharp	45	28655	37.486	13.259
+kodim12	picturesharp	45	28611	37.451	13.216
 kodim12	x265-medium	45	36967	38.403	14.341
-kodim12	picturesharp	60	74352	41.708	18.258
+kodim12	picturesharp	60	74276	41.637	18.131
 kodim12	x265-medium	60	84135	41.968	19.076
-kodim12	picturesharp	75	145788	44.399	24.011
+kodim12	picturesharp	75	143984	44.298	23.595
 kodim12	x265-medium	75	169122	44.693	25.347
-kodim12	bd-rate			-4.63%	-0.98%
-kodim13	picturesharp	30	43937	27.767	8.982
+kodim12	bd-rate			-3.52%	0.62%
+kodim13	picturesharp	30	43702	27.733	8.940
 kodim13	x265-medium	30	45098	27.770	9.287
-kodim13	picturesharp	45	105300	33.807	16.189
+kodim13	picturesharp	45	104880	33.730	16.074
 kodim13	x265-medium	45	104703	33.596	16.175
-kodim13	picturesharp	60	180903	38.794	23.791
+kodim13	picturesharp	60	180433	38.719	23.571
 kodim13	x265-medium	60	170407	38.145	22.734
-kodim13	picturesharp	75	260230	41.478	29.720
+kodim13	picturesharp	75	258988	41.406	29.299
 kodim13	x265-medium	75	260334	41.346	29.620
-kodim13	bd-rate			-1.86%	0.20%
-kodim14	picturesharp	30	23341	29.142	8.626
+kodim13	bd-rate			-1.42%	1.13%
+kodim14	picturesharp	30	23234	29.082	8.590
 kodim14	x265-medium	30	26675	29.634	9.307
-kodim14	picturesharp	45	63375	33.973	14.226
+kodim14	picturesharp	45	63490	33.924	14.168
 kodim14	x265-medium	45	68058	34.180	14.845
-kodim14	picturesharp	60	129078	37.741	20.815
+kodim14	picturesharp	60	128668	37.684	20.639
 kodim14	x265-medium	60	125009	37.465	20.530
-kodim14	picturesharp	75	204122	39.218	26.879
+kodim14	picturesharp	75	203160	39.187	26.491
 kodim14	x265-medium	75	210955	39.220	27.224
-kodim14	bd-rate			-2.94%	0.84%
-kodim15	picturesharp	30	11852	32.274	9.907
+kodim14	bd-rate			-1.98%	2.07%
+kodim15	picturesharp	30	11969	32.257	9.890
 kodim15	x265-medium	30	13484	32.731	10.271
-kodim15	picturesharp	45	35750	36.733	14.060
+kodim15	picturesharp	45	35878	36.733	14.040
 kodim15	x265-medium	45	39564	36.921	14.492
-kodim15	picturesharp	60	86964	40.472	19.280
+kodim15	picturesharp	60	86749	40.438	19.155
 kodim15	x265-medium	60	87652	40.233	19.273
-kodim15	picturesharp	75	160963	42.335	24.593
+kodim15	picturesharp	75	159056	42.273	24.213
 kodim15	x265-medium	75	174266	42.362	25.373
-kodim15	bd-rate			-5.26%	-0.84%
-kodim16	picturesharp	30	13470	32.235	9.434
+kodim15	bd-rate			-4.64%	0.56%
+kodim16	picturesharp	30	13538	32.240	9.410
 kodim16	x265-medium	30	16818	33.027	10.299
-kodim16	picturesharp	45	38882	37.302	14.299
+kodim16	picturesharp	45	38802	37.263	14.259
 kodim16	x265-medium	45	45401	37.994	15.183
-kodim16	picturesharp	60	86053	42.132	19.360
+kodim16	picturesharp	60	85304	42.030	19.210
 kodim16	x265-medium	60	92869	42.218	19.961
-kodim16	picturesharp	75	157848	45.413	24.905
+kodim16	picturesharp	75	156079	45.287	24.473
 kodim16	x265-medium	75	177959	45.722	26.258
-kodim16	bd-rate			-4.29%	0.04%
-kodim17	picturesharp	30	12811	32.348	10.002
+kodim16	bd-rate			-3.62%	1.19%
+kodim17	picturesharp	30	12874	32.252	9.940
 kodim17	x265-medium	30	15112	32.979	10.722
-kodim17	picturesharp	45	32972	36.823	13.966
+kodim17	picturesharp	45	33190	36.779	13.923
 kodim17	x265-medium	45	38458	37.348	14.670
-kodim17	picturesharp	60	78896	41.079	18.370
+kodim17	picturesharp	60	78966	41.014	18.265
 kodim17	x265-medium	60	84863	41.094	18.987
-kodim17	picturesharp	75	154451	44.084	24.537
+kodim17	picturesharp	75	153315	43.998	24.197
 kodim17	x265-medium	75	171255	44.251	25.534
-kodim17	bd-rate			-5.11%	0.98%
-kodim18	picturesharp	30	24441	29.237	9.036
+kodim17	bd-rate			-3.57%	2.77%
+kodim18	picturesharp	30	24411	29.209	9.014
 kodim18	x265-medium	30	27965	29.802	9.718
-kodim18	picturesharp	45	61174	34.120	13.358
+kodim18	picturesharp	45	61119	34.080	13.316
 kodim18	x265-medium	45	70100	34.586	14.362
-kodim18	picturesharp	60	132873	38.590	19.668
+kodim18	picturesharp	60	132671	38.552	19.551
 kodim18	x265-medium	60	134688	38.500	20.091
-kodim18	picturesharp	75	215952	41.109	26.196
+kodim18	picturesharp	75	214438	41.058	25.814
 kodim18	x265-medium	75	230107	41.215	26.998
-kodim18	bd-rate			-4.22%	2.26%
-kodim19	picturesharp	30	15111	31.175	9.221
+kodim18	bd-rate			-3.70%	3.27%
+kodim19	picturesharp	30	15144	31.152	9.223
 kodim19	x265-medium	30	17958	31.732	10.019
-kodim19	picturesharp	45	44074	36.142	13.948
+kodim19	picturesharp	45	44048	36.114	13.915
 kodim19	x265-medium	45	49331	36.458	14.591
-kodim19	picturesharp	60	100937	40.719	19.015
+kodim19	picturesharp	60	100453	40.663	18.903
 kodim19	x265-medium	60	104686	40.554	19.701
-kodim19	picturesharp	75	180955	43.827	25.386
+kodim19	picturesharp	75	178508	43.735	24.938
 kodim19	x265-medium	75	196967	43.927	26.392
-kodim19	bd-rate			-5.42%	2.88%
-kodim20	picturesharp	30	11877	33.031	11.697
+kodim19	bd-rate			-4.92%	3.81%
+kodim20	picturesharp	30	11928	33.058	11.630
 kodim20	x265-medium	30	12295	33.258	11.770
-kodim20	picturesharp	45	32075	37.714	16.233
+kodim20	picturesharp	45	32132	37.692	16.211
 kodim20	x265-medium	45	33819	37.653	16.347
-kodim20	picturesharp	60	72326	41.215	21.343
+kodim20	picturesharp	60	72115	41.174	21.224
 kodim20	x265-medium	60	73541	40.961	21.136
-kodim20	picturesharp	75	138621	43.156	26.419
+kodim20	picturesharp	75	136550	43.104	26.080
 kodim20	x265-medium	75	154314	43.218	26.863
-kodim20	bd-rate			-5.59%	-3.74%
-kodim21	picturesharp	30	18904	30.403	10.340
+kodim20	bd-rate			-5.10%	-2.43%
+kodim21	picturesharp	30	18884	30.366	10.282
 kodim21	x265-medium	30	20937	30.888	10.773
-kodim21	picturesharp	45	46966	35.599	13.806
+kodim21	picturesharp	45	46918	35.537	13.777
 kodim21	x265-medium	45	54999	35.916	14.620
-kodim21	picturesharp	60	110535	40.284	19.243
+kodim21	picturesharp	60	110337	40.227	19.114
 kodim21	x265-medium	60	116079	40.150	20.070
-kodim21	picturesharp	75	191427	43.100	25.480
+kodim21	picturesharp	75	189259	43.023	25.016
 kodim21	x265-medium	75	211406	43.250	26.793
-kodim21	bd-rate			-7.65%	2.84%
-kodim22	picturesharp	30	16655	30.318	8.484
+kodim21	bd-rate			-6.85%	4.16%
+kodim22	picturesharp	30	16712	30.315	8.454
 kodim22	x265-medium	30	20940	31.085	9.377
-kodim22	picturesharp	45	48990	34.933	13.335
+kodim22	picturesharp	45	49072	34.900	13.302
 kodim22	x265-medium	45	57785	35.579	14.243
-kodim22	picturesharp	60	110901	39.076	18.875
+kodim22	picturesharp	60	110665	39.038	18.781
 kodim22	x265-medium	60	116576	39.130	19.502
-kodim22	picturesharp	75	193081	41.366	24.974
+kodim22	picturesharp	75	191233	41.316	24.602
 kodim22	x265-medium	75	211589	41.530	25.932
-kodim22	bd-rate			-3.59%	0.60%
-kodim23	picturesharp	30	8400	33.389	11.419
+kodim22	bd-rate			-2.91%	1.62%
+kodim23	picturesharp	30	8538	33.415	11.364
 kodim23	x265-medium	30	10164	34.128	12.073
-kodim23	picturesharp	45	20520	36.985	14.224
+kodim23	picturesharp	45	20742	36.974	14.183
 kodim23	x265-medium	45	25731	37.512	14.897
-kodim23	picturesharp	60	56107	39.771	17.571
+kodim23	picturesharp	60	56118	39.747	17.519
 kodim23	x265-medium	60	68861	39.914	18.587
-kodim23	picturesharp	75	134972	41.453	23.387
+kodim23	picturesharp	75	133257	41.410	23.047
 kodim23	x265-medium	75	161617	41.616	24.855
-kodim23	bd-rate			-6.93%	1.33%
-kodim24	picturesharp	30	25916	29.528	9.876
+kodim23	bd-rate			-5.72%	2.91%
+kodim24	picturesharp	30	25909	29.450	9.819
 kodim24	x265-medium	30	28196	29.825	10.457
-kodim24	picturesharp	45	61632	34.331	15.306
+kodim24	picturesharp	45	61643	34.278	15.236
 kodim24	x265-medium	45	64872	34.497	15.815
-kodim24	picturesharp	60	117270	37.950	20.835
+kodim24	picturesharp	60	117487	37.895	20.731
 kodim24	x265-medium	60	114983	37.664	20.761
-kodim24	picturesharp	75	189497	39.461	26.143
+kodim24	picturesharp	75	188844	39.427	25.810
 kodim24	x265-medium	75	198092	39.442	26.742
-kodim24	bd-rate			-2.87%	1.45%
-average	bd-rate			-4.63%	0.85%
+kodim24	bd-rate			-1.88%	2.75%
+average	bd-rate			-3.73%	2.17%
