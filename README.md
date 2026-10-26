@@ -9,11 +9,12 @@ dotnet add package PictureSharp.Heif
 
 ## Quick start
 
+Register the format once, then load and save `.heic` files like any other image:
+
 ```csharp
 using PictureSharp;
 using PictureSharp.Formats.Heif;
 
-// Once at startup
 ImageConfiguration.Default = ImageConfiguration.Default.ToBuilder().AddFormat(new HeifFormat()).Build();
 
 using var image = Image.Load("photo.heic");
