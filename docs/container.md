@@ -7,11 +7,14 @@ gain maps). Examples assume `HeifFormat` is registered in `ImageConfiguration.De
 
 ```csharp
 ImageInfo info = Image.Identify("photo.heic");
-Console.WriteLine($"{info.Width} × {info.Height}, {info.BitsPerChannel}-bit, alpha {info.HasAlpha}, items {info.ContainerItemCount}");
+Console.WriteLine($"{info.Width} × {info.Height}, {info.Color.BitsPerSample}-bit, alpha {info.Color.HasAlpha}, items {info.ContainerItemCount}");
 ```
 
-`Identify` reads the primary image's size after rotation and cropping, bit depth and alpha without decoding pixels,
-so it does not prove the bitstream is decodable. `ContainerItemCount` counts every item; `FrameCount` is 1.
+`Identify` reads the primary image's size after rotation and cropping and its colour layout without decoding pixels,
+so it does not prove the bitstream is decodable. `info.Color` gives the model (`Gray` for 4:0:0, `Rgb` otherwise),
+channels with the `auxl` alpha (straight, or premultiplied with `prem`), bit depth, ICC presence and the nclx colour
+description as `Cicp`, also for grids and `iden` items. `Compression` is `Unknown`, since HEVC may or may not be
+lossless, and `Resolution` is null. `ContainerItemCount` counts every item; `FrameCount` is 1.
 
 <a id="catalogue-and-image-selection-062"></a>
 

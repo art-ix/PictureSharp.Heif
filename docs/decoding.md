@@ -4,7 +4,7 @@ Examples assume `HeifFormat` is registered in `ImageConfiguration.Default` (see 
 
 ```csharp
 using Image image = Image.Load("photo.heic");                              // primary image, straight-alpha Rgba32
-ImageInfo info = Image.Identify("photo.heic");                             // size and bit depth, no pixel decoding
+ImageInfo info = Image.Identify("photo.heic");                             // size and colour layout, no pixel decoding
 ImageMetadata metadata = Image.ReadMetadata("photo.heic");                 // ICC, EXIF, XMP, no pixel decoding
 ```
 
