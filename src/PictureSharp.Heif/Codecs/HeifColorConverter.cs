@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 
 namespace PictureSharp.Formats.Heif.Codecs;
@@ -12,6 +13,8 @@ namespace PictureSharp.Formats.Heif.Codecs;
 //   floor(x + 0.5);
 // - monochrome images copy luma to R, G and B; alpha planes are taken from luma as is.
 // Samples above 8 bits are reduced with round(v * 255 / (2^bitDepth - 1)), like PictureSharp's 16-bit PNG reduction.
+// Rgba64 output (PreserveBitDepth) rounds at the source depth with the same formulas and scales the result with
+// round(v * 65535 / (2^bitDepth - 1)); 8-bit planes take the 8-bit result widened exactly (v * 257).
 internal sealed partial class HeifColorConverter
 {
     private readonly bool fullRange;
@@ -88,9 +91,77 @@ internal sealed partial class HeifColorConverter
         });
     }
 
+    public void Convert(HeifPlanes planes, Rgba64[] destination, bool bilinear, ParallelOptions parallel)
+    {
+        int width = planes.Width;
+        if (planes.ChromaFormatIdc == 0)
+        {
+            ConvertGray(planes, destination, parallel);
+            return;
+        }
+
+        HeifParallel.ForRows(planes.Height, width, parallel, (start, end) =>
+        {
+            Rgba32[]? narrow = planes.BitDepth == 8 ? new Rgba32[width] : null;
+            for (int y = start; y < end; y++)
+            {
+                parallel.CancellationToken.ThrowIfCancellationRequested();
+                Span<Rgba64> row = destination.AsSpan(y * width, width);
+                if (narrow is not null)
+                {
+                    if (bilinear)
+                    {
+                        ConvertBilinearRow(planes, narrow, y);
+                    }
+                    else if (fullRange)
+                    {
+                        ConvertRow8(planes, narrow, y, 0);
+                    }
+                    else
+                    {
+                        ConvertRow(planes, narrow, y);
+                    }
+
+                    for (int x = 0; x < width; x++)
+                    {
+                        row[x] = Rgba64.FromRgba32(narrow[x]);
+                    }
+                }
+                else if (bilinear)
+                {
+                    ConvertBilinearRow(planes, row, y);
+                }
+                else
+                {
+                    ConvertRow(planes, row, y);
+                }
+            }
+        });
+    }
+
     // Alpha planes carry the alpha value in luma, without range conversion; the value goes to R.
     public static void ConvertAlpha(HeifPlanes planes, Rgba32[] destination, ParallelOptions parallel) =>
         ConvertGray(planes, destination, parallel);
+
+    public static void ConvertAlpha(HeifPlanes planes, Rgba64[] destination, ParallelOptions parallel) =>
+        ConvertGray(planes, destination, parallel);
+
+    private static void ConvertGray(HeifPlanes planes, Rgba64[] destination, ParallelOptions parallel)
+    {
+        int maximum = (1 << planes.BitDepth) - 1;
+        HeifParallel.ForRows(planes.Height, planes.Width, parallel, (start, end) =>
+        {
+            for (int y = start; y < end; y++)
+            {
+                Span<Rgba64> row = destination.AsSpan(y * planes.Width, planes.Width);
+                for (int x = 0; x < planes.Width; x++)
+                {
+                    ushort v = Widen(planes.Luma(x, y), maximum);
+                    row[x] = new Rgba64(v, v, v, ushort.MaxValue);
+                }
+            }
+        });
+    }
 
     private static void ConvertGray(HeifPlanes planes, Rgba32[] destination, ParallelOptions parallel)
     {
@@ -156,7 +227,47 @@ internal sealed partial class HeifColorConverter
         }
     }
 
+    private void ConvertRow(HeifPlanes planes, Span<Rgba64> row, int y)
+    {
+        int bitDepth = planes.BitDepth;
+        int maximum = (1 << bitDepth) - 1;
+        int cy = y >> 1;
+        for (int x = 0; x < row.Length; x++)
+        {
+            (int r, int g, int b) = Float(planes.Luma(x, y), planes.Chroma(1, x >> 1, cy), planes.Chroma(2, x >> 1, cy), bitDepth, maximum);
+            row[x] = new Rgba64(Widen(r, maximum), Widen(g, maximum), Widen(b, maximum), ushort.MaxValue);
+        }
+    }
+
+    private void ConvertBilinearRow(HeifPlanes planes, Span<Rgba64> row, int y)
+    {
+        int maximum = (1 << planes.BitDepth) - 1;
+        int chromaWidth = (planes.Width + 1) >> 1;
+        int chromaHeight = (planes.Height + 1) >> 1;
+        int cy = y >> 1;
+        int ny = Math.Clamp((y & 1) == 0 ? cy - 1 : cy + 1, 0, chromaHeight - 1);
+        for (int x = 0; x < row.Length; x++)
+        {
+            int cx = x >> 1;
+            int nx = Math.Clamp((x & 1) == 0 ? cx - 1 : cx + 1, 0, chromaWidth - 1);
+            int cb = ((9 * planes.Chroma(1, cx, cy)) + (3 * planes.Chroma(1, cx, ny)) + (3 * planes.Chroma(1, nx, cy))
+                + planes.Chroma(1, nx, ny) + 8) >> 4;
+            int cr = ((9 * planes.Chroma(2, cx, cy)) + (3 * planes.Chroma(2, cx, ny)) + (3 * planes.Chroma(2, nx, cy))
+                + planes.Chroma(2, nx, ny) + 8) >> 4;
+            (int r, int g, int b) = Float(planes.Luma(x, y), cb, cr, planes.BitDepth, maximum);
+            row[x] = new Rgba64(Widen(r, maximum), Widen(g, maximum), Widen(b, maximum), ushort.MaxValue);
+        }
+    }
+
     private Rgba32 ConvertFloat(int luma, int cbSample, int crSample, int bitDepth, int maximum)
+    {
+        (int r, int g, int b) = Float(luma, cbSample, crSample, bitDepth, maximum);
+        return new Rgba32(Reduce(r, bitDepth, maximum), Reduce(g, bitDepth, maximum), Reduce(b, bitDepth, maximum), 255);
+    }
+
+    // R, G and B rounded at the source depth.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private (int R, int G, int B) Float(int luma, int cbSample, int crSample, int bitDepth, int maximum)
     {
         float half = 1 << (bitDepth - 1);
         float yValue = luma;
@@ -169,11 +280,7 @@ internal sealed partial class HeifColorConverter
             cr *= 1.1429f;
         }
 
-        return new Rgba32(
-            Reduce(Round(yValue + (crR * cr), maximum), bitDepth, maximum),
-            Reduce(Round(yValue - (cbG * cb) - (crG * cr), maximum), bitDepth, maximum),
-            Reduce(Round(yValue + (cbB * cb), maximum), bitDepth, maximum),
-            255);
+        return (Round(yValue + (crR * cr), maximum), Round(yValue - (cbG * cb) - (crG * cr), maximum), Round(yValue + (cbB * cb), maximum));
     }
 
     private static int Round(float value, int maximum)
@@ -184,6 +291,9 @@ internal sealed partial class HeifColorConverter
 
     private static byte Reduce(int value, int bitDepth, int maximum) =>
         bitDepth == 8 ? (byte)value : (byte)(((value * 255) + (maximum >> 1)) / maximum);
+
+    private static ushort Widen(int value, int maximum) =>
+        maximum == 255 ? (ushort)(value * 257) : (ushort)((((uint)value * 65535u) + (uint)(maximum >> 1)) / (uint)maximum);
 
     private static byte Clip8(int value) => (byte)(value < 0 ? 0 : value > 255 ? 255 : value);
 }

@@ -72,7 +72,7 @@ public sealed class HeifDepthImage
     {
         int low = AppleDepth?.IntMinValue ?? 0, high = AppleDepth?.IntMaxValue ?? (1 << BitDepth) - 1;
         var image = new Image(Width, Height);
-        Span<Rgba32> pixels = image.GetPixelSpan();
+        Span<Rgba32> pixels = image.GetPixelSpan<Rgba32>();
         ReadOnlySpan<ushort> samples = Samples.Span;
         for (int i = 0; i < samples.Length; i++)
         {

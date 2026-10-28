@@ -49,9 +49,11 @@ internal struct HevcSaoParameters
 // port: HM source/Lib/TLibEncoder/TEncSampleAdaptiveOffset.cpp (getBlkStats, deriveOffsets, deriveModeNewRDO,
 //       deriveModeMergeRDO) in a reduced form; distortion is estimated from the statistics as HM does.
 internal sealed class HevcSaoEstimator(ushort[][] source, ushort[][] deblocked, int[] strides, int width, int height,
-    int log2CtbSize)
+    int log2CtbSize, int bitDepth = 8)
 {
-    private const int MaxOffset = 7;
+    // 7.4.9.3.2: offsets up to (1 << (Min(bitDepth, 10) - 5)) - 1; 32 bands of 1 << (bitDepth - 5) values.
+    private readonly int maxOffset = HevcSyntaxWriter.SaoMaxOffset(bitDepth);
+    private readonly int bandShift = bitDepth - 5;
 
     private double lambda;
 
@@ -135,7 +137,7 @@ internal sealed class HevcSaoEstimator(ushort[][] source, ushort[][] deblocked, 
                     long count = counts[c, edgeClass, category];
                     long sum = sums[c, edgeClass, category];
                     int estimate = count == 0 ? 0 : (int)Math.Round((double)sum / count);
-                    estimate = category < 2 ? Math.Clamp(estimate, 0, MaxOffset) : Math.Clamp(estimate, -MaxOffset, 0);
+                    estimate = category < 2 ? Math.Clamp(estimate, 0, maxOffset) : Math.Clamp(estimate, -maxOffset, 0);
                     (int offset, double offsetCost) = RefineOffset(estimate, sum, count);
                     offsets[((c - first) * 4) + category] = offset;
                     cost += offsetCost;
@@ -166,7 +168,7 @@ internal sealed class HevcSaoEstimator(ushort[][] source, ushort[][] deblocked, 
                     int band = (start + k) & 31;
                     long count = counts[c, 4, band];
                     long sum = sums[c, 4, band];
-                    int estimate = count == 0 ? 0 : Math.Clamp((int)Math.Round((double)sum / count), -MaxOffset, MaxOffset);
+                    int estimate = count == 0 ? 0 : Math.Clamp((int)Math.Round((double)sum / count), -maxOffset, maxOffset);
                     (int offset, double offsetCost) = RefineOffset(estimate, sum, count);
                     candidate[k] = offset;
                     cost += offsetCost + (offset != 0 ? lambda : 0);
@@ -224,7 +226,7 @@ internal sealed class HevcSaoEstimator(ushort[][] source, ushort[][] deblocked, 
         for (int offset = estimate; offset != 0; offset += step)
         {
             double distortion = (count * (double)offset * offset) - (2.0 * offset * sum);
-            double cost = distortion + (lambda * (Math.Min(Math.Abs(offset) + 1, MaxOffset)));
+            double cost = distortion + (lambda * (Math.Min(Math.Abs(offset) + 1, maxOffset)));
             if (cost < bestCost)
             {
                 bestCost = cost;
@@ -279,7 +281,7 @@ internal sealed class HevcSaoEstimator(ushort[][] source, ushort[][] deblocked, 
                 int i = (y * stride) + x;
                 int value = plane[i];
                 int difference = original[i] - value;
-                int band = value >> 3;
+                int band = value >> bandShift;
                 sums[c, 4, band] += difference;
                 counts[c, 4, band]++;
                 for (int k = 0; k < 4; k++)

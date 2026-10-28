@@ -267,7 +267,7 @@ public sealed class HeifDocument
             throw new NotSupportedException($"HEIF depth item {depthItem.Id} has no Apple depth description.");
         }
 
-        DecoderOptions auxiliary = (options ?? DecoderOptions.Default) with { TargetSize = null };
+        DecoderOptions auxiliary = (options ?? DecoderOptions.Default) with { TargetSize = null, PreserveBitDepth = false };
         Image? matte = photo.FindAuxiliaryImage(HeifAppleAuxiliaryTypes.PortraitEffectsMatte) is { IsSupported: true } matteItem
             ? LoadImage(matteItem, auxiliary, cancellationToken)
             : null;
@@ -278,7 +278,8 @@ public sealed class HeifDocument
     /// Loads a photograph and renders <paramref name="edits"/> into it: Photos sliders first, then, when
     /// <see cref="HeifEdits.Portrait"/> is set, the Portrait blur from the depth and matte
     /// (<see cref="LoadPortraitMaps"/>). The photograph is read with <paramref name="options"/>, including TargetSize;
-    /// the depth and matte are resampled to it. See <see cref="HeifImageExtensions.ApplyHeifEdits"/> for the result.
+    /// the depth and matte are resampled to it. The edits render 8-bit samples, so the photograph is read rounded to 8 bits
+    /// also with PreserveBitDepth. See <see cref="HeifImageExtensions.ApplyHeifEdits"/> for the result.
     /// </summary>
     /// <exception cref="ArgumentException">
     /// The item is not an image of this document, or a portrait is requested and it has no depth or disparity image.
@@ -291,7 +292,8 @@ public sealed class HeifDocument
         CheckImage(photo);
         ArgumentNullException.ThrowIfNull(edits);
         using HeifPortraitMaps? maps = edits.Portrait is null ? null : LoadPortraitMaps(photo, options, cancellationToken);
-        using Image image = LoadImage(photo, options, cancellationToken);
+        // The edits render 8-bit samples, so a deep photograph is read rounded to 8 bits.
+        using Image image = LoadImage(photo, (options ?? DecoderOptions.Default) with { PreserveBitDepth = false }, cancellationToken);
         return HeifEditPipeline.Apply(image, edits, maps, fromFile: true, cancellationToken);
     }
 

@@ -44,8 +44,8 @@ public sealed class HeifGainMapWriteTests
 
     private static int Difference(Image a, Image b)
     {
-        Span<Rgba32> x = a.GetPixelSpan();
-        Span<Rgba32> y = b.GetPixelSpan();
+        Span<Rgba32> x = a.GetPixelSpan<Rgba32>();
+        Span<Rgba32> y = b.GetPixelSpan<Rgba32>();
         int worst = 0;
         for (int i = 0; i < x.Length; i++)
         {
@@ -211,10 +211,10 @@ public sealed class HeifGainMapWriteTests
     {
         using Image image = Image.Load(Read("gainmap-iso.heic"), Hdr);
         image.Mutate(x => x.Resize(64, 48));
-        image.GetPixelSpan()[0] = new Rgba32(10, 20, 30, 128);
+        image.GetPixelSpan<Rgba32>()[0] = new Rgba32(10, 20, 30, 128);
         byte[] written = image.Encode(Options(HeifGainMapMode.Require) with { ThumbnailMaxDimension = 32 });
         using Image reloaded = Image.Load(written, Hdr);
-        await Assert.That(reloaded.GetPixelSpan()[0].A).IsLessThan((byte)255);
+        await Assert.That(reloaded.GetPixelSpan<Rgba32>()[0].A).IsLessThan((byte)255);
         await AssertReloads(image, written, GrayBudget, "alpha");
         await Assert.That(Items(written, "tmap").Length).IsEqualTo(1);
     }

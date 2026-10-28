@@ -55,7 +55,7 @@ internal static class HeifDocumentFixture
         using Image image = HeifEncodeTests.Sample(width, height, alpha);
         if (solid)
         {
-            image.GetPixelSpan().Fill(new Rgba32(230, 10, 30));
+            image.GetPixelSpan<Rgba32>().Fill(new Rgba32(230, 10, 30));
         }
 
         byte[] file = image.ToHeic(new HeifEncoderOptions { Configuration = config, TileSize = 0 });

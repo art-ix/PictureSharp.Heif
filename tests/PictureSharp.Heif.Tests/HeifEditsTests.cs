@@ -72,7 +72,7 @@ public sealed class HeifEditsTests
     public async Task Render_WithoutDepth_AppliesSlidersOnly()
     {
         using var source = new Image(96, 64);
-        source.GetPixelSpan().Fill(new Rgba32(120, 110, 100));
+        source.GetPixelSpan<Rgba32>().Fill(new Rgba32(120, 110, 100));
         HeifDocument doc = HeifDocument.Open(source.ToHeic(new HeifEncoderOptions { Configuration = Configuration, Quality = 95 }));
         using Image photo = doc.LoadImage(doc.PrimaryImage, Options);
         using Image adjusted = doc.Render(doc.PrimaryImage, new HeifEdits { Adjustments = Sliders }, Options);
@@ -150,5 +150,5 @@ public sealed class HeifEditsTests
         await Assert.That(() => doc.LoadPortraitMaps(doc.PrimaryImage, Options, cancelled.Token)).Throws<OperationCanceledException>();
     }
 
-    private static Rgba32[] Pixels(Image image) => image.GetPixelSpan().ToArray();
+    private static Rgba32[] Pixels(Image image) => image.GetPixelSpan<Rgba32>().ToArray();
 }

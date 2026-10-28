@@ -14,6 +14,12 @@ internal static class HeifEditPipeline
             throw new ArgumentException("The photograph must have exactly one frame.", nameof(photo));
         }
 
+        // The Photos sliders and the portrait blur work on 8-bit samples.
+        if (photo.PixelType != PixelType.Rgba32)
+        {
+            throw new NotSupportedException("HEIF edits render 8-bit images only; convert the photograph with Clone(x => x.ConvertPixelType(PixelType.Rgba32)) first.");
+        }
+
         HeifPortraitRenderer? blur = null;
         if (edits.Portrait is { } portrait)
         {
@@ -42,7 +48,7 @@ internal static class HeifEditPipeline
             {
                 var sliders = new HeifPhotosRenderer(photo.Width, photo.Height, edits.Adjustments ?? NoAdjustments, edits.MaxDegreeOfParallelism,
                     cancellationToken);
-                adjusted = photo.Clone(x => x.Apply(frame => sliders.Render(photo.GetPixelMemory(), frame.GetPixelMemory())), cancellationToken);
+                adjusted = photo.Clone(x => x.Apply(frame => sliders.Render(photo.GetPixelMemory<Rgba32>(), frame.GetPixelMemory<Rgba32>())), cancellationToken);
                 if (blur is null)
                 {
                     Image result = adjusted;
@@ -52,7 +58,7 @@ internal static class HeifEditPipeline
             }
 
             Image source = adjusted ?? photo;
-            return source.Clone(x => x.Apply(frame => blur!.Render(source.GetPixelMemory(), frame.GetPixelMemory())), cancellationToken);
+            return source.Clone(x => x.Apply(frame => blur!.Render(source.GetPixelMemory<Rgba32>(), frame.GetPixelMemory<Rgba32>())), cancellationToken);
         }
         finally
         {

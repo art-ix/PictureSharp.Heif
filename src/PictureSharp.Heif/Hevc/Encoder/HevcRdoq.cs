@@ -30,11 +30,11 @@ internal sealed class HevcRdoq
 
     // Quantizes coefficients into levels (raster order) and returns the number of nonzero levels.
     public int Quantize(ReadOnlySpan<int> coefficients, Span<int> levels, int log2Size, int qp, bool luma, int scanIdx,
-        ReadOnlySpan<byte> contexts, int cbfContext, double lambda, bool signHiding)
+        ReadOnlySpan<byte> contexts, int cbfContext, double lambda, bool signHiding, int bitDepth = 8)
     {
         int size = 1 << log2Size;
         int count = size * size;
-        int transformShift = 15 - 8 - log2Size;
+        int transformShift = 15 - bitDepth - log2Size;
         int qBits = 14 + (qp / 6) + transformShift;
         int quantScale = QuantScales[qp % 6];
         double errorScale = (1 << 15) * Math.Pow(2, -2.0 * transformShift) / quantScale / quantScale;

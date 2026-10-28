@@ -43,8 +43,9 @@ internal sealed class ReferenceGainMapFormat(Image baseImage, GainMapMetadata me
 
     public Image Decode(ReadOnlyMemory<byte> data, ImageDecodeContext context)
     {
+        context.ReservePixels(baseImage.Width, baseImage.Height, PixelType.Rgba32);
         var copy = new Image(baseImage.Width, baseImage.Height, new Rgba32(0, 0, 0, 255));
-        baseImage.CopyPixelDataTo(copy.GetPixelSpan());
+        baseImage.CopyPixelDataTo(copy.GetPixelSpan<Rgba32>());
         copy.Metadata.IccProfile = baseImage.Metadata.IccProfile;
         copy.Metadata.Chromaticities = baseImage.Metadata.Chromaticities;
         copy.Metadata.Gamma = baseImage.Metadata.Gamma;
@@ -65,13 +66,12 @@ internal sealed class ReferenceGainMapFormat(Image baseImage, GainMapMetadata me
         && actual.Headroom == expected.Headroom
         && MemoryMarshal.AsBytes(actual.GetPixelSpan()).SequenceEqual(MemoryMarshal.AsBytes(expected.GetPixelSpan()));
 
-    private sealed class MapImage(Image map) : GainMapImage(new Size(map.Width, map.Height))
+    private sealed class MapImage(Image map) : GainMapImage(new Size(map.Width, map.Height), map.PixelType)
     {
         public override Image Decode(int maxDegreeOfParallelism, CancellationToken cancellationToken)
         {
-            var copy = new Image(map.Width, map.Height, new Rgba32(0, 0, 0, 255));
-            map.CopyPixelDataTo(copy.GetPixelSpan());
-            return copy;
+            cancellationToken.ThrowIfCancellationRequested();
+            return map.Clone();
         }
     }
 }

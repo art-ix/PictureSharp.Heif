@@ -7,6 +7,9 @@ internal sealed record HevcEncoderSettings
     public required int Height { get; init; }
     public int ChromaFormatIdc { get; init; } = 1;
     public int Qp { get; init; } = 26;
+
+    // Bits per sample of every plane: 8 (Main, Monochrome) or 10 (Main 10, Monochrome 10).
+    public int BitDepth { get; init; } = 8;
     public int Log2CtbSize { get; init; } = 5;
     public bool SaoEnabled { get; init; } = true;
     // Rate-distortion optimized quantization (HM RDOQ); sign data hiding is only written together with it.
@@ -93,8 +96,8 @@ internal static class HevcParameterSetWriter
             w.WriteUe((uint)(padBottom / sub));
         }
 
-        w.WriteUe(0); // bit_depth_luma_minus8
-        w.WriteUe(0); // bit_depth_chroma_minus8
+        w.WriteUe((uint)(settings.BitDepth - 8)); // bit_depth_luma_minus8
+        w.WriteUe((uint)(settings.BitDepth - 8)); // bit_depth_chroma_minus8
         w.WriteUe(4); // log2_max_pic_order_cnt_lsb_minus4
         w.Write(1, 1); // sps_sub_layer_ordering_info_present_flag
         w.WriteUe(0);
@@ -201,14 +204,17 @@ internal static class HevcParameterSetWriter
         return w;
     }
 
-    // profile_tier_level(1, 0): Main for 4:2:0, the RExt Monochrome profile for 4:0:0; level from the picture size.
+    // profile_tier_level(1, 0): Main or Main 10 for 4:2:0, the RExt Monochrome or Monochrome 10 profile for 4:0:0;
+    // level from the picture size.
     private static void ProfileTierLevel(HevcBitWriter w, HevcEncoderSettings settings)
     {
         bool monochrome = settings.ChromaFormatIdc == 0;
+        bool tenBit = settings.BitDepth > 8;
         w.Write(0, 2); // general_profile_space
         w.Write(0, 1); // general_tier_flag
-        w.Write(monochrome ? 4u : 1u, 5);
-        w.Write(monochrome ? 1u << (31 - 4) : (1u << 30) | (1u << 29), 32); // compatibility flags
+        w.Write(monochrome ? 4u : tenBit ? 2u : 1u, 5);
+        // compatibility flags: a Main stream is also Main 10.
+        w.Write(monochrome ? 1u << (31 - 4) : tenBit ? 1u << 29 : (1u << 30) | (1u << 29), 32);
         w.Write(1, 1); // general_progressive_source_flag
         w.Write(0, 1); // general_interlaced_source_flag
         w.Write(0, 1); // general_non_packed_constraint_flag
@@ -216,8 +222,8 @@ internal static class HevcParameterSetWriter
         if (monochrome)
         {
             // max_12bit, max_10bit, max_8bit, max_422chroma, max_420chroma, max_monochrome, intra, one_picture_only,
-            // lower_bit_rate: the Monochrome profile.
-            w.Write(0b111111001, 9);
+            // lower_bit_rate: the Monochrome (or, without max_8bit, Monochrome 10) profile.
+            w.Write(tenBit ? 0b110111001u : 0b111111001u, 9);
             w.Write(0, 32);
             w.Write(0, 2);
         }

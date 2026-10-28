@@ -54,7 +54,7 @@ public sealed class PortraitCalibrationTests
     public async Task DiscProbe_NormalizesConstantAtEdgesAndPreservesZeroRadius()
     {
         using var image = new Image(17, 13);
-        image.GetPixelSpan().Fill(new Rgba32(17, 127, 241));
+        image.GetPixelSpan<Rgba32>().Fill(new Rgba32(17, 127, 241));
         var probe = new PortraitDiscProbe(image);
         foreach (float radius in new[] { 0f, 0.75f, 2f, 8f, 24f })
         {
@@ -69,7 +69,7 @@ public sealed class PortraitCalibrationTests
     public async Task DiscProbe_MixesInLinearLightWithAnAntialiasedRim()
     {
         using var image = new Image(3, 3);
-        image.GetPixelSpan().Fill(new Rgba32(0, 0, 0));
+        image.GetPixelSpan<Rgba32>().Fill(new Rgba32(0, 0, 0));
         image[1, 1] = new Rgba32(255, 255, 255);
         var probe = new PortraitDiscProbe(image);
         await Assert.That(probe.At(1, 1, PortraitDiscProbe.Disc(0))).IsEqualTo(new Rgba32(255, 255, 255));
@@ -133,7 +133,7 @@ public sealed class PortraitCalibrationTests
         bool focused = true;
         for (int y = 0; y < 240; y++)
         {
-            focused &= current.GetRowSpan(y)[176..].SequenceEqual(old.GetRowSpan(y)[176..]);
+            focused &= current.GetRowSpan<Rgba32>(y)[176..].SequenceEqual(old.GetRowSpan<Rgba32>(y)[176..]);
         }
         await Assert.That(focused).IsTrue();
         using Image unmaskedOld = BaselineV066.HeifPortrait.Render(photo, depth, null, oldOptions);
@@ -144,7 +144,7 @@ public sealed class PortraitCalibrationTests
         bool behind = true;
         for (int y = 0; y < 240; y++)
         {
-            behind &= Close(unmaskedNew.GetRowSpan(y)[(160 + OutlineBand)..], unmaskedOld.GetRowSpan(y)[(160 + OutlineBand)..]);
+            behind &= Close(unmaskedNew.GetRowSpan<Rgba32>(y)[(160 + OutlineBand)..], unmaskedOld.GetRowSpan<Rgba32>(y)[(160 + OutlineBand)..]);
         }
 
         await Assert.That(behind).IsTrue();
@@ -157,14 +157,14 @@ public sealed class PortraitCalibrationTests
             bool away = true;
             for (int y = 0; y < 240; y++)
             {
-                away &= Close(narrowNew.GetRowSpan(y)[..(160 - OutlineBand)], narrowOld.GetRowSpan(y)[..(160 - OutlineBand)])
-                    && Close(narrowNew.GetRowSpan(y)[(160 + OutlineBand)..], narrowOld.GetRowSpan(y)[(160 + OutlineBand)..]);
+                away &= Close(narrowNew.GetRowSpan<Rgba32>(y)[..(160 - OutlineBand)], narrowOld.GetRowSpan<Rgba32>(y)[..(160 - OutlineBand)])
+                    && Close(narrowNew.GetRowSpan<Rgba32>(y)[(160 + OutlineBand)..], narrowOld.GetRowSpan<Rgba32>(y)[(160 + OutlineBand)..]);
             }
 
             await Assert.That(away).IsTrue().Because($"f/{aperture} away from the outline");
         }
         using Image parallel = TestRender.Portrait(photo, depth, matte, options, 4);
-        await Assert.That(current.GetPixelSpan().SequenceEqual(parallel.GetPixelSpan())).IsTrue();
+        await Assert.That(current.GetPixelSpan<Rgba32>().SequenceEqual(parallel.GetPixelSpan<Rgba32>())).IsTrue();
     }
 
     [Test]

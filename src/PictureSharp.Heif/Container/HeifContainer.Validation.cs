@@ -105,6 +105,9 @@ internal sealed partial class HeifContainer
         throw HeifReader.Error("Truncated derived image data.");
     }
 
+    // The coded bits per channel of a validated image item (pixi, else hvcC).
+    public int BitDepth(HeifItem item) => Describe(item, 0).BitsPerChannel;
+
     private HeifImageDescription Describe(HeifItem item, int depth)
     {
         Require(depth <= MaxReferenceDepth, "Derived image nesting exceeds the limit.");

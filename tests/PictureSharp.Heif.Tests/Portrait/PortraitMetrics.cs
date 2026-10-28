@@ -102,7 +102,7 @@ internal static class PortraitMetrics
 
         double[] errors = new double[Regions.Length], ssim = new double[Regions.Length];
         long[] counts = new long[Regions.Length], windows = new long[Regions.Length];
-        ReadOnlySpan<Rgba32> pa = a.GetPixelSpan(), pb = b.GetPixelSpan();
+        ReadOnlySpan<Rgba32> pa = a.GetPixelSpan<Rgba32>(), pb = b.GetPixelSpan<Rgba32>();
         for (int i = 0; i < regions.Length; i++)
         {
             Rgba32 x = PortraitTone.Map(pa[i], tone), y = pb[i];
@@ -160,7 +160,7 @@ internal static class PortraitMetrics
 
         double[] integral = new double[(w + 1) * (h + 1)];
         int[] mask = new int[integral.Length];
-        ReadOnlySpan<Rgba32> pixels = image.GetPixelSpan();
+        ReadOnlySpan<Rgba32> pixels = image.GetPixelSpan<Rgba32>();
         for (int y = 0; y < h; y++)
         {
             double sum = 0;

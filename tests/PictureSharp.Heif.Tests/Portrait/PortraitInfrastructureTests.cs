@@ -52,8 +52,8 @@ public sealed class PortraitInfrastructureTests
     {
         using var a = new Image(16, 16);
         using var b = new Image(16, 16);
-        a.GetPixelSpan().Fill(new Rgba32(80, 80, 80));
-        b.GetPixelSpan().Fill(new Rgba32(90, 90, 90));
+        a.GetPixelSpan<Rgba32>().Fill(new Rgba32(80, 80, 80));
+        b.GetPixelSpan<Rgba32>().Fill(new Rgba32(90, 90, 90));
         byte[] regions = Enumerable.Repeat((byte)PortraitRegion.Background, 256).ToArray();
         PortraitScore identical = PortraitMetrics.Measure(a, a, regions)[0], shifted = PortraitMetrics.Measure(a, b, regions)[0];
         await Assert.That(identical.Mse).IsEqualTo(0d);
@@ -80,8 +80,8 @@ public sealed class PortraitInfrastructureTests
         for (int i = 0; i < 1024; i++)
         {
             byte v = (byte)(20 + i % 180);
-            source.GetPixelSpan()[i] = new(v, v, v);
-            target.GetPixelSpan()[i] = new((byte)(v + 10), (byte)(v + 5), v);
+            source.GetPixelSpan<Rgba32>()[i] = new(v, v, v);
+            target.GetPixelSpan<Rgba32>()[i] = new((byte)(v + 10), (byte)(v + 5), v);
         }
 
         PortraitTone tone = PortraitTone.Fit(source, target, new(0, 0, 32, 32));
@@ -89,7 +89,7 @@ public sealed class PortraitInfrastructureTests
         await Assert.That(tone.Residual).IsEqualTo(0d);
         await Assert.That(PortraitTone.Map(new(80, 80, 80), tone.Lut)).IsEqualTo(new Rgba32(90, 85, 80));
         await Assert.That(PortraitTone.Fit(source, target, Rectangle.Empty).Lut).IsNull();
-        source.GetPixelSpan().Fill(new(70, 70, 70));
+        source.GetPixelSpan<Rgba32>().Fill(new(70, 70, 70));
         await Assert.That(PortraitTone.Fit(source, target, new(0, 0, 32, 32)).Lut).IsNull();
     }
 

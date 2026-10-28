@@ -12,6 +12,7 @@ options set `Configuration`.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
+| `BitDepth` | `Auto` | 8 bits for `Rgba32` and exact widened 8-bit samples; otherwise 10 bits for `Rgba64`. `UpTo8` rounds to 8 bits; `Ten` forces 10 bits |
 | `Quality` | 50 | 0–100; QP = round(0.51 × (100 − Quality)) |
 | `AdaptiveQuantizationStrength` | 1 | 0–3; finer quantization in flat areas (0 disables it) |
 | `AlphaQuality` | `Quality` | quality of the alpha plane |
@@ -26,12 +27,23 @@ options set `Configuration`.
 
 - **Colour:** BT.601 full range 4:2:0 (nclx, or the ICC profile when present), chroma averaged over 2×2 pixels. Odd
   sizes are coded one sample larger and cropped.
-- **HEVC:** Main profile, one intra picture per tile, coding units of 32, 16 and 8. Decisions follow HM's intra search
+- **HEVC:** Main or Main 10 profile according to `BitDepth`, one intra picture per tile, coding units of 32, 16 and 8. Decisions follow HM's intra search
   with a faster pre-selection; kvazaar's adaptive quantization, HM's RDOQ with sign hiding, deblocking and SAO.
 - **Alpha:** a monochrome auxiliary image, written only when some pixel is transparent.
 - **Orientation:** the EXIF orientation becomes container rotation and mirroring, and the written EXIF says
   `TopLeft`, so viewers show the image as the original was shown.
 - **Metadata:** ICC, EXIF and XMP. Animations keep the first frame.
+
+## Sample precision
+
+A 16-bit image is rounded directly to 10-bit HEVC samples, without an 8-bit intermediate. Colour, alpha and a
+re-encoded gain map use the selected depth; under `Auto` the gain map chooses from its own pixels. HEIC output is
+lossy even at Quality 100 and does not preserve all 65536 input values. `Ten` also accepts 8-bit input.
+
+```csharp
+using Image image = Image.Load("scan.png", new DecoderOptions { PreserveBitDepth = true });
+image.SaveAsHeic("scan.heic", new HeifEncoderOptions { BitDepth = HeifBitDepth.Ten, Quality = 95 });
+```
 
 ## HDR gain map
 

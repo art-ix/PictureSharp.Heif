@@ -53,7 +53,7 @@ internal static class PortraitMeasurementRun
         return Convert.ToHexStringLower(SHA256.HashData(stream));
     }
 
-    public static string PixelsHash(Image image) => Hash(MemoryMarshal.AsBytes(image.GetPixelSpan()));
+    public static string PixelsHash(Image image) => Hash(MemoryMarshal.AsBytes(image.GetPixelSpan<Rgba32>()));
 
     public static PortraitMeasurementManifest Read(string root, PortraitSampleSet? set = null)
     {

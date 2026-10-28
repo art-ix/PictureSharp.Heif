@@ -9,7 +9,7 @@
   },
   "frozenSha256": {
     "HeifParallel.cs": "c55498db799fb1ab7905f8b6129a9f6f885ae765eee00ce62b1e2dc01ed9d9fa",
-    "HeifPortrait.cs": "8f909b47ebe791fb6df1d260e61eb5509ab159a6dc161df8fe3eea33998c7963",
+    "HeifPortrait.cs": "f27390825c9eab2d1e84df830a5ba2c16d688995364bd006e3c21b745867887b",
     "HeifPortraitOptions.cs": "5871df10abcbfc9330d6d686ffc07282564c56af526acfc3b67a63b80de029d7",
     "HeifPortraitRenderer.cs": "4adee716a0db2c02a8e0bcbdbc149cd600b3b1b0e3a1523a8c977b9982bbc1c2"
   }

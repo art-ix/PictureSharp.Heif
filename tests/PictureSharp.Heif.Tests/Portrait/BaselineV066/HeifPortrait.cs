@@ -90,7 +90,7 @@ public static class HeifPortrait
             throw new ImageFormatException($"Portrait rendering needs {working} working pixels, which exceeds MaxPixels ({options.MaxPixels}).");
         }
 
-        return photo.Clone(x => x.Apply(frame => renderer.Render(photo.GetPixelMemory(), frame.GetPixelMemory())), cancellationToken);
+        return photo.Clone(x => x.Apply(frame => renderer.Render(photo.GetPixelMemory<Rgba32>(), frame.GetPixelMemory<Rgba32>())), cancellationToken);
     }
 
     // Matching proportions, as for thumbnails: one pixel of rounding at the photograph's longer side.
@@ -129,7 +129,7 @@ public static class HeifPortrait
 
     private static byte[] Red(Image matte)
     {
-        ReadOnlySpan<Rgba32> pixels = matte.GetPixelSpan();
+        ReadOnlySpan<Rgba32> pixels = matte.GetPixelSpan<Rgba32>();
         var result = new byte[pixels.Length];
         for (int i = 0; i < pixels.Length; i++)
         {

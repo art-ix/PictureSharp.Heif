@@ -22,8 +22,9 @@ repository as copies of internal code.
 - Implement the plugin through `PictureSharp.Formats`: `IImageFormatModule`, `IImageFormatDecoder`,
   `IImageFormatEncoder<TOptions>` and `ImageDecodeContext`. Public API uses `PictureSharp.Formats.Heif` (`HeifFormat`,
   `HeifEncoderOptions`, extension blocks such as `SaveAsHeic`); codecs and the container parser are `internal`.
-- Return `Image` pixels as `Rgba32` with straight (unpremultiplied) alpha; 10-bit samples are reduced to 8 bits with
-  documented rounding.
+- Return straight (unpremultiplied) alpha: `Rgba32` by default, `Rgba64` with `PreserveBitDepth` for colour or alpha
+  above 8 bits. Preserve all source codes with documented scaling; charge `Rgba64` pixels twice through the typed
+  `ReservePixels` overload. The encoder writes `Rgba64` directly as 10-bit HEVC.
 - Call `ImageDecodeContext.ReservePixels` / `ReserveMetadata` before allocating and check the cancellation token
   between tiles and CTU rows. Corrupt or unrecognized input must throw `ImageFormatException`; valid input with
   unsupported features (inter slices, RExt, SCC, image sequences) must throw `NotSupportedException`. Malicious input

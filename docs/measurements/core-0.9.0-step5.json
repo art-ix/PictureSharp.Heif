@@ -1,0 +1,180 @@
+{
+  "date": "2026-10-28",
+  "method": {
+    "initial": "alternating before/after then after/before, one runtime thread; JXL median of 7 after ~2 s warmup; HEIF best of 7 (11 for larger decode), GC before each call",
+    "controlled": "CPU 0 affinity, DOTNET_TieredCompilation=0, alternating pairs; JXL median of 11 after ~2 s warmup; HEIF best of 15",
+    "notes": [
+      "Initial unpinned decode measurements varied substantially. Use final controlled results for decoder conclusions.",
+      "JXL final writer isolates image construction from the 8-bit row loop; ICC table creation avoids a captured bitDepth closure.",
+      "Allocation differences of a few KB in decode include runtime/GC measurement noise; no full-image allocation added.",
+      "HEIF timing output rounds to whole milliseconds; the small corpus decode is informational."
+    ]
+  },
+  "initial": [
+    {
+      "plugin": "heif",
+      "case": "decode",
+      "round": 1,
+      "label": "before",
+      "bestMs": 2.0,
+      "allocatedMB": 0.2,
+      "bytes": 0
+    },
+    {
+      "plugin": "heif",
+      "case": "decode",
+      "round": 1,
+      "label": "after",
+      "bestMs": 1.0,
+      "allocatedMB": 0.2,
+      "bytes": 0
+    },
+    {
+      "plugin": "heif",
+      "case": "decode",
+      "round": 2,
+      "label": "after",
+      "bestMs": 1.0,
+      "allocatedMB": 0.2,
+      "bytes": 0
+    },
+    {
+      "plugin": "heif",
+      "case": "decode",
+      "round": 2,
+      "label": "before",
+      "bestMs": 1.0,
+      "allocatedMB": 0.2,
+      "bytes": 0
+    },
+    {
+      "plugin": "heif",
+      "case": "encode",
+      "round": 1,
+      "label": "before",
+      "bestMs": 1368.0,
+      "allocatedMB": 33.6,
+      "bytes": 51114
+    },
+    {
+      "plugin": "heif",
+      "case": "encode",
+      "round": 1,
+      "label": "after",
+      "bestMs": 1383.0,
+      "allocatedMB": 33.6,
+      "bytes": 51114
+    },
+    {
+      "plugin": "heif",
+      "case": "encode",
+      "round": 2,
+      "label": "after",
+      "bestMs": 1392.0,
+      "allocatedMB": 33.6,
+      "bytes": 51114
+    },
+    {
+      "plugin": "heif",
+      "case": "encode",
+      "round": 2,
+      "label": "before",
+      "bestMs": 1398.0,
+      "allocatedMB": 33.6,
+      "bytes": 51114
+    },
+    {
+      "plugin": "heif",
+      "case": "decode/photo3",
+      "round": 1,
+      "label": "before",
+      "bestMs": 124.0,
+      "allocatedMB": 76.4,
+      "bytes": 0
+    },
+    {
+      "plugin": "heif",
+      "case": "decode/photo3",
+      "round": 1,
+      "label": "after",
+      "bestMs": 128.0,
+      "allocatedMB": 76.4,
+      "bytes": 0
+    },
+    {
+      "plugin": "heif",
+      "case": "decode/photo3",
+      "round": 2,
+      "label": "after",
+      "bestMs": 187.0,
+      "allocatedMB": 76.4,
+      "bytes": 0
+    },
+    {
+      "plugin": "heif",
+      "case": "decode/photo3",
+      "round": 2,
+      "label": "before",
+      "bestMs": 165.0,
+      "allocatedMB": 76.4,
+      "bytes": 0
+    }
+  ],
+  "controlled": [
+    {
+      "plugin": "heif",
+      "case": "decode/photo3",
+      "round": 1,
+      "label": "before",
+      "bestMs": 64.0,
+      "allocatedMB": 76.4,
+      "bytes": 0,
+      "cpu": 0,
+      "tieredCompilation": false
+    },
+    {
+      "plugin": "heif",
+      "case": "decode/photo3",
+      "round": 1,
+      "label": "after",
+      "bestMs": 64.0,
+      "allocatedMB": 76.4,
+      "bytes": 0,
+      "cpu": 0,
+      "tieredCompilation": false
+    },
+    {
+      "plugin": "heif",
+      "case": "decode/photo3",
+      "round": 2,
+      "label": "after",
+      "bestMs": 64.0,
+      "allocatedMB": 76.4,
+      "bytes": 0,
+      "cpu": 0,
+      "tieredCompilation": false
+    },
+    {
+      "plugin": "heif",
+      "case": "decode/photo3",
+      "round": 2,
+      "label": "before",
+      "bestMs": 65.0,
+      "allocatedMB": 76.4,
+      "bytes": 0,
+      "cpu": 0,
+      "tieredCompilation": false
+    }
+  ],
+  "compatibility": {
+    "functionalTestsWithoutLocalOrMeasurement": 795,
+    "failed": 0,
+    "identityFiles": 28,
+    "identityOperations": 56,
+    "identityMismatches": 0,
+    "hmDepths": [
+      8,
+      10
+    ]
+  }
+}

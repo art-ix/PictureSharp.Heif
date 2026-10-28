@@ -172,7 +172,9 @@ public sealed class HevcEncoderTests
 
     [Test]
     [Property("Category", "Oracle")]
-    public async Task Encode_HmDecodesTheSameWithLoopFilter()
+    [Arguments(8)]
+    [Arguments(10)]
+    public async Task Encode_HmDecodesTheSameWithLoopFilter(int bitDepth)
     {
         string hm = Path.Combine(Environment.GetEnvironmentVariable("PICTURESHARP_HEIF_TOOLS") ?? Path.Combine(Root(), "reference", "tools"), "bin", "TAppDecoder");
         Skip.Unless(File.Exists(hm), "Build TAppDecoder with scripts/build-heif-reference.sh.");
@@ -181,8 +183,15 @@ public sealed class HevcEncoderTests
         {
             foreach ((int width, int height, int qp, double aq) in new[] { (96, 64, 30, 0.0), (200, 136, 40, 0.0), (64, 64, 12, 0.0), (200, 136, 32, 2.0) })
             {
-                var settings = new HevcEncoderSettings { Width = width, Height = height, Qp = qp, AqStrength = aq, AqReferenceLogVariance = Math.Log(1500) };
-                List<byte[]> nals = HevcPictureEncoder.Encode(settings, Picture(width, height, false, qp), CancellationToken.None);
+                var settings = new HevcEncoderSettings { Width = width, Height = height, Qp = qp, BitDepth = bitDepth, AqStrength = aq, AqReferenceLogVariance = Math.Log(1500) };
+                ushort[][] source = Picture(width, height, false, qp);
+                if (bitDepth == 10)
+                {
+                    foreach (ushort[] plane in source)
+                        for (int i = 0; i < plane.Length; i++) plane[i] = (ushort)((plane[i] * 4) + (i & 3));
+                }
+
+                List<byte[]> nals = HevcPictureEncoder.Encode(settings, source, CancellationToken.None);
                 string stream = Path.Combine(work, "s.hevc");
                 File.WriteAllBytes(stream, HeifTestItems.ToAnnexB(nals.Select(n => (ReadOnlyMemory<byte>)n)));
                 string output = Path.Combine(work, "s.yuv");
@@ -218,7 +227,9 @@ public sealed class HevcEncoderTests
         {
             for (int x = 0; x < frame.CroppedWidth >> shift; x++)
             {
-                yield return (byte)plane[(y * frame.Strides[c]) + x];
+                ushort sample = plane[(y * frame.Strides[c]) + x];
+                yield return (byte)sample;
+                if (frame.BitDepthLuma > 8) yield return (byte)(sample >> 8);
             }
         }
     }

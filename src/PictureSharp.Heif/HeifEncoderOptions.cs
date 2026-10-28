@@ -1,6 +1,9 @@
 namespace PictureSharp.Formats.Heif;
 
-/// <summary>Options for the HEIC encoder (HEVC Main 8-bit 4:2:0 in the HEIF container).</summary>
+/// <summary>
+/// Options for the HEIC encoder: HEVC 4:2:0 in the HEIF container, Main (8-bit) or, for 16-bit images, Main 10
+/// (<see cref="BitDepth"/>).
+/// </summary>
 public sealed record HeifEncoderOptions : EncoderOptions
 {
     /// <inheritdoc/>
@@ -76,6 +79,16 @@ public sealed record HeifEncoderOptions : EncoderOptions
 
     /// <summary>Quality 0–100 of a gain map that has to be encoded again, mapped to QP as <see cref="Quality"/>. Default: 90.</summary>
     public int GainMapQuality { get; init => field = InRange(value, 0, 100, nameof(GainMapQuality)); } = 90;
+
+    /// <summary>
+    /// The coded sample depth: 8 bits, or 10 bits for 16-bit images by default. Samples are scaled to 10 bits with
+    /// rounding (<c>round(v × 1023 / 65535)</c>). Default: <see cref="HeifBitDepth.Auto"/>.
+    /// </summary>
+    public HeifBitDepth BitDepth
+    {
+        get;
+        init => field = Enum.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(BitDepth), value, "Unknown HEIF bit depth.");
+    }
 
     private static int InRange(int value, int minimum, int maximum, string name) =>
         value >= minimum && value <= maximum ? value : throw new ArgumentOutOfRangeException(name, value, $"Use a value from {minimum} to {maximum}.");

@@ -104,7 +104,7 @@ public sealed class HeifPhotosEditLocalTests
             Array.Clear(block);
             for (int y = by * 8; y < by * 8 + 8; y++)
             {
-                ReadOnlySpan<Rgba32> ra = a.GetRowSpan(y), rb = b.GetRowSpan(y);
+                ReadOnlySpan<Rgba32> ra = a.GetRowSpan<Rgba32>(y), rb = b.GetRowSpan<Rgba32>(y);
                 for (int x = 0; x < blocksX * 8; x++)
                 {
                     int i = x / 8 * 3;

@@ -147,7 +147,7 @@ internal sealed partial class HevcPictureEncoder
         const int keep = 1;
         Span<double> satd = stackalloc double[35];
         satd.Fill(double.NaN);
-        intra.PrepareReferences(recon[0], strides[0], 0, x, y, log2Size, 8, x, y, this);
+        intra.PrepareReferences(recon[0], strides[0], 0, x, y, log2Size, bitDepth, x, y, this);
         for (int mode = 0; mode < 35; mode = mode < 2 ? mode + 1 : mode + 4)
         {
             SatdCost(mode, x, y, log2Size, candidates, satd);
@@ -238,7 +238,7 @@ internal sealed partial class HevcPictureEncoder
             return;
         }
 
-        intra.PredictPrepared(0, log2Size, mode, 8);
+        intra.PredictPrepared(0, log2Size, mode, bitDepth);
         satd[mode] = Satd(source[0], strides[0], x, y, intra.Prediction, 1 << log2Size)
             + (sqrtLambda * (mode == candidates[0] ? 1 : mode == candidates[1] || mode == candidates[2] ? 2 : 6));
     }
@@ -452,11 +452,11 @@ internal sealed partial class HevcPictureEncoder
         ushort[] original = source[cIdx];
         if (referencesPrepared)
         {
-            intra.PredictPrepared(cIdx, log2Size, mode, 8);
+            intra.PredictPrepared(cIdx, log2Size, mode, bitDepth);
         }
         else
         {
-            intra.Predict(plane, stride, cIdx, x, y, log2Size, mode, 8, xTbY, yTbY, this);
+            intra.Predict(plane, stride, cIdx, x, y, log2Size, mode, bitDepth, xTbY, yTbY, this);
         }
 
         int[] prediction = intra.Prediction;
@@ -467,12 +467,12 @@ internal sealed partial class HevcPictureEncoder
         }
 
         bool dst = cIdx == 0 && log2Size == 2;
-        int blockQp = cIdx == 0 ? qp : chromaQp;
-        HevcForwardTransform.Forward(residual, coefficients, temporary, log2Size, dst, 8);
+        int blockQp = (cIdx == 0 ? qp : chromaQp) + qpOffset;
+        HevcForwardTransform.Forward(residual, coefficients, temporary, log2Size, dst, bitDepth);
         int nonZero = settings.Rdoq && useRdoq
             ? rdoq.Quantize(coefficients, quantized, log2Size, blockQp, cIdx == 0, ScanIndex(mode, log2Size, cIdx == 0), ctx,
-                cbfContext, lambda, settings.SignHidingEnabled)
-            : HevcForwardTransform.Quantize(coefficients, quantized, log2Size, blockQp, 8);
+                cbfContext, lambda, settings.SignHidingEnabled, bitDepth)
+            : HevcForwardTransform.Quantize(coefficients, quantized, log2Size, blockQp, bitDepth);
         Span<int> levelPlane = levels[cIdx];
         for (int j = 0; j < size; j++)
         {
@@ -484,8 +484,8 @@ internal sealed partial class HevcPictureEncoder
         {
             Span<int> dequantized = coefficients.AsSpan(0, count);
             quantized.AsSpan(0, count).CopyTo(dequantized);
-            HevcTransform.Dequantize(dequantized, log2Size, blockQp, 8, default);
-            HevcTransform.Inverse(dequantized, restored, temporary, log2Size, dst, 8);
+            HevcTransform.Dequantize(dequantized, log2Size, blockQp, bitDepth, default);
+            HevcTransform.Inverse(dequantized, restored, temporary, log2Size, dst, bitDepth);
         }
         else
         {
@@ -498,7 +498,7 @@ internal sealed partial class HevcPictureEncoder
         {
             int offset = ((y + j) * stride) + x;
             error += HevcSamples.StoreClippedError(plane.AsSpan(offset, size), prediction.AsSpan(j * size, size),
-                restored.Slice(j * size, size), 255, original.AsSpan(offset, size));
+                restored.Slice(j * size, size), maxSample, original.AsSpan(offset, size));
         }
 
         return error;

@@ -10,7 +10,7 @@ public sealed class HeifEncodeTests
     internal static Image Sample(int width, int height, bool alpha = false)
     {
         var image = new Image(width, height);
-        Span<Rgba32> pixels = image.GetPixelSpan();
+        Span<Rgba32> pixels = image.GetPixelSpan<Rgba32>();
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)

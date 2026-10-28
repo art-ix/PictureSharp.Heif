@@ -19,7 +19,7 @@ public sealed class PortraitBokehTests
         photo.Metadata.ExifProfile.SetValue(ExifTag.IsoSpeed, (ushort)1250);
         using Image high = Render(photo, depth, matte, threads: 1);
 
-        await Assert.That(low.GetPixelSpan().SequenceEqual(parallel.GetPixelSpan())).IsTrue();
+        await Assert.That(low.GetPixelSpan<Rgba32>().SequenceEqual(parallel.GetPixelSpan<Rgba32>())).IsTrue();
         var focused = new Rectangle(0, 0, Width / 2 - 64, Height);
         var blurred = new Rectangle(Width / 2 + 128, 0, Width / 2 - 128, Height);
         await Assert.That(Deviation(low, focused)).IsLessThan(1e-9);
@@ -36,7 +36,7 @@ public sealed class PortraitBokehTests
         // Below clipping, so the light is only moved, not scaled up (a clipped point gets PointGain, checked below).
         using Image photo = Point(background, 230, cx, cy);
         using Image result = Render(photo, depth, matte, threads: 1);
-        Span<Rgba32> centre = result.GetRowSpan(cy);
+        Span<Rgba32> centre = result.GetRowSpan<Rgba32>(cy);
         double[] profile = new double[100];
         for (int dx = 0; dx < profile.Length; dx++)
         {
@@ -68,7 +68,7 @@ public sealed class PortraitBokehTests
         Image photo = Flat((byte)background);
         for (int y = cy - 2; y <= cy + 2; y++)
         {
-            Span<Rgba32> row = photo.GetRowSpan(y);
+            Span<Rgba32> row = photo.GetRowSpan<Rgba32>(y);
             for (int x = cx - 2; x <= cx + 2; x++)
             {
                 row[x] = new Rgba32(value, value, value);
@@ -83,7 +83,7 @@ public sealed class PortraitBokehTests
         double light = 0;
         for (int y = cy - 2 * radius; y <= cy + 2 * radius; y++)
         {
-            Span<Rgba32> row = result.GetRowSpan(y);
+            Span<Rgba32> row = result.GetRowSpan<Rgba32>(y);
             for (int x = cx - 2 * radius; x <= cx + 2 * radius; x++)
             {
                 light += Linear(row[x].G) - Linear(background);
@@ -107,7 +107,7 @@ public sealed class PortraitBokehTests
     private static Image Flat(byte value)
     {
         var image = new Image(Width, Height);
-        image.GetPixelSpan().Fill(new Rgba32(value, value, value));
+        image.GetPixelSpan<Rgba32>().Fill(new Rgba32(value, value, value));
         return image;
     }
 
@@ -116,7 +116,7 @@ public sealed class PortraitBokehTests
         var values = new List<double>();
         for (int y = area.Top; y < area.Bottom; y++)
         {
-            Span<Rgba32> row = image.GetRowSpan(y);
+            Span<Rgba32> row = image.GetRowSpan<Rgba32>(y);
             for (int x = area.Left; x < area.Right; x++)
             {
                 values.Add(HeifPortraitTests.Luma(row[x]));

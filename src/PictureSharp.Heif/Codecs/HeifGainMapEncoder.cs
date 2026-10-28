@@ -21,20 +21,32 @@ internal static class HeifGainMapEncoder
         }
 
         using Image map = gainMap.Map.Decode(options.MaxDegreeOfParallelism, cancellationToken);
-        var pixels = new Rgba32[map.Width * map.Height];
-        map.Frames.RootFrame.CopyPixelDataTo(pixels);
-        HeifImageEncoder.PlaneSource source = IsGray(pixels) ? HeifImageEncoder.PlaneSource.Gray : HeifImageEncoder.PlaneSource.YCbCr;
-        (HeifCodedImage coded, List<HeifTransform> transforms) = HeifImageEncoder.Code(pixels, map.Width, map.Height, source,
-            options.GainMapQuality, aqStrength: 0, options, cancellationToken);
+        (HeifCodedImage coded, List<HeifTransform> transforms) = HeifImageEncoder.TenBit(map.Frames.RootFrame, options.BitDepth)
+            ? Code(HeifImageEncoder.Wide(map.Frames.RootFrame), map.Width, map.Height, options, cancellationToken)
+            : Code(HeifImageEncoder.Narrow(map.Frames.RootFrame), map.Width, map.Height, options, cancellationToken);
         transforms.AddRange(orientation);
         return new HeifGainMapContent(coded, HeifImageEncoder.SignalledColour, transforms, metadata, alternateIcc, width, height);
     }
 
-    private static bool IsGray(ReadOnlySpan<Rgba32> pixels)
+    // A map coded with 8 bits, or 10 for a 16-bit map (HeifEncoderOptions.BitDepth, as for the image).
+    private static (HeifCodedImage Image, List<HeifTransform> Transforms) Code<TPixel>(TPixel[] pixels, int width, int height,
+        HeifEncoderOptions options, CancellationToken cancellationToken) where TPixel : unmanaged
     {
-        foreach (Rgba32 p in pixels)
+        HeifImageEncoder.PlaneSource source = IsGray(pixels) ? HeifImageEncoder.PlaneSource.Gray : HeifImageEncoder.PlaneSource.YCbCr;
+        return HeifImageEncoder.Code(pixels, width, height, source, options.GainMapQuality, aqStrength: 0, options, cancellationToken);
+    }
+
+    private static bool IsGray<TPixel>(ReadOnlySpan<TPixel> pixels) where TPixel : unmanaged
+    {
+        foreach (TPixel pixel in pixels)
         {
-            if (p.R != p.G || p.G != p.B)
+            bool gray = pixel switch
+            {
+                Rgba32 p => p.R == p.G && p.G == p.B,
+                Rgba64 p => p.R == p.G && p.G == p.B,
+                _ => false,
+            };
+            if (!gray)
             {
                 return false;
             }

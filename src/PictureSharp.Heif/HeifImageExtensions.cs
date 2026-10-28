@@ -42,6 +42,10 @@ public static class HeifImageExtensions
         /// or the depth or matte proportions differ from the image's.
         /// </exception>
         /// <exception cref="ArgumentOutOfRangeException"><see cref="HeifPortraitOptions.FocusPoint"/> lies outside the image.</exception>
+        /// <exception cref="NotSupportedException">
+        /// The image has 16-bit samples (<see cref="PixelType.Rgba64"/>); the edits render 8-bit images, so convert it with
+        /// <c>Clone(x => x.ConvertPixelType(PixelType.Rgba32))</c> first.
+        /// </exception>
         /// <exception cref="ImageFormatException">
         /// Depth samples lie outside the described range, or the working pixels exceed <see cref="HeifEdits.MaxPixels"/>.
         /// </exception>

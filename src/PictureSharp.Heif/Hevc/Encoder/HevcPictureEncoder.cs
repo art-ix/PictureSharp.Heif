@@ -29,6 +29,11 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
     private readonly byte[] contexts = new byte[HevcContext.Count];
     private double lambda;
     private double sqrtLambda;
+    private readonly int bitDepth;
+    private readonly int maxSample;
+
+    // QpBdOffset (7.4.3.2.1): the transform and quantization use QP + 6 * (bitDepth - 8).
+    private readonly int qpOffset;
     private int qp;
     private int chromaQp;
 
@@ -43,6 +48,9 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
         width = settings.CodedWidth;
         height = settings.CodedHeight;
         chromaFormat = settings.ChromaFormatIdc;
+        bitDepth = settings.BitDepth;
+        maxSample = (1 << bitDepth) - 1;
+        qpOffset = 6 * (bitDepth - 8);
         source = planes;
         int planeCount = chromaFormat == 0 ? 1 : 3;
         strides = new int[planeCount];
@@ -74,8 +82,8 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
     {
         qp = value;
         chromaQp = HevcTransform.ChromaQp420(qp);
-        // HM intra lambda: 0.57 * 2^((QP - 12) / 3).
-        lambda = 0.57 * Math.Pow(2, (qp - 12) / 3.0);
+        // HM intra lambda: 0.57 * 2^((QP + QpBdOffset - 12) / 3), so distortion and rate keep their balance at any depth.
+        lambda = 0.57 * Math.Pow(2, (qp + qpOffset - 12) / 3.0);
         sqrtLambda = Math.Sqrt(lambda);
     }
 
@@ -187,7 +195,7 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
 
             if (sao is not null)
             {
-                HevcSyntaxWriter.Sao(cabac, contexts, sao[ctb], rx > 0, ctb >= layout.WidthInCtbs, components);
+                HevcSyntaxWriter.Sao(cabac, contexts, sao[ctb], rx > 0, ctb >= layout.WidthInCtbs, components, bitDepth);
             }
 
             qpDeltaCoded = false;
@@ -214,7 +222,7 @@ internal sealed partial class HevcPictureEncoder : IHevcAvailability
         HevcFrame deblocked = HevcDecoder.Decode(
             [HevcParameterSetWriter.Vps(settings), HevcParameterSetWriter.Sps(settings), HevcParameterSetWriter.Pps(settings), slice],
             null, cancellationToken);
-        var estimator = new HevcSaoEstimator(source, deblocked.Planes, strides, width, height, settings.Log2CtbSize);
+        var estimator = new HevcSaoEstimator(source, deblocked.Planes, strides, width, height, settings.Log2CtbSize, bitDepth);
         var sao = new HevcSaoParameters[layout.CtbCount];
         int components = chromaFormat == 0 ? 1 : 3;
         for (int ctb = 0; ctb < layout.CtbCount; ctb++)

@@ -17,8 +17,10 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
         CancellationToken = cancellationToken,
     };
 
-    // alpha renders an auxiliary alpha image: its luma becomes the red channel, without colour conversion.
-    public HeifCanvas<Rgba32> Render(HeifImageNode node, bool alpha) => Render(node, null, alpha, 0);
+    // alpha renders an auxiliary alpha image: its luma becomes the red channel, without colour conversion. TPixel is
+    // Rgba32 (samples reduced to 8 bits) or Rgba64 (samples kept at their precision).
+    public HeifCanvas<TPixel> Render<TPixel>(HeifImageNode node, bool alpha) where TPixel : unmanaged =>
+        Render<TPixel>(node, null, alpha, 0);
 
     // Raw luma samples at the coded bit depth, without colour conversion or bit-depth reduction (depth and disparity
     // images); chroma is ignored. Grids and transforms move samples without changing their values.
@@ -83,7 +85,7 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
         return leaf is HeifCodedNode coded ? FromVui(HevcDecoder.ReadColour(coded.NalUnits)) : HeifNclx.Unspecified;
     }
 
-    private HeifCanvas<Rgba32> Render(HeifImageNode node, HeifNclx? inheritedNclx, bool alpha, int depth)
+    private HeifCanvas<TPixel> Render<TPixel>(HeifImageNode node, HeifNclx? inheritedNclx, bool alpha, int depth) where TPixel : unmanaged
     {
         if (depth > MaxDepth)
         {
@@ -92,25 +94,39 @@ internal sealed class HeifRenderer(int maxDegreeOfParallelism, CancellationToken
 
         cancellationToken.ThrowIfCancellationRequested();
         HeifNclx? nclx = node.Nclx ?? inheritedNclx;
-        HeifCanvas<Rgba32> canvas;
+        HeifCanvas<TPixel> canvas;
         if (node is HeifIdentityNode identity)
         {
-            canvas = Render(identity.Source, nclx, alpha, depth + 1);
+            canvas = Render<TPixel>(identity.Source, nclx, alpha, depth + 1);
         }
         else
         {
             HeifPlanes planes = Assemble(node, depth);
-            canvas = new HeifCanvas<Rgba32>(planes.Width, planes.Height);
+            canvas = new HeifCanvas<TPixel>(planes.Width, planes.Height);
             if (alpha)
             {
-                HeifColorConverter.ConvertAlpha(planes, canvas.Pixels, parallel);
+                if (canvas.Pixels is Rgba64[] wide)
+                {
+                    HeifColorConverter.ConvertAlpha(planes, wide, parallel);
+                }
+                else
+                {
+                    HeifColorConverter.ConvertAlpha(planes, (Rgba32[])(object)canvas.Pixels, parallel);
+                }
             }
             else
             {
                 HeifNclx colour = nclx ?? FromVui(planes.Colour);
                 bool bilinear = planes.ChromaFormatIdc == 1 && HasOddCrop(node, planes.Width, planes.Height);
                 var converter = new HeifColorConverter(planes.ChromaFormatIdc == 0 ? 6 : colour.Matrix, colour.FullRange);
-                converter.Convert(planes, canvas.Pixels, bilinear, parallel);
+                if (canvas.Pixels is Rgba64[] wide)
+                {
+                    converter.Convert(planes, wide, bilinear, parallel);
+                }
+                else
+                {
+                    converter.Convert(planes, (Rgba32[])(object)canvas.Pixels, bilinear, parallel);
+                }
             }
         }
 

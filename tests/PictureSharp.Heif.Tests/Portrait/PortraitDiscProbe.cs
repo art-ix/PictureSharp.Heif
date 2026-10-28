@@ -18,7 +18,7 @@ internal sealed class PortraitDiscProbe
         width = image.Width; height = image.Height;
         linear = new double[width * height * 3];
         prefix = new double[(width + 1) * height * 3];
-        ReadOnlySpan<Rgba32> pixels = image.GetPixelSpan();
+        ReadOnlySpan<Rgba32> pixels = image.GetPixelSpan<Rgba32>();
         for (int y = 0; y < height; y++)
         {
             int row = y * (width + 1) * 3;

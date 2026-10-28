@@ -14,12 +14,14 @@
   ISO gain maps (`tmap`, `HeifEncoderOptions.GainMap`).
 - SIMD on x64/ARM64 bit-identical to scalar, parallel tiles, result independent of the thread count.
 
-**Goal for 0.7.0 (scope simplified 2026-10-18):** a catalog of the file contents (photos, thumbnails, auxiliary
+**Goal for 0.9.0 (scope simplified 2026-10-18, renumbered 2026-10-28):** a catalog of the file contents (photos, thumbnails, auxiliary
 images), reading and generating thumbnails, raw depth samples, Live Photo pair detection and, added 2026-10-18, the
 Apple portrait effect (disparity description and depth-of-field rendering) and, added 2026-10-19, Photos edits
-described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.12 (0.6.10: gain map writing, added 2026-10-23; 0.6.11: compatibility with PictureSharp 0.8.5, added 2026-10-26),
-followed by the integration release 0.7.0. Writing collections, HEIF animations, depth interpretation beyond Apple
-portrait disparity and Live Photo export are moved out of 0.7.0.
+described by hand and fitted from pairs, and Photographic Styles. Delivered in releases 0.6.1–0.6.11 (0.6.10: gain map writing, added 2026-10-23; 0.6.11: compatibility with PictureSharp 0.8.5, added 2026-10-26),
+0.7.0 (16-bit images for PictureSharp 0.9.0, added 2026-10-28) and 0.8.0 (styles), followed by the integration
+release 0.9.0. Renumbered 2026-10-28 at the user's request: the 16-bit work is 0.7.0, Photographic Styles and portrait
+styles move from 0.6.12 to 0.8.0, the integration release from 0.7.0 to 0.9.0. Writing collections, HEIF animations, depth interpretation beyond Apple
+portrait disparity and Live Photo export are moved out of 0.9.0.
 
 User decisions (2026-10-16): our own C# port of the HEVC intra decoder and encoder (not a libheif wrapper); a separate
 repository and package with its own SemVer starting at 0.1.0; dependency solely on the `PictureSharp` NuGet package.
@@ -49,15 +51,16 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.9 | Rendering API: `HeifEdits` (sliders, then Portrait blur) in one call; replaces `HeifPortrait`, `HeifPhotosEdit`, `RenderPortrait` (incompatible with 0.6.8) | 0.7.6 | Release 2026-10-21 |
 | 0.6.10 | Writing HDR gain maps: `tmap` item through the core's `GetGainMap`, `HeifEncoderOptions.GainMap` | 0.8.0 | Release 2026-10-23 |
 | 0.6.11 | PictureSharp 0.8.5: colour layout in `Identify`, `GainMapInfo`; Apple-only gain maps written as ISO 21496-1 | 0.8.5 | Release 2026-10-26 |
-| 0.6.12 | Photographic Styles changed in Photos: the styles item and hand-annotated style changes | 0.8.5 | Planned |
-| 0.7.0 | Integration, regressions, documentation and package for the whole scope | 0.8.0 (assumed) | Planned |
-| later | See "Beyond 0.7.0" | To be determined | Beyond 0.7.0 |
+| 0.7.0 | PictureSharp 0.9.0: 10-bit decoding to `Rgba64` (`PreserveBitDepth`), HEVC Main 10 encoding (`HeifBitDepth`), 16-bit gain maps | 0.9.0 | Ready for release preparation (2026-10-28); publish after PictureSharp 0.9.0 |
+| 0.8.0 | Photographic Styles changed in Photos (the styles item and hand-annotated style changes), portrait styles and lighting | 0.9.0 (assumed) | Planned |
+| 0.9.0 | Integration, regressions, documentation and package for the whole scope | 0.9.0 (assumed) | Planned |
+| later | See "Beyond 0.9.0" | To be determined | Beyond 0.9.0 |
 
 The numbers define order, not dates. Each version requires its own DoD (below) and the common quality gate; robustness
 tests (corrupt/truncated data, limits, cancellation) are written in the stage that adds the given path. Each version
 is published only on the user's decision.
 
-## Plan 0.6.1–0.7.0
+## Plan 0.6.1–0.9.0
 
 ### 0.6.1 — compressed XMP
 
@@ -515,10 +518,35 @@ a plugin that writes the attached map through the new SPI. Moved here from "Beyo
   libheif decodes the written files (base) and HM the map stream; modes, corrupt-free robustness of the new path;
   API snapshot, guide, README, release notes. Requires core 0.8.0 on NuGet before publication.
 
-### 0.6.11 — Photographic Styles
+### 0.7.0 — 16-bit images (PictureSharp 0.9.0)
 
-Renumbered from 0.6.9 on 2026-10-21 (the rendering API took 0.6.9) and from 0.6.10 on 2026-10-23 (gain map writing
-took 0.6.10). A style change becomes `HeifEdits.Style`, a stage between the sliders and the Portrait blur.
+Added 2026-10-28 (core 0.9.0 step 5; the core rejects plugins built against older versions).
+Status: implementation and local verification complete; publication waits for PictureSharp 0.9.0 and a separate request.
+Release functional tests (excluding Local/Measurement): 795/795 with Oracle, including 19 high-depth tests and HM
+8/10-bit YUV equality. 28 corpus files decode and encode byte-identically to HEAD on core 0.8.5. 8-bit timing:
+encode 1368/1398 -> 1383/1392 ms, allocations 33.6 MB unchanged; controlled 3 MP decode (CPU 0, tiering disabled)
+64/65 -> 64/64 ms, 76.4 MB unchanged. Raw data: docs/measurements/core-0.9.0-step5.json. Package 0.7.0 built locally
+with core >= 0.9.0, license and third-party notices. README, guides and release notes updated.
+
+- **Reading:** with `DecoderOptions.PreserveBitDepth`, colour or alpha coded with more than 8 bits decodes to `Rgba64`
+  (rounding at the source depth with the 8-bit path's formulas, then `round(v × 65535 / max)`); 8-bit files and the
+  default path unchanged; 16-bit pixels charged twice against `MaxPixels`; gain maps with more than 8 bits decode to
+  `Rgba64` (`GainMapImage(size, PixelType.Rgba64)`).
+- **Writing:** `HeifEncoderOptions.BitDepth` (`HeifBitDepth { Auto, UpTo8, Ten }`), HEVC Main 10 / Monochrome 10 (SPS
+  bit depth, profile, QP' = QP + 6 × (bitDepth − 8), HM lambda, SAO offsets and bands by depth), hvcC and `pixi` depth,
+  alpha and a re-encoded gain map at their own depth; `SupportsPixelType(Rgba64)`. Auto codes a 16-bit image with
+  10 bits unless every sample is an exact 8-bit value.
+- **Edits:** `HeifEdits` render 8-bit images: `ApplyHeifEdits` rejects `Rgba64`, `HeifDocument.Render` reads the
+  photograph and the matte at 8 bits.
+- **DoD:** 10-bit corpus equal to heif-dec at 10 bits; 8-bit decode and encode byte-for-byte unchanged and not slower;
+  10-bit files decoded by our decoder and libheif; API snapshot, docs, README, release notes; full test suite.
+  Publication after PictureSharp 0.9.0 on NuGet, on a separate user decision.
+
+### 0.8.0 — Photographic Styles and portrait styles
+
+Renumbered from 0.6.9 on 2026-10-21 (the rendering API took 0.6.9), from 0.6.10 on 2026-10-23 (gain map writing
+took 0.6.10) and from 0.6.12 to 0.8.0 on 2026-10-28 (the 16-bit work took 0.7.0; portrait styles and lighting, before
+"Beyond", join it at the user's request; their scope is still to be described). A style change becomes `HeifEdits.Style`, a stage between the sliders and the Portrait blur.
 
 Planned 2026-10-19 at the user's request (moved out of 0.6.7, renumbered from 0.6.8 when the edits moved). iOS 18
 and later let Photos change a photo's
@@ -546,14 +574,17 @@ edits, caused the colour shift of IMG_6854. Builds on the adjustment rendering a
   photo on every style-only pair (pooled and per pair); findings documented; tests, XML docs, guide, API snapshot (if
   the API changes). Publication on a separate user decision.
 
-### 0.7.0 — integration and closing the scope
+### 0.9.0 — integration and closing the scope
+
+Renumbered from 0.7.0 on 2026-10-28.
+
 
 - No new features: regression of the catalog, thumbnails, depth, portrait effect, HDR and Live Photo; a corpus with combinations of
   thumbnails, alpha, depth, gain maps and vendor auxiliary images; memory/time measurement of opening the catalog of
   large files.
 - 0.6.0 API compatibility, architecture, SIMD/scalar and thread-count determinism.
 - Validation of the NuGet package and examples; documentation of capabilities and limitations.
-- **DoD:** the 0.6.1–0.6.11 criteria met, documentation consistent with the package, no regressions. Only then update
+- **DoD:** the 0.6.1–0.8.0 criteria met, documentation consistent with the package, no regressions. Only then update
   VERSION and the status in the plan; publication on a separate user decision.
 
 ### Common assumptions and boundaries
@@ -564,16 +595,16 @@ edits, caused the colour shift of IMG_6854. Builds on the adjustment rendering a
   equivalent limits before allocation, despite having no core context.
 - Buffered input through `Stream` does not mean streaming of large files.
 
-### Beyond 0.7.0
+### Beyond 0.9.0
 
 - Writing collections of multiple photos (`HeifCollection`, primary selection, `ipma` > 127) — once a concrete need is
   reported.
 - HEIF sequences: reading/writing tracks — together with the HEVC P/B decoder (all-intra frames alone are rare).
 - Depth/disparity interpretation beyond the Apple portrait description (other vendors, metric depth, calibration,
-  conversions between depth and disparity); portrait lighting effects.
+  conversions between depth and disparity).
 - Live Photo: exporting/writing pairs, video decoding and editing.
 - Writing depth and arbitrary auxiliary images; user-supplied thumbnails;
-  editing without recompression; overlay, groups and regions; lossless mode, 4:4:4 and 10-bit in the encoder.
+  editing without recompression; overlay, groups and regions; lossless mode, 4:4:4 and 12-bit in the encoder.
 - Unscheduled: AVIF, new HEVC profiles, CICP PQ/HLG, files larger than the available buffers.
 
 ### Sources for the scope (review 2026-10-18)

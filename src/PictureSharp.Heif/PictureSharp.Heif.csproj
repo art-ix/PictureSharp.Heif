@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/art-ix/PictureSharp.Heif</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.6.10 writes HDR gain maps: HeifEncoderOptions.GainMap (HeifGainMapMode None, Preserve, Require) saves the map attached to the image as an ISO 21496-1 tmap item, as iPhones store it, from HEIC or Ultra HDR JPEG; unedited HEIC maps are copied, others encoded at GainMapQuality. Requires PictureSharp 0.8.0. The default output is unchanged. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.6.10/docs/releases/release-0.6.10.md</PackageReleaseNotes>
+    <PackageReleaseNotes>0.7.0 supports 16-bit images of PictureSharp 0.9.0: with DecoderOptions.PreserveBitDepth, HEIC coded with more than 8 bits (and such gain maps) decodes to Rgba64; HeifEncoderOptions.BitDepth (HeifBitDepth Auto, UpTo8, Ten) writes 16-bit images as HEVC Main 10. HeifEdits render 8-bit images. Requires PictureSharp 0.9.0. 8-bit output is unchanged. Notes: https://github.com/art-ix/PictureSharp.Heif/blob/v0.7.0/docs/releases/release-0.7.0.md</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

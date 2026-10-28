@@ -1,10 +1,10 @@
 # PictureSharp.Heif
 
 HEIC/HEIF support for [PictureSharp](https://github.com/art-ix/PictureSharp), written entirely in C# with no native
-libraries. Requires .NET 10+ and PictureSharp 0.8.5+.
+libraries. Requires .NET 10+ and PictureSharp 0.9.0+.
 
 ```bash
-dotnet add package PictureSharp.Heif
+dotnet add package PictureSharp.Heif --version 0.7.0
 ```
 
 ## Quick start
@@ -23,6 +23,17 @@ image.SaveAsHeic("small.heic", new HeifEncoderOptions { Quality = 60 });
 ```
 
 Rotation, crop, alpha, ICC, EXIF and XMP are applied when loading.
+
+## Keep deeper samples
+
+```csharp
+using Image photo = Image.Load("photo.heic", new DecoderOptions { PreserveBitDepth = true });
+photo.SaveAsHeic("edited.heic", new HeifEncoderOptions { BitDepth = HeifBitDepth.Ten });
+```
+
+Main 10 files load into 16-bit `Rgba64` storage. Saving uses up to 10-bit HEVC and remains lossy.
+Default loading stays 8-bit. [Version 0.7.0](https://github.com/art-ix/PictureSharp.Heif/blob/main/docs/releases/release-0.7.0.md)
+explains the depth options and Photos-edit limitations.
 
 ## iPhone photos
 
@@ -57,7 +68,7 @@ using Image edited = document.Render(photo, new HeifEdits
 | | |
 | --- | --- |
 | Read | HEVC Main, Main 10 and Main Still Picture (4:2:0, monochrome); grids, alpha, rotation/mirror/crop, ICC and nclx, EXIF/XMP, Apple and ISO gain maps, thumbnails, depth, Live Photo pairs |
-| Write | HEVC Main 8-bit 4:2:0; grids, alpha, ICC/EXIF/XMP, thumbnails, ISO gain maps |
+| Write | HEVC Main 8-bit and Main 10, 4:2:0 or monochrome; grids, alpha, ICC/EXIF/XMP, thumbnails, ISO gain maps |
 | Approximate | Portrait blur, the 15 Photos "Adjust" sliders |
 | Not supported | image sequences, 4:2:2/4:4:4, PQ/HLG, AVIF, writing depth, metadata editing, Portrait Lighting, Photos filters and crop, Live Photo export |
 

@@ -92,8 +92,19 @@ internal static class HeifPortraitSetup
 
     private static byte[] Red(Image matte)
     {
-        ReadOnlySpan<Rgba32> pixels = matte.GetPixelSpan();
-        var result = new byte[pixels.Length];
+        var result = new byte[matte.Width * matte.Height];
+        if (matte.PixelType == PixelType.Rgba64)
+        {
+            ReadOnlySpan<Rgba64> wide = matte.GetPixelSpan<Rgba64>();
+            for (int i = 0; i < wide.Length; i++)
+            {
+                result[i] = wide[i].ToRgba32().R;
+            }
+
+            return result;
+        }
+
+        ReadOnlySpan<Rgba32> pixels = matte.GetPixelSpan<Rgba32>();
         for (int i = 0; i < pixels.Length; i++)
         {
             result[i] = pixels[i].R;

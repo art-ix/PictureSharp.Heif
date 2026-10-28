@@ -142,7 +142,7 @@ public sealed class HeifThumbnailTests
             await Assert.That(uint.Parse(dimensions[0])).IsEqualTo(doc.PrimaryImage.Thumbnails.Single().Id);
             using Image preview = doc.LoadPreview(doc.PrimaryImage, new Size(maximum, maximum), DecodeOptions);
             await Assert.That(preview.Size).IsEqualTo(new Size(int.Parse(dimensions[1]), int.Parse(dimensions[2])));
-            byte[] actual = System.Runtime.InteropServices.MemoryMarshal.AsBytes(preview.GetPixelSpan()).ToArray();
+            byte[] actual = System.Runtime.InteropServices.MemoryMarshal.AsBytes(preview.GetPixelSpan<Rgba32>()).ToArray();
             byte[] referencePixels = File.ReadAllBytes(rgba);
 
             await Assert.That(actual.AsSpan().SequenceEqual(referencePixels)).IsTrue().Because("RGBA must match libheif exactly.");

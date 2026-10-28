@@ -120,7 +120,7 @@ public sealed class PortraitEngineeringTests
             foreach (int threads in new[] { 2, 3, -1 })
             {
                 using Image parallel = Render(photo, depth, matte, threads);
-                await Assert.That(single.GetPixelSpan().SequenceEqual(parallel.GetPixelSpan())).IsTrue()
+                await Assert.That(single.GetPixelSpan<Rgba32>().SequenceEqual(parallel.GetPixelSpan<Rgba32>())).IsTrue()
                     .Because($"{(night ? "night" : "day")}, {threads} threads");
             }
         }
@@ -145,7 +145,7 @@ public sealed class PortraitEngineeringTests
         }
 
         using Image again = Render(photo, depth, matte, threads: 2);
-        await Assert.That(again.GetPixelSpan().SequenceEqual(expected.GetPixelSpan())).IsTrue();
+        await Assert.That(again.GetPixelSpan<Rgba32>().SequenceEqual(expected.GetPixelSpan<Rgba32>())).IsTrue();
     }
 
     // These APIs round differently on different CPUs (Lerp and the *Estimate methods fuse to a multiply-add where FMA
@@ -181,7 +181,7 @@ public sealed class PortraitEngineeringTests
         var random = new Random(night ? 2 : 1);
         for (int y = 0; y < Height; y++)
         {
-            Span<Rgba32> row = image.GetRowSpan(y);
+            Span<Rgba32> row = image.GetRowSpan<Rgba32>(y);
             for (int x = 0; x < Width; x++)
             {
                 byte v = (byte)(20 + ((x * 7 + y * 13) % 23));
@@ -199,7 +199,7 @@ public sealed class PortraitEngineeringTests
             {
                 for (int x = cx; x < cx + size; x++)
                 {
-                    image.GetRowSpan(y)[x] = new Rgba32(value, value, (byte)(night ? 200 : value));
+                    image.GetRowSpan<Rgba32>(y)[x] = new Rgba32(value, value, (byte)(night ? 200 : value));
                 }
             }
         }

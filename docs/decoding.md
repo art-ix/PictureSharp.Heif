@@ -26,6 +26,20 @@ ImageMetadata metadata = Image.ReadMetadata("photo.heic");                 // IC
   behave as for built-in formats. Tiles decode in parallel up to `MaxDegreeOfParallelism`; the result never depends on
   it.
 
+## Sample precision
+
+The default output remains `Rgba32`. With `DecoderOptions.PreserveBitDepth = true`, an image whose colour or alpha
+has more than 8 bits returns `Rgba64`; 8-bit files still return `Rgba32`. Samples are rounded at their source depth,
+then scaled to 0–65535, preserving all source codes. A 16-bit output pixel counts twice against `MaxPixels`.
+Gain maps coded above 8 bits also keep their precision when attached for `ToHdr`.
+
+```csharp
+using Image photo = Image.Load("photo.heic", new DecoderOptions { PreserveBitDepth = true });
+```
+
+`HeifEdits` supports 8-bit rendering: convert a 16-bit image with `ConvertPixelType(PixelType.Rgba32)` before
+`ApplyHeifEdits`. `HeifDocument.Render` loads the photograph and portrait matte at 8 bits.
+
 ## Embedded previews
 
 `Image.Load` with `TargetSize` decodes the whole photo first. `LoadPreview` uses an embedded thumbnail when one is

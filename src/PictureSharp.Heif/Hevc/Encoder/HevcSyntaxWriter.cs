@@ -12,9 +12,12 @@ internal static class HevcSyntaxWriter
 
     private static ReadOnlySpan<byte> ContextIndexMap4x4 => [0, 1, 4, 5, 2, 3, 4, 5, 6, 6, 8, 8, 7, 7, 8, 8];
 
-    // 7.3.8.3 sao (port: HM TEncSbac::codeSAOBlkParam, codeSaoMaxUvlc, codeSaoTypeIdx) for 8-bit samples.
+    // The largest SAO offset magnitude (cMax of sao_offset_abs) at a bit depth.
+    public static int SaoMaxOffset(int bitDepth) => (1 << (Math.Min(bitDepth, 10) - 5)) - 1;
+
+    // 7.3.8.3 sao (port: HM TEncSbac::codeSAOBlkParam, codeSaoMaxUvlc, codeSaoTypeIdx).
     public static void Sao(HevcCabacWriter writer, Span<byte> contexts, in HevcSaoParameters sao, bool leftAvailable,
-        bool upAvailable, int components)
+        bool upAvailable, int components, int bitDepth = 8)
     {
         if (leftAvailable)
         {
@@ -51,7 +54,7 @@ internal static class HevcSyntaxWriter
                 continue;
             }
 
-            const int maximum = 7;
+            int maximum = SaoMaxOffset(bitDepth);
             for (int i = 0; i < 4; i++)
             {
                 int magnitude = Math.Abs(sao.Offset(c, i));

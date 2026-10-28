@@ -56,6 +56,10 @@ PictureSharp.Formats.Heif.HeifAuxiliaryKind
   PictureSharp.Formats.Heif.HeifAuxiliaryKind Disparity = 3
   PictureSharp.Formats.Heif.HeifAuxiliaryKind GainMap = 4
   PictureSharp.Formats.Heif.HeifAuxiliaryKind Other = 0
+PictureSharp.Formats.Heif.HeifBitDepth
+  PictureSharp.Formats.Heif.HeifBitDepth Auto = 0
+  PictureSharp.Formats.Heif.HeifBitDepth Ten = 2
+  PictureSharp.Formats.Heif.HeifBitDepth UpTo8 = 1
 PictureSharp.Formats.Heif.HeifDecoderOptions
   Boolean Equals(PictureSharp.Formats.FormatDecoderOptions)
   Boolean Equals(PictureSharp.Formats.Heif.HeifDecoderOptions)
@@ -165,6 +169,8 @@ PictureSharp.Formats.Heif.HeifEncoderOptions
   Int32 get_Quality()
   Int32 get_ThumbnailMaxDimension()
   Int32 get_TileSize()
+  PictureSharp.Formats.Heif.HeifBitDepth BitDepth
+  PictureSharp.Formats.Heif.HeifBitDepth get_BitDepth()
   PictureSharp.Formats.Heif.HeifEncoderOptions <Clone>$()
   PictureSharp.Formats.Heif.HeifGainMapMode GainMap
   PictureSharp.Formats.Heif.HeifGainMapMode get_GainMap()
@@ -178,6 +184,7 @@ PictureSharp.Formats.Heif.HeifEncoderOptions
   Void .ctor()
   Void set_AdaptiveQuantizationStrength(Single)
   Void set_AlphaQuality(System.Nullable`1[System.Int32])
+  Void set_BitDepth(PictureSharp.Formats.Heif.HeifBitDepth)
   Void set_GainMap(PictureSharp.Formats.Heif.HeifGainMapMode)
   Void set_GainMapQuality(Int32)
   Void set_MaxDegreeOfParallelism(Int32)

@@ -154,7 +154,7 @@ public sealed class HeifGainMapLocalTests
                 using Image after = actual.Map.Decode(-1, default);
                 await Assert.That((after.Width, after.Height)).IsEqualTo((before.Width, before.Height)).Because(name);
                 int worst = 0;
-                Span<Rgba32> a = before.GetPixelSpan(), b = after.GetPixelSpan();
+                Span<Rgba32> a = before.GetPixelSpan<Rgba32>(), b = after.GetPixelSpan<Rgba32>();
                 for (int i = 0; i < a.Length; i++)
                 {
                     worst = Math.Max(worst, Math.Max(Math.Abs(a[i].R - b[i].R), Math.Max(Math.Abs(a[i].G - b[i].G), Math.Abs(a[i].B - b[i].B))));

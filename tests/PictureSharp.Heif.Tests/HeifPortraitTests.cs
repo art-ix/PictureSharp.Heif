@@ -183,7 +183,7 @@ public sealed class HeifPortraitTests
         bool matches = true;
         for (int i = 0; i < samples.Length; i++)
         {
-            Rgba32 p = image.GetPixelSpan()[i];
+            Rgba32 p = image.GetPixelSpan<Rgba32>()[i];
             matches &= p.R == samples[i] && p.G == samples[i] && p.B == samples[i] && p.A == 255;
         }
 
@@ -424,7 +424,7 @@ public sealed class HeifPortraitTests
     {
         for (int y = area.Top; y < area.Bottom; y++)
         {
-            if (!a.GetRowSpan(y).Slice(area.Left, area.Width).SequenceEqual(b.GetRowSpan(y).Slice(area.Left, area.Width)))
+            if (!a.GetRowSpan<Rgba32>(y).Slice(area.Left, area.Width).SequenceEqual(b.GetRowSpan<Rgba32>(y).Slice(area.Left, area.Width)))
             {
                 return false;
             }
@@ -496,7 +496,7 @@ public sealed class HeifPortraitTests
             var image = new Image(width, height);
             for (int y = 0; y < height; y++)
             {
-                Span<Rgba32> row = image.GetRowSpan(y);
+                Span<Rgba32> row = image.GetRowSpan<Rgba32>(y);
                 for (int x = 0; x < width; x++)
                 {
                     // Fine stripes and a checkerboard carry high frequencies everywhere.
@@ -514,7 +514,7 @@ public sealed class HeifPortraitTests
             var image = new Image(width, height);
             for (int y = 0; y < height; y++)
             {
-                Span<Rgba32> row = image.GetRowSpan(y);
+                Span<Rgba32> row = image.GetRowSpan<Rgba32>(y);
                 for (int x = 0; x < width; x++)
                 {
                     byte v = valueAt((x + 0.5) / width, (y + 0.5) / height);

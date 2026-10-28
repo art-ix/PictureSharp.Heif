@@ -43,7 +43,7 @@ internal static class PortraitRadiusMeasurements
                 using Image full = doc.LoadImage(doc.PrimaryImage, HeifPortraitAuditTests.Decode);
                 using Image reduced = Reduce(full);
                 PortraitMetrics.CheckSize(photo, reduced);
-                references.Add((pair, reduced.GetPixelSpan().ToArray(), new double[tiles.Length * Radii.Length]));
+                references.Add((pair, reduced.GetPixelSpan<Rgba32>().ToArray(), new double[tiles.Length * Radii.Length]));
             }
 
             var probe = new PortraitDiscProbe(photo);
