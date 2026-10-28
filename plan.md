@@ -51,7 +51,7 @@ Working rules: [AGENTS.md](AGENTS.md). Local work log: `progres.md` (not committ
 | 0.6.9 | Rendering API: `HeifEdits` (sliders, then Portrait blur) in one call; replaces `HeifPortrait`, `HeifPhotosEdit`, `RenderPortrait` (incompatible with 0.6.8) | 0.7.6 | Release 2026-10-21 |
 | 0.6.10 | Writing HDR gain maps: `tmap` item through the core's `GetGainMap`, `HeifEncoderOptions.GainMap` | 0.8.0 | Release 2026-10-23 |
 | 0.6.11 | PictureSharp 0.8.5: colour layout in `Identify`, `GainMapInfo`; Apple-only gain maps written as ISO 21496-1 | 0.8.5 | Release 2026-10-26 |
-| 0.7.0 | PictureSharp 0.9.0: 10-bit decoding to `Rgba64` (`PreserveBitDepth`), HEVC Main 10 encoding (`HeifBitDepth`), 16-bit gain maps | 0.9.0 | Ready for release preparation (2026-10-28); publish after PictureSharp 0.9.0 |
+| 0.7.0 | PictureSharp 0.9.0: 10-bit decoding to `Rgba64` (`PreserveBitDepth`), HEVC Main 10 encoding (`HeifBitDepth`), 16-bit gain maps | 0.9.0 | Prepared on main (2026-10-28); publish after PictureSharp 0.9.0 |
 | 0.8.0 | Photographic Styles changed in Photos (the styles item and hand-annotated style changes), portrait styles and lighting | 0.9.0 (assumed) | Planned |
 | 0.9.0 | Integration, regressions, documentation and package for the whole scope | 0.9.0 (assumed) | Planned |
 | later | See "Beyond 0.9.0" | To be determined | Beyond 0.9.0 |
